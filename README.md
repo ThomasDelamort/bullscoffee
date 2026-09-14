@@ -2,5 +2,5 @@
 
 Contemplating wether the backend would be either express or ASP.net
 
-EXPRESS 
+EXPRESS when tho? 
 About to start soon let's start tomorrow
