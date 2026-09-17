@@ -2,15 +2,20 @@ import type { Request, Response } from "express";
 import { createManager } from "../providers/manager.provider.ts";
 
 export async function createManagerHandler(req: Request, res: Response) {
-  const { first_name, last_name, manager_email, contact_number, manager_status } =
-    req.body;
+  const {
+    first_name,
+    last_name,
+    employee_email,
+    contact_number,
+    employee_status,
+  } = req.body;
 
   if (
     !first_name ||
     !last_name ||
-    !manager_email ||
+    !employee_email ||
     !contact_number ||
-    !manager_status
+    !employee_status
   ) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -19,9 +24,9 @@ export async function createManagerHandler(req: Request, res: Response) {
     const manager = await createManager({
       first_name,
       last_name,
-      manager_email,
+      employee_email,
       contact_number,
-      manager_status,
+      employee_status,
     });
 
     return res.status(201).json(manager);

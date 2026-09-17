@@ -1,17 +1,17 @@
 export interface Manager {
-  manager_id: number;
+  employee_id: number;
   first_name: string;
   last_name: string;
-  manager_email: string;
-  contact_number: string;
-  manager_status: string;
+  employee_email: string;
+  contact_number: string | null;
+  employee_status: string;
   created_at: string;
 }
 
 export interface CreateManagerInput {
   first_name: string;
   last_name: string;
-  manager_email: string;
+  employee_email: string;
   contact_number: string;
-  manager_status: string;
+  employee_status: string;
 }

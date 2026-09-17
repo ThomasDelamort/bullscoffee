@@ -1,5 +1,5 @@
 import { pool } from "../schema/db.ts";
-import type { CreateManagerInput } from "../types/manager.type.ts";
+import type { CreateManagerInput, Manager } from "../types/manager.type.ts";
 
 export async function createManager(
   input: CreateManagerInput,
@@ -7,29 +7,52 @@ export async function createManager(
   const {
     first_name,
     last_name,
-    manager_email,
+    employee_email,
     contact_number,
-    manager_status,
+    employee_status,
   } = input;
 
-  const { rows } = await pool.query<Manager>(
-    `INSERT INTO managers (first_name, last_name, manager_email, contact_number, manager_status)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [first_name, last_name, manager_email, contact_number, manager_status],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  const manager = rows[0];
-  if (!manager) {
-    throw new Error("Failed to create manager");
+    const { rows: employeeRows } = await client.query(
+      `INSERT INTO employees (first_name, last_name, employee_email, contact_number, employee_status)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [first_name, last_name, employee_email, contact_number, employee_status],
+    );
+    const employee = employeeRows[0];
+    if (!employee) {
+      throw new Error("Failed to create employee");
+    }
+
+    const { rows: managerRows } = await client.query(
+      `INSERT INTO managers (employee_id)
+       VALUES ($1)
+       RETURNING *`,
+      [employee["employee_id"]],
+    );
+    if (!managerRows[0]) {
+      throw new Error("Failed to create manager");
+    }
+
+    await client.query("COMMIT");
+    return employee as Manager;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
-
-  return manager;
 }
 
 export async function getManagerById(id: number): Promise<Manager | null> {
   const { rows } = await pool.query<Manager>(
-    "SELECT * FROM managers WHERE manager_id = $1",
+    `SELECT e.*
+     FROM managers m
+     JOIN employees e ON e.employee_id = m.employee_id
+     WHERE m.employee_id = $1`,
     [id],
   );
   return rows[0] ?? null;
