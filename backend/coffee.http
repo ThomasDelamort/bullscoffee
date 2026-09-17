@@ -1,0 +1,11 @@
+POST http://localhost:3000/create-manager
+Content-Type: application/json
+
+{
+    "first_name": "Abner",
+    "last_name": "Penig",
+    "manager_email": "Penig@gmail.com",
+    "contact_number": "09457331226",
+    "manager_id": "2025-11760433",
+    "manager_status": "married"
+}
