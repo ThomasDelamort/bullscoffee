@@ -1,174 +1,176 @@
 erDiagram
-	direction TB
+    direction TB
 
-	classDef purpleBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
-	classDef pinkBox fill:#f9d5e5,stroke:#c2185b,color:#1a1a1a
-	classDef cyanBox fill:#d0f0f7,stroke:#00838f,color:#1a1a1a
-	classDef orangeBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
-	classDef greenBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
-	classDef lightBlueBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
-	classDef redBox fill:#fbdada,stroke:#c62828,color:#1a1a1a
-	classDef yellowBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
-	classDef tealBox fill:#c8f0e8,stroke:#00695c,color:#1a1a1a
-	classDef grayBox fill:#e6e6e6,stroke:#424242,color:#1a1a1a
+    classDef purpleBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef pinkBox fill:#f9d5e5,stroke:#c2185b,color:#1a1a1a
+    classDef cyanBox fill:#d0f0f7,stroke:#00838f,color:#1a1a1a
+    classDef orangeBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+    classDef greenBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+    classDef lightBlueBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
+    classDef redBox fill:#fbdada,stroke:#c62828,color:#1a1a1a
+    classDef yellowBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
+    classDef tealBox fill:#c8f0e8,stroke:#00695c,color:#1a1a1a
+    classDef grayBox fill:#e6e6e6,stroke:#424242,color:#1a1a1a
 
-	EMPLOYEES {
-		int employee_id PK "AUTO_INCREMENT"
-		varchar(50) first_name "NOT NULL"
-		varchar(50) last_name "NOT NULL"
-		varchar(100) employee_email "NOT NULL, UNIQUE"
-		varchar(20) contact_number "NULLABLE"
-		enum employee_status "NOT NULL, DEFAULT 'active'"
-		timestamptz created_at "NOT NULL, DEFAULT now()"
-	}
+    EMPLOYEES {
+        int employee_id PK "AUTO_INCREMENT"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(100) employee_email "NOT NULL, UNIQUE"
+        varchar(20) contact_number "NULLABLE"
+        enum employee_status "NOT NULL, DEFAULT 'active'"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
 
-	MANAGERS {
-		int employee_id PK,FK "ON DELETE CASCADE"
-	}
+    MANAGERS {
+        int employee_id PK,FK "ON DELETE CASCADE"
+        decimal_10_2 approval_limit "NOT NULL, DEFAULT 500.00"
+        varchar(10) override_pin "NOT NULL"
+    }
 
-	CASHIERS {
-		int employee_id PK,FK "ON DELETE CASCADE"
-		int manager_id FK "NOT NULL"
-		varchar(50) work_schedule "NOT NULL"
-	}
+    CASHIERS {
+        int employee_id PK,FK "ON DELETE CASCADE"
+        int manager_id FK "NOT NULL"
+        varchar(50) work_schedule "NOT NULL"
+    }
 
-	INVENTORY_STAFF {
-		int employee_id PK,FK "ON DELETE CASCADE"
-		int manager_id FK "NOT NULL"
-		varchar(50) work_schedule "NOT NULL"
-	}
+    INVENTORY_STAFF {
+        int employee_id PK,FK "ON DELETE CASCADE"
+        int manager_id FK "NOT NULL"
+        varchar(50) work_schedule "NOT NULL"
+    }
 
-	CUSTOMERS {
-		int customer_id PK "AUTO_INCREMENT"
-		varchar(50) first_name "NOT NULL"
-		varchar(50) last_name "NOT NULL"
-		varchar(50) university_id "UNIQUE, NULLABLE"
-		varchar(100) customer_email "NOT NULL, UNIQUE"
-		varchar(20) contact_number "NULLABLE"
-		timestamptz created_at "NOT NULL, DEFAULT now()"
-	}
+    CUSTOMERS {
+        int customer_id PK "AUTO_INCREMENT"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(50) university_id "UNIQUE, NULLABLE"
+        varchar(100) customer_email "NOT NULL, UNIQUE"
+        varchar(20) contact_number "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
 
-	PRODUCTS {
-		int product_id PK "AUTO_INCREMENT"
-		varchar(100) product_name "NOT NULL"
-		text description "NULLABLE"
-		decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
-		varchar(50) category "NOT NULL"
-		boolean is_available "NOT NULL, DEFAULT TRUE"
-		timestamptz created_at "NOT NULL, DEFAULT now()"
-	}
+    PRODUCTS {
+        int product_id PK "AUTO_INCREMENT"
+        varchar(100) product_name "NOT NULL"
+        text description "NULLABLE"
+        decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
+        varchar(50) category "NOT NULL"
+        boolean is_available "NOT NULL, DEFAULT TRUE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
 
-	INGREDIENTS {
-		int ingredient_id PK "AUTO_INCREMENT"
-		varchar(100) ingredient_name "NOT NULL"
-		varchar(20) unit_of_measure "NOT NULL"
-		decimal_10_2 current_quantity "NOT NULL, DEFAULT 0.00"
-		decimal_10_2 minimum_stock_level "NOT NULL, DEFAULT 0.00"
-	}
+    INGREDIENTS {
+        int ingredient_id PK "AUTO_INCREMENT"
+        varchar(100) ingredient_name "NOT NULL"
+        varchar(20) unit_of_measure "NOT NULL"
+        decimal_10_2 current_quantity "NOT NULL, DEFAULT 0.00"
+        decimal_10_2 minimum_stock_level "NOT NULL, DEFAULT 0.00"
+    }
 
-	PRODUCT_INGREDIENTS {
-		int product_id PK,FK "ON DELETE CASCADE"
-		int ingredient_id PK,FK "ON DELETE CASCADE"
-		decimal_10_2 quantity_required "NOT NULL, CHECK (quantity_required > 0)"
-	}
+    PRODUCT_INGREDIENTS {
+        int product_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK "ON DELETE CASCADE"
+        decimal_10_2 quantity_required "NOT NULL, CHECK (quantity_required > 0)"
+    }
 
-	SUPPLIERS {
-		int supplier_id PK "AUTO_INCREMENT"
-		varchar(100) supplier_name "NOT NULL"
-		varchar(50) contact_person "NULLABLE"
-		varchar(20) contact_number "NOT NULL"
-		varchar(100) supplier_email "NULLABLE"
-		varchar(150) address "NULLABLE"
-		timestamptz created_at "NOT NULL, DEFAULT now()"
-	}
+    SUPPLIERS {
+        int supplier_id PK "AUTO_INCREMENT"
+        varchar(100) supplier_name "NOT NULL"
+        varchar(50) contact_person "NULLABLE"
+        varchar(20) contact_number "NOT NULL"
+        varchar(100) supplier_email "NULLABLE"
+        varchar(150) address "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
 
-	SUPPLIER_INGREDIENTS {
-		int supplier_id PK,FK "ON DELETE CASCADE"
-		int ingredient_id PK,FK "ON DELETE CASCADE"
-		decimal_10_2 unit_price "NOT NULL, CHECK (unit_price >= 0)"
-	}
+    SUPPLIER_INGREDIENTS {
+        int supplier_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK "ON DELETE CASCADE"
+        decimal_10_2 unit_price "NOT NULL, CHECK (unit_price >= 0)"
+    }
 
-	DELIVERIES {
-		int delivery_id PK "AUTO_INCREMENT"
-		int supplier_id FK "NOT NULL"
-		int received_by FK "NOT NULL"
-		date delivery_date "NOT NULL"
-	}
+    DELIVERIES {
+        int delivery_id PK "AUTO_INCREMENT"
+        int supplier_id FK "NOT NULL"
+        int received_by FK "NOT NULL"
+        date delivery_date "NOT NULL"
+    }
 
-	DELIVERY_ITEMS {
-		int delivery_id PK,FK "ON DELETE CASCADE"
-		int ingredient_id PK,FK "ON DELETE CASCADE"
-		decimal_10_2 quantity_received "NOT NULL, CHECK (quantity_received > 0)"
-		decimal_10_2 unit_cost "NOT NULL, CHECK (unit_cost >= 0)"
-	}
+    DELIVERY_ITEMS {
+        int delivery_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK "ON DELETE CASCADE"
+        decimal_10_2 quantity_received "NOT NULL, CHECK (quantity_received > 0)"
+        decimal_10_2 unit_cost "NOT NULL, CHECK (unit_cost >= 0)"
+    }
 
-	ORDERS {
-		int order_id PK "AUTO_INCREMENT"
-		int customer_id FK "NOT NULL"
-		int cashier_id FK "NOT NULL"
-		date order_date "NOT NULL"
-		time order_time "NOT NULL"
-		decimal_10_2 total_amount "NOT NULL, DEFAULT 0.00"
-		varchar(20) order_status "NOT NULL, DEFAULT 'pending'"
-	}
+    ORDERS {
+        int order_id PK "AUTO_INCREMENT"
+        int customer_id FK "NOT NULL"
+        int cashier_id FK "NOT NULL"
+        date order_date "NOT NULL"
+        time order_time "NOT NULL"
+        decimal_10_2 total_amount "NOT NULL, DEFAULT 0.00"
+        varchar(20) order_status "NOT NULL, DEFAULT 'pending'"
+    }
 
-	ORDER_ITEMS {
-		int order_item_id PK "AUTO_INCREMENT"
-		int order_id FK "NOT NULL"
-		int product_id FK "NOT NULL"
-		int quantity "NOT NULL, CHECK (quantity > 0)"
-		decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
-	}
+    ORDER_ITEMS {
+        int order_item_id PK "AUTO_INCREMENT"
+        int order_id FK "NOT NULL"
+        int product_id FK "NOT NULL"
+        int quantity "NOT NULL, CHECK (quantity > 0)"
+        decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
+    }
 
-	PAYMENTS {
-		int order_id PK,FK "ON DELETE CASCADE"
-		timestamptz payment_date "NOT NULL"
-		decimal_10_2 amount_paid "NOT NULL, CHECK (amount_paid >= 0)"
-		enum payment_method "NOT NULL"
-		timestamptz created_at "NOT NULL, DEFAULT now()"
-	}
+    PAYMENTS {
+        int order_id PK,FK "ON DELETE CASCADE"
+        timestamptz payment_date "NOT NULL"
+        decimal_10_2 amount_paid "NOT NULL, CHECK (amount_paid >= 0)"
+        enum payment_method "NOT NULL"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
 
-	LOGS {
-		int log_id PK "AUTO_INCREMENT"
-		int employee_id FK "NOT NULL"
-		timestamp time_in "NOT NULL"
-		timestamp time_out "NULLABLE"
-	}
+    LOGS {
+        int log_id PK "AUTO_INCREMENT"
+        int employee_id FK "NOT NULL"
+        timestamp time_in "NOT NULL"
+        timestamp time_out "NULLABLE"
+    }
 
-	EMPLOYEES ||--o| MANAGERS:"is a"
-	EMPLOYEES ||--o| CASHIERS:"is a"
-	EMPLOYEES ||--o| INVENTORY_STAFF:"is a"
-	EMPLOYEES ||--o{ LOGS:"records"
-	MANAGERS||--o{CASHIERS:"manages"
-	MANAGERS||--o{INVENTORY_STAFF:"manages"
-	CUSTOMERS||--o{ORDERS:"places"
-	CASHIERS||--o{ORDERS:"processes"
-	ORDERS||--|{ORDER_ITEMS:"includes"
-	PRODUCTS||--o{ORDER_ITEMS:"appears in"
-	ORDERS||--o|PAYMENTS:"paid via"
+    EMPLOYEES ||--o| MANAGERS : "is a"
+    EMPLOYEES ||--o| CASHIERS : "is a"
+    EMPLOYEES ||--o| INVENTORY_STAFF : "is a"
+    EMPLOYEES ||--o{ LOGS : "records"
+    MANAGERS ||--o{ CASHIERS : "manages"
+    MANAGERS ||--o{ INVENTORY_STAFF : "manages"
+    CUSTOMERS ||--o{ ORDERS : "places"
+    CASHIERS ||--o{ ORDERS : "processes"
+    ORDERS ||--|{ ORDER_ITEMS : "includes"
+    PRODUCTS ||--o{ ORDER_ITEMS : "appears in"
+    ORDERS ||--o| PAYMENTS : "paid via"
 
-	PRODUCTS||--|{PRODUCT_INGREDIENTS:"has"
-	INGREDIENTS||--o{PRODUCT_INGREDIENTS:"used in"
-	SUPPLIERS||--o{SUPPLIER_INGREDIENTS:"supplies"
-	INGREDIENTS||--o{SUPPLIER_INGREDIENTS:"supplied by"
-	SUPPLIERS||--o{DELIVERIES:"delivers"
-	INVENTORY_STAFF||--o{DELIVERIES:"receives"
-	DELIVERIES||--|{DELIVERY_ITEMS:"contains"
-	INGREDIENTS||--o{DELIVERY_ITEMS:"restocks"
+    PRODUCTS ||--|{ PRODUCT_INGREDIENTS : "has"
+    INGREDIENTS ||--o{ PRODUCT_INGREDIENTS : "used in"
+    SUPPLIERS ||--o{ SUPPLIER_INGREDIENTS : "supplies"
+    INGREDIENTS ||--o{ SUPPLIER_INGREDIENTS : "supplied by"
+    SUPPLIERS ||--o{ DELIVERIES : "delivers"
+    INVENTORY_STAFF ||--o{ DELIVERIES : "receives"
+    DELIVERIES ||--|{ DELIVERY_ITEMS : "contains"
+    INGREDIENTS ||--o{ DELIVERY_ITEMS : "restocks"
 
-	EMPLOYEES:::purpleBox
-	MANAGERS:::pinkBox
-	CASHIERS:::cyanBox
-	INVENTORY_STAFF:::orangeBox
-	CUSTOMERS:::greenBox
-	PRODUCTS:::lightBlueBox
-	INGREDIENTS:::cyanBox
-	PRODUCT_INGREDIENTS:::greenBox
-	SUPPLIERS:::tealBox
-	SUPPLIER_INGREDIENTS:::redBox
-	DELIVERIES:::pinkBox
-	DELIVERY_ITEMS:::pinkBox
-	ORDERS:::lightBlueBox
-	ORDER_ITEMS:::yellowBox
-	PAYMENTS:::redBox
-	LOGS:::grayBox
+    EMPLOYEES:::purpleBox
+    MANAGERS:::pinkBox
+    CASHIERS:::cyanBox
+    INVENTORY_STAFF:::orangeBox
+    CUSTOMERS:::greenBox
+    PRODUCTS:::lightBlueBox
+    INGREDIENTS:::cyanBox
+    PRODUCT_INGREDIENTS:::greenBox
+    SUPPLIERS:::tealBox
+    SUPPLIER_INGREDIENTS:::redBox
+    DELIVERIES:::pinkBox
+    DELIVERY_ITEMS:::pinkBox
+    ORDERS:::lightBlueBox
+    ORDER_ITEMS:::yellowBox
+    PAYMENTS:::redBox
+    LOGS:::grayBox
