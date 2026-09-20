@@ -22,3 +22,7 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# HTTPYAC
+create.http
+read.http
