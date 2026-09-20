@@ -1,0 +1,10 @@
+POST http://localhost:3000/create-manager
+Content-Type: application/json
+
+{
+    "first_name": "Devann Derreck",
+    "last_name": "Villarin",
+    "employee_email": "Villarin@gmail.com",
+    "contact_number": "09457331226",
+    "employee_status": "active"
+}
