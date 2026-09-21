@@ -47,6 +47,15 @@ export async function createManager(
   }
 }
 
+export async function getAllManagers(): Promise<Manager[]> {
+  const { rows } = await pool.query<Manager>(
+    `SELECT e.*
+     FROM managers m
+     JOIN employees e ON e.employee_id = m.employee_id`,
+  );
+  return rows;
+}
+
 export async function getManagerById(id: number): Promise<Manager | null> {
   const { rows } = await pool.query<Manager>(
     `SELECT e.*
