@@ -8,6 +8,8 @@ export async function createManagerHandler(req: Request, res: Response) {
     employee_email,
     contact_number,
     employee_status,
+    work_schedule,
+    approval_limit,
   } = req.body;
 
   if (
@@ -15,7 +17,8 @@ export async function createManagerHandler(req: Request, res: Response) {
     !last_name ||
     !employee_email ||
     !contact_number ||
-    !employee_status
+    !employee_status ||
+    !work_schedule
   ) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -27,6 +30,8 @@ export async function createManagerHandler(req: Request, res: Response) {
       employee_email,
       contact_number,
       employee_status,
+      work_schedule,
+      approval_limit,
     });
 
     return res.status(201).json(manager);

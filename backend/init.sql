@@ -1,3 +1,7 @@
+DO $$ BEGIN CREATE TYPE employee_role AS ENUM ('manager', 'cashier', 'inventory');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
 DO $$ BEGIN CREATE TYPE employee_status AS ENUM ('active', 'inactive');
 EXCEPTION
 WHEN duplicate_object THEN null;
@@ -12,22 +16,37 @@ CREATE TABLE IF NOT EXISTS employees (
     last_name VARCHAR(50) NOT NULL,
     employee_email VARCHAR(100) NOT NULL UNIQUE,
     contact_number VARCHAR(20),
+    employee_role employee_role NOT NULL,
     employee_status employee_status NOT NULL DEFAULT 'active',
+    work_schedule VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS managers (
-    employee_id INT PRIMARY KEY REFERENCES employees(employee_id) ON DELETE CASCADE
+    employee_id INT PRIMARY KEY REFERENCES employees(employee_id) ON DELETE CASCADE,
+    approval_limit DECIMAL(10, 2) NOT NULL DEFAULT 500.00 CHECK (approval_limit >= 0)
 );
 CREATE TABLE IF NOT EXISTS cashiers (
     employee_id INT PRIMARY KEY REFERENCES employees(employee_id) ON DELETE CASCADE,
-    manager_id INT NOT NULL REFERENCES managers(employee_id),
-    work_schedule VARCHAR(50) NOT NULL
+    manager_id INT NOT NULL REFERENCES managers(employee_id)
 );
 CREATE TABLE IF NOT EXISTS inventory_staff (
     employee_id INT PRIMARY KEY REFERENCES employees(employee_id) ON DELETE CASCADE,
-    manager_id INT NOT NULL REFERENCES managers(employee_id),
-    work_schedule VARCHAR(50) NOT NULL
+    manager_id INT NOT NULL REFERENCES managers(employee_id)
 );
+
+-- Backfill columns added to pre-existing tables (CREATE TABLE IF NOT EXISTS above
+-- does not alter tables that already exist).
+ALTER TABLE managers ADD COLUMN IF NOT EXISTS approval_limit DECIMAL(10, 2) NOT NULL DEFAULT 500.00 CHECK (approval_limit >= 0);
+
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS employee_role employee_role;
+UPDATE employees SET employee_role = 'manager' WHERE employee_role IS NULL AND employee_id IN (SELECT employee_id FROM managers);
+UPDATE employees SET employee_role = 'cashier' WHERE employee_role IS NULL AND employee_id IN (SELECT employee_id FROM cashiers);
+UPDATE employees SET employee_role = 'inventory' WHERE employee_role IS NULL AND employee_id IN (SELECT employee_id FROM inventory_staff);
+ALTER TABLE employees ALTER COLUMN employee_role SET NOT NULL;
+
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS work_schedule VARCHAR(50) NOT NULL DEFAULT 'unspecified';
+ALTER TABLE employees ALTER COLUMN work_schedule DROP DEFAULT;
+
 CREATE TABLE IF NOT EXISTS customers (
     customer_id SERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,

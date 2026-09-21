@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (_req: Request, res: Response) => {
-  return res.status(201).json({ server: "Welcome to Bull's Coffee!" });
+  return res.status(200).json({ server: "Welcome to Bull's Coffee!" });
 });
 
 app.get("/health-check", (_req: Request, res: Response) => {
