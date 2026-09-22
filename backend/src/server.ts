@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import type { Request, Response } from "express";
-import managerRoutes from "./routes/manager.route.ts";
 import { runInitSql } from "./schema/init.ts";
 
 const app = express();
@@ -18,8 +17,6 @@ app.get("/", (_req: Request, res: Response) => {
 app.get("/health-check", (_req: Request, res: Response) => {
   return res.status(200).json({ server: "Server is running!" });
 });
-// Routes
-app.use(managerRoutes);
 
 async function startServer() {
   try {
