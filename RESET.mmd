@@ -17,37 +17,23 @@ erDiagram
 
     %% ============================ STAFF ============================
 
-    %% Cashiers also cover the inventory role: they process orders AND monitor stock/deliveries
-    MANAGERS {
-        int manager_id PK "IDENTITY"
+    %% Managers and cashiers merged into one role-based entity
+    EMPLOYEES {
+        int employee_id PK "IDENTITY"
         varchar(50) first_name "NOT NULL"
         varchar(50) last_name "NOT NULL"
-        varchar(100) manager_email UK "NOT NULL"
+        varchar(100) employee_email UK "NOT NULL"
         varchar(20) contact_number "NULLABLE"
-        enum manager_status "NOT NULL, DEFAULT 'active' (active / inactive)"
-        varchar(50) work_schedule "NOT NULL"
-        decimal_10_2 approval_limit "NOT NULL, DEFAULT 500.00, CHECK (approval_limit >= 0)"
-        timestamptz created_at "NOT NULL, DEFAULT now()"
-    }
-
-    CASHIERS {
-        int cashier_id PK "IDENTITY"
-        int manager_id FK "NOT NULL"
-        varchar(50) first_name "NOT NULL"
-        varchar(50) last_name "NOT NULL"
-        varchar(100) cashier_email UK "NOT NULL"
-        varchar(20) contact_number "NULLABLE"
-        enum cashier_status "NOT NULL, DEFAULT 'active' (active / inactive)"
+        enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
+        enum employee_role "NOT NULL, DEFAULT 'cashier' (cashier / manager)"
         varchar(50) work_schedule "NOT NULL"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }
 
     %% CHECK (time_out IS NULL OR time_out > time_in)
-    %% CHECK (exactly one of manager_id / cashier_id is NOT NULL)
     ATTENDANCE_LOGS {
         int log_id PK "IDENTITY"
-        int manager_id FK "NULLABLE"
-        int cashier_id FK "NULLABLE"
+        int employee_id FK "NOT NULL"
         timestamptz time_in "NOT NULL"
         timestamptz time_out "NULLABLE"
     }
@@ -68,8 +54,7 @@ erDiagram
     ORDERS {
         int order_id PK "IDENTITY"
         int customer_id FK "NULLABLE (NULL = walk-in)"
-        int cashier_id FK "NOT NULL"
-        int discount_approved_by FK "NULLABLE, refs MANAGERS"
+        int employee_id FK "NOT NULL"
         timestamptz ordered_at "NOT NULL, DEFAULT now()"
         decimal_10_2 discount_amount "NOT NULL, DEFAULT 0.00, CHECK (discount_amount >= 0)"
         decimal_10_2 total_amount "NOT NULL, DEFAULT 0.00, CHECK (total_amount >= 0)"
@@ -128,11 +113,11 @@ erDiagram
     }
 
     %% Positive quantity_change = stock in, negative = stock out
-    %% Recorded by cashiers, who monitor inventory alongside processing orders
+    %% Recorded by employees, who monitor inventory alongside processing orders
     STOCK_MOVEMENTS {
         int movement_id PK "IDENTITY"
         int ingredient_id FK "NOT NULL"
-        int cashier_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
         decimal_10_2 quantity_change "NOT NULL, CHECK (quantity_change <> 0)"
         enum reason "NOT NULL (delivery / sale / waste / adjustment)"
         timestamptz moved_at "NOT NULL, DEFAULT now()"
@@ -160,7 +145,7 @@ erDiagram
     DELIVERIES {
         int delivery_id PK "IDENTITY"
         int supplier_id FK "NOT NULL"
-        int cashier_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
         date delivery_date "NOT NULL"
     }
 
@@ -173,13 +158,10 @@ erDiagram
 
     %% ======================== RELATIONSHIPS ========================
 
-    MANAGERS ||--o{ CASHIERS : "manages"
-    MANAGERS ||--o{ ATTENDANCE_LOGS : "clocks in via"
-    CASHIERS ||--o{ ATTENDANCE_LOGS : "clocks in via"
+    EMPLOYEES ||--o{ ATTENDANCE_LOGS : "clocks in via"
 
     CUSTOMERS |o--o{ ORDERS : "places"
-    CASHIERS ||--o{ ORDERS : "processes"
-    MANAGERS |o--o{ ORDERS : "approves discount"
+    EMPLOYEES ||--o{ ORDERS : "processes"
     ORDERS ||--|{ ORDER_ITEMS : "includes"
     ORDERS ||--o{ PAYMENTS : "paid via"
 
@@ -189,17 +171,16 @@ erDiagram
     INGREDIENTS ||--o{ PRODUCT_INGREDIENTS : "used in"
 
     INGREDIENTS ||--o{ STOCK_MOVEMENTS : "tracked by"
-    CASHIERS ||--o{ STOCK_MOVEMENTS : "records"
+    EMPLOYEES ||--o{ STOCK_MOVEMENTS : "records"
 
     SUPPLIERS ||--o{ SUPPLIER_INGREDIENTS : "supplies"
     INGREDIENTS ||--o{ SUPPLIER_INGREDIENTS : "supplied by"
     SUPPLIERS ||--o{ DELIVERIES : "delivers"
-    CASHIERS ||--o{ DELIVERIES : "receives"
+    EMPLOYEES ||--o{ DELIVERIES : "receives"
     DELIVERIES ||--|{ DELIVERY_ITEMS : "contains"
     INGREDIENTS ||--o{ DELIVERY_ITEMS : "restocks"
 
-    MANAGERS:::staffBox
-    CASHIERS:::staffBox
+    EMPLOYEES:::staffBox
     ATTENDANCE_LOGS:::staffBox
     CUSTOMERS:::salesBox
     ORDERS:::salesBox
