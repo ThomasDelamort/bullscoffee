@@ -132,9 +132,9 @@ CREATE TABLE IF NOT EXISTS suppliers (
     supplier_id SERIAL PRIMARY KEY,
     supplier_name VARCHAR(100) NOT NULL UNIQUE,
     contact_person VARCHAR(50),
-    contact_number VARCHAR(20) NOT NULL,
     supplier_email VARCHAR(100),
-    address VARCHAR(150),
+    contact_number VARCHAR(20) NOT NULL,
+    supplier_address VARCHAR(150),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -7,6 +7,7 @@ import { runInitSql } from "./schema/init.ts";
 // Import Routes
 import employeeRoutes from "./routes/employee.route.ts";
 import customerRoutes from "./routes/customer.route.ts";
+import supplierRoutes from "./routes/supplier.route.ts"
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
@@ -25,6 +26,7 @@ app.get("/health-check", (_req: Request, res: Response) => {
 // Routes
 app.use("/api", employeeRoutes);
 app.use("/api", customerRoutes);
+app.use("/api", supplierRoutes);
 
 async function startServer() {
   try {

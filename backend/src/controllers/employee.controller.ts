@@ -1,4 +1,4 @@
-import { createEmployee, getAllEmployees, getEmployeeById } from '../providers/employee.provider.ts';
+import { createEmployee, getAllEmployees, getEmployeeById, deleteEmployeeById } from '../providers/employee.provider.ts';
 import type { Request, Response } from 'express';
 import type { Employee } from '../types/employee.types.ts';
 
@@ -13,7 +13,7 @@ export async function createEmployeeHandler(req: Request, res: Response): Promis
     }
 }
 
-export async function getAllEmployeesHandler(req: Request, res: Response): Promise<Employee[] | void> {
+export async function getAllEmployeesHandler(_req: Request, res: Response): Promise<Employee[] | void> {
     try {
         const employees = await getAllEmployees();
         res.status(200).json(employees);
@@ -25,7 +25,11 @@ export async function getAllEmployeesHandler(req: Request, res: Response): Promi
 
 export async function getEmployeeByIdHandler(req: Request, res: Response): Promise<Employee | void> {
     try {
-        const employee_id = req.params.id;
+        const employee_id = Number(req.params['id']);
+        if (Number.isNaN(employee_id)) {
+            res.status(400).json({ error: 'Invalid employee ID' });
+            return;
+        }
         const employee = await getEmployeeById(employee_id);
         if (employee) {
             res.status(200).json(employee);
@@ -34,6 +38,21 @@ export async function getEmployeeByIdHandler(req: Request, res: Response): Promi
         }
     } catch (error) {
         console.error('Error fetching employee by ID:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
+export async function deleteEmployeeHandler(req: Request, res: Response): Promise<void> {
+    try {
+        const employee_id = Number(req.params['id']);
+        if (Number.isNaN(employee_id)) {
+            res.status(400).json({ error: 'Invalid employee ID' });
+            return;
+        }
+        await deleteEmployeeById(employee_id);
+        res.status(200).json({ message: 'Employee deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting employee:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }

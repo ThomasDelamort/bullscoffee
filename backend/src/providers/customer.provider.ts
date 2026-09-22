@@ -1,7 +1,7 @@
 import { pool } from "../schema/db.ts";
 import type { Customer } from "../types/customer.types.ts";
 
-export async function createCustomer(customer: Customer) {
+export async function createCustomer(customer: Customer): Promise<Customer | void> {
     const query = `
         INSERT INTO customers (first_name, last_name, university_id, customer_email, contact_number)
         VALUES ($1, $2, $3, $4, $5)
@@ -18,7 +18,7 @@ export async function createCustomer(customer: Customer) {
     return result.rows[0];
 }
 
-export async function getAllCustomers() {
+export async function getAllCustomers(): Promise<Customer[] | void> {
     const query = `
         SELECT * FROM customers
     `;
@@ -26,7 +26,7 @@ export async function getAllCustomers() {
     return result.rows;
 }
 
-export async function getCustomerById(customer_id: number) {
+export async function getCustomerById(customer_id: number): Promise<Customer | void> {
     const query = `
         SELECT * FROM customers WHERE customer_id = $1
     `;
@@ -36,7 +36,7 @@ export async function getCustomerById(customer_id: number) {
 }
 
 // DELETE
-export async function deleteCustomer(customer_id: number) {
+export async function deleteCustomerById(customer_id: number): Promise<void> {
     const query = `
         DELETE FROM customers WHERE customer_id = $1
     `;
