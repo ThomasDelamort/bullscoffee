@@ -26,3 +26,5 @@ Thumbs.db
 # HTTPYAC
 create.http
 read.http
+update.http
+delete.http

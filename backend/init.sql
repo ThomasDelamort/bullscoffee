@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS customers (
     university_id VARCHAR(50) UNIQUE,
     customer_email VARCHAR(100) NOT NULL UNIQUE,
     contact_number VARCHAR(20),
+    profile_picture VARCHAR(150),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

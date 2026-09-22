@@ -4,6 +4,10 @@ import cors from "cors";
 import type { Request, Response } from "express";
 import { runInitSql } from "./schema/init.ts";
 
+// Import Routes
+import employeeRoutes from "./routes/employee.route.ts";
+import customerRoutes from "./routes/customer.route.ts";
+
 const app = express();
 const PORT = process.env["PORT"] || 3000;
 
@@ -17,6 +21,10 @@ app.get("/", (_req: Request, res: Response) => {
 app.get("/health-check", (_req: Request, res: Response) => {
   return res.status(200).json({ server: "Server is running!" });
 });
+
+// Routes
+app.use("/api", employeeRoutes);
+app.use("/api", customerRoutes);
 
 async function startServer() {
   try {

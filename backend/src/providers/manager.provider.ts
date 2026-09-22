@@ -1,1 +1,0 @@
-import { pool } from "../schema/db.ts";
