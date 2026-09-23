@@ -49,7 +49,7 @@ export default function Navbar({ surface }: NavbarProps) {
         >
           <HeroImage
             file={LOGO_MARK}
-            alt=""
+            alt="ButchwithCoffee"
             placeholderShape="circle"
             className="size-9 shrink-0 object-contain lg:size-11"
           />

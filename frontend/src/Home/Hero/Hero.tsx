@@ -3,7 +3,8 @@ import CoffeeShowcase from './CoffeeShowcase';
 import CoffeeWatermark from './CoffeeWatermark';
 import Navbar from './Navbar';
 import {
-  CUP_ASPECT_RATIO,
+  CUP_BOX_ASPECT,
+  CUP_FILL,
   CYCLE_INTERVAL_MS,
   HERO_FLAVORS,
   HILL_COLOR,
@@ -16,7 +17,8 @@ import './hero.css';
 
 /**
  * Layout tokens, all relative to the hero itself (it's a size container):
- * --cup-h       center cup height; beans, wheel and headline scale from it
+ * --cup-h       visible height of the center cup; beans, wheel and headline
+ *               scale from it (the image frame is --cup-frame-h, padding included)
  * --scene-y     center cup's vertical center, placed so its base overlaps the hill
  * --headline-y  "COFFEE" center: behind the cup, lifted above it on portrait
  *               screens where the cup would otherwise hide it
@@ -43,7 +45,8 @@ export default function Hero() {
         {
           '--hero-dur': `${TRANSITION_MS}ms`,
           '--hero-ease': TRANSITION_EASING,
-          '--cup-aspect': CUP_ASPECT_RATIO,
+          '--cup-box-aspect': CUP_BOX_ASPECT,
+          '--cup-frame-h': `calc(var(--cup-h) / ${CUP_FILL})`,
           backgroundColor: flavor.background,
           color: palette.ink,
         } as CSSProperties

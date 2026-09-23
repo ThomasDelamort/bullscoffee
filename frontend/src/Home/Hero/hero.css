@@ -25,6 +25,10 @@
   transition: --hero-turn var(--hero-dur) var(--hero-ease);
 }
 
+.hero-wheel-still {
+  transition: none;
+}
+
 .hero-wheel-cup {
   --a: calc(var(--hero-turn) + var(--slot));
   /* 1 at center stage, falling to 0 at the back of the wheel. */
@@ -42,6 +46,12 @@
   filter: blur(calc((1 - var(--near)) * var(--cup-h) * 0.035));
   z-index: calc(var(--near) * 100);
   will-change: translate, scale, rotate, filter;
+}
+
+@keyframes hero-fade-out {
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes hero-bean-float {

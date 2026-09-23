@@ -1,82 +1,94 @@
-import type { CSSProperties } from 'react';
-import FloatingBeans from './FloatingBeans';
-import HeroImage from './HeroImage';
-import { HERO_FLAVORS, type HeroFlavor } from './hero.config';
+import type { CSSProperties } from "react";
+import FloatingBeans from "./FloatingBeans";
+import HeroImage from "./HeroImage";
+import { HERO_FLAVORS } from "./hero.config";
 
 interface CoffeeShowcaseProps {
   step: number;
   reduceMotion: boolean;
 }
 
-const CUP_BOX = 'h-(--cup-h) aspect-(--cup-aspect)';
+const COUNT = HERO_FLAVORS.length;
+const SLOT_DEG = 360 / COUNT;
+// Vertical reach of the back-most slot, (1 - cos θ)², so the wheel CSS can
+// park those cups at the top edge whatever the flavor count.
+const BACK_REACH = Math.max(
+  (1 - Math.cos((Math.floor(COUNT / 2) * SLOT_DEG * Math.PI) / 180)) ** 2,
+  1,
+);
 
-function CupImage({ flavor, isActive, isFirst }: { flavor: HeroFlavor; isActive: boolean; isFirst: boolean }) {
+interface WheelProps {
+  step: number;
+  /** Snap to the new arrangement instead of turning to it. */
+  still?: boolean;
+  /** Hidden from assistive tech (the outgoing layer of a crossfade). */
+  decorative?: boolean;
+  className?: string;
+}
+
+/** All cups on the wheel, turned so flavor `step % count` is center stage. */
+function Wheel({ step, still = false, decorative = false, className = "" }: WheelProps) {
+  const active = step % COUNT;
+
   return (
-    <HeroImage
-      file={flavor.cup}
-      alt={isActive ? flavor.name : ''}
-      labelPlaceholder
-      fetchPriority={isFirst ? 'high' : 'auto'}
-      className="size-full object-contain select-none"
-    />
+    <div
+      aria-hidden={decorative || undefined}
+      className={`hero-wheel ${still ? "hero-wheel-still" : ""} ${className}`}
+      style={
+        {
+          "--hero-turn": `${step * SLOT_DEG}deg`,
+          "--hero-count": COUNT,
+          "--wheel-back-reach": BACK_REACH,
+        } as CSSProperties
+      }
+    >
+      {HERO_FLAVORS.map((flavor, i) => (
+        <div
+          key={flavor.id}
+          aria-hidden={i !== active || undefined}
+          className="hero-wheel-cup h-(--cup-frame-h) aspect-(--cup-box-aspect)"
+          style={{ "--slot": `${-i * SLOT_DEG}deg` } as CSSProperties}
+        >
+          <HeroImage
+            file={flavor.cup}
+            alt={i === active ? flavor.name : ""}
+            labelPlaceholder
+            fetchPriority={i === 0 ? "high" : "auto"}
+            className="size-full object-cover select-none"
+          />
+        </div>
+      ))}
+    </div>
   );
 }
 
 /**
- * The product stage, anchored on the center cup: back beans, the cups, then
- * front beans. With full motion the cups ride a wheel that turns clockwise one
- * slot per step (the next flavor swings in from the right); with reduced
- * motion only the center cup is shown and flavors crossfade in place.
+ * The product stage, anchored on the center cup: the bean cluster behind, then
+ * the cups. With full motion the wheel turns clockwise one slot per step (the
+ * next flavor swings in from the right). With reduced motion the same layout
+ * is shown, but each new arrangement crossfades in place of the last.
  */
 export default function CoffeeShowcase({ step, reduceMotion }: CoffeeShowcaseProps) {
-  const count = HERO_FLAVORS.length;
-  const active = step % count;
-  const slotDeg = 360 / count;
-  // Vertical reach of the back-most slot, (1 - cos θ)², so the wheel CSS can
-  // park those cups at the top edge whatever the flavor count.
-  const backAngle = (Math.floor(count / 2) * slotDeg * Math.PI) / 180;
-  const backReach = Math.max((1 - Math.cos(backAngle)) ** 2, 1);
-
   return (
     <div className="pointer-events-none absolute top-(--scene-y) left-1/2 z-30 size-0">
-      <FloatingBeans layer="back" className="z-50" />
+      <FloatingBeans className="z-50" />
 
       {reduceMotion ? (
-        HERO_FLAVORS.map((flavor, i) => (
-          <div
-            key={flavor.id}
-            aria-hidden={i !== active}
-            className={`${CUP_BOX} absolute top-0 left-0 z-100 -translate-1/2 transition-opacity duration-(--hero-dur) ease-(--hero-ease)`}
-            style={{ opacity: i === active ? 1 : 0 }}
-          >
-            <CupImage flavor={flavor} isActive={i === active} isFirst={i === 0} />
-          </div>
-        ))
+        <>
+          <Wheel step={step} still />
+          {step > 0 && (
+            <Wheel
+              key={step}
+              step={step - 1}
+              still
+              decorative
+              className="absolute top-0 left-0 z-150 animate-[hero-fade-out_var(--hero-dur)_var(--hero-ease)_forwards]"
+            />
+          )}
+        </>
       ) : (
-        <div
-          className="hero-wheel"
-          style={
-            {
-              '--hero-turn': `${step * slotDeg}deg`,
-              '--hero-count': count,
-              '--wheel-back-reach': backReach,
-            } as CSSProperties
-          }
-        >
-          {HERO_FLAVORS.map((flavor, i) => (
-            <div
-              key={flavor.id}
-              aria-hidden={i !== active}
-              className={`hero-wheel-cup ${CUP_BOX}`}
-              style={{ '--slot': `${-i * slotDeg}deg` } as CSSProperties}
-            >
-              <CupImage flavor={flavor} isActive={i === active} isFirst={i === 0} />
-            </div>
-          ))}
-        </div>
+        <Wheel step={step} />
       )}
-
-      <FloatingBeans layer="front" className="z-200" />
     </div>
   );
 }
