@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Anton&display=swap");
+
+.hero-display {
+  font-family: "Anton", Impact, "Arial Narrow Bold", sans-serif;
+}
+
+/* Registered so it can be transitioned; every wheel cup is positioned from it. */
+@property --hero-turn {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+/*
+ * Clockwise flavor wheel. Cups sit at evenly spaced angles on a track around
+ * the center cup; --hero-turn advances one slot per step, and each cup's
+ * position, size, blur and stacking are derived from its current angle --a
+ * (0 = center stage, +slot = left, -slot = right, 180deg = over the top).
+ */
+.hero-wheel {
+  /* Side cups hug the edges but never overlap the center cup. */
+  --wheel-rx: max(48cqw, var(--cup-h) * 0.62);
+  /* Solved so the back-most cups just peek in over the top edge. */
+  --wheel-lift: calc((var(--scene-y) + var(--cup-h) * 0.2) / var(--wheel-back-reach));
+  transition: --hero-turn var(--hero-dur) var(--hero-ease);
+}
+
+.hero-wheel-cup {
+  --a: calc(var(--hero-turn) + var(--slot));
+  /* 1 at center stage, falling to 0 at the back of the wheel. */
+  --near: calc((1 + cos(var(--a))) * (1 + cos(var(--a))) / 4);
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  translate:
+    calc(-50% - sin(var(--a)) * var(--wheel-rx))
+    calc(-50% - (1 - cos(var(--a))) * (1 - cos(var(--a))) * var(--wheel-lift));
+  scale: calc(0.6 + 0.4 * var(--near));
+  /* Leans clockwise mid-turn, upright whenever it rests on a slot. */
+  rotate: calc((1 - cos(var(--a) * var(--hero-count))) * 6deg);
+  filter: blur(calc((1 - var(--near)) * var(--cup-h) * 0.035));
+  z-index: calc(var(--near) * 100);
+  will-change: translate, scale, rotate, filter;
+}
+
+@keyframes hero-bean-float {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  50% {
+    translate: 0 var(--float-y);
+    rotate: var(--float-rot);
+  }
+}
