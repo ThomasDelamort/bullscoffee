@@ -3,8 +3,8 @@ import type { Customer } from "../types/customer.types.ts";
 
 export async function createCustomer(customer: Customer): Promise<Customer | void> {
     const query = `
-        INSERT INTO customers (first_name, last_name, university_id, customer_email, contact_number)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO customers (first_name, last_name, university_id, customer_email, contact_number, profile_picture)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
     `;
     const values = [
@@ -12,7 +12,8 @@ export async function createCustomer(customer: Customer): Promise<Customer | voi
         customer.last_name,
         customer.university_id,
         customer.customer_email,
-        customer.contact_number
+        customer.contact_number,
+        customer.profile_picture
     ];
     const result = await pool.query(query, values);
     return result.rows[0];

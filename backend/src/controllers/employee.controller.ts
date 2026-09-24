@@ -1,25 +1,26 @@
 import { createEmployee, getAllEmployees, getEmployeeById, deleteEmployeeById } from '../providers/employee.provider.ts';
 import type { Request, Response } from 'express';
 import type { Employee } from '../types/employee.types.ts';
+import { StatusCodes } from 'http-status-codes';
 
 export async function createEmployeeHandler(req: Request, res: Response): Promise<Employee | void> {
     try {
         const employee: Employee = req.body;
         const newEmployee = await createEmployee(employee);
-        res.status(201).json(newEmployee);
+        res.status(StatusCodes.CREATED).json({ message: "Successfully registered employee", data: newEmployee});
     } catch (error) {
         console.error('Error creating employee:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
     }
 }
 
 export async function getAllEmployeesHandler(_req: Request, res: Response): Promise<Employee[] | void> {
     try {
         const employees = await getAllEmployees();
-        res.status(200).json(employees);
+        res.status(StatusCodes.OK).json({ message: "Successfully returned employees", data: employees});
     } catch (error) {
         console.error('Error fetching employees:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
     }
 }
 
@@ -27,18 +28,18 @@ export async function getEmployeeByIdHandler(req: Request, res: Response): Promi
     try {
         const employee_id = Number(req.params['id']);
         if (Number.isNaN(employee_id)) {
-            res.status(400).json({ error: 'Invalid employee ID' });
+            res.status(StatusCodes.BAD_REQUEST).json({ error: 'Invalid employee ID' });
             return;
         }
         const employee = await getEmployeeById(employee_id);
         if (employee) {
-            res.status(200).json(employee);
+            res.status(StatusCodes.OK).json({ message: "Employee found", data: employee});
         } else {
-            res.status(404).json({ error: 'Employee not found' });
+            res.status(StatusCodes.NOT_FOUND).json({ error: 'Employee not found' });
         }
     } catch (error) {
         console.error('Error fetching employee by ID:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
     }
 }
 
@@ -46,13 +47,13 @@ export async function deleteEmployeeHandler(req: Request, res: Response): Promis
     try {
         const employee_id = Number(req.params['id']);
         if (Number.isNaN(employee_id)) {
-            res.status(400).json({ error: 'Invalid employee ID' });
+            res.status(StatusCodes.BAD_REQUEST).json({ error: 'Invalid employee ID' });
             return;
         }
         await deleteEmployeeById(employee_id);
-        res.status(200).json({ message: 'Employee deleted successfully' });
+        res.status(StatusCodes.OK).json({ message: 'Employee deleted successfully' });
     } catch (error) {
         console.error('Error deleting employee:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
     }
 }

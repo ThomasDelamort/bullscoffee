@@ -7,3 +7,7 @@ export interface Customer {
     contact_number: string | null;
     profile_picture: string | null;
 }
+
+// export type Order {
+    
+// }
