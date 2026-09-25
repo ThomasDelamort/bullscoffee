@@ -77,7 +77,9 @@ export const LOGO_MARK: HeroAssetFile = "logo-mark.png";
 
 export const BRAND_GOLD: HexColor = "#E8A33C";
 /** The hill at the bottom of the hero; match it to the next section's background. */
-export const HILL_COLOR: HexColor = "#D9D9D9";
+export const HILL_COLOR: HexColor = "#FFFFFF";
+/** Text on the hill (tagline and secondary button); keep it readable on HILL_COLOR. */
+export const HILL_INK: HexColor = "#2A1A10";
 
 export const NAV_LINKS = [
   { label: "Home", href: "#home" },
@@ -98,4 +100,9 @@ export const BEAN_FIELD = {
   size: 1.32,
   x: 0,
   y: -0.08,
-} as const satisfies { file: HeroAssetFile; size: number; x: number; y: number };
+} as const satisfies {
+  file: HeroAssetFile;
+  size: number;
+  x: number;
+  y: number;
+};

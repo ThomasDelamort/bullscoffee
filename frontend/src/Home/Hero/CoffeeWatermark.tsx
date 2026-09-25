@@ -1,6 +1,8 @@
 const ROWS = 20;
 const WORDS_PER_ROW = 14;
-const ROW_TEXT = Array.from({ length: WORDS_PER_ROW }, () => 'Coffee').join(' ');
+const ROW_TEXT = Array.from({ length: WORDS_PER_ROW }, () => "Coffee").join(
+  " ",
+);
 
 /**
  * Tiled, tilted "COFFEE" pattern behind everything. Oversized so the rotated
