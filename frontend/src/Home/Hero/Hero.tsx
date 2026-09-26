@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import CoffeeShowcase from "./CoffeeShowcase";
 import CoffeeWatermark from "./CoffeeWatermark";
 import Navbar from "./Navbar";
-// import Hill from "./Hill";
+import Hill from "./Hill";
 import {
   CUP_BOX_ASPECT,
   CUP_FILL,
@@ -44,7 +44,7 @@ export default function Hero(): React.JSX.Element {
     <>
       <section
         id="home"
-        className={`relative isolate h-svh min-h-144 overflow-hidden transition-colors duration-(--hero-dur) ease-(--hero-ease) ${LAYOUT}`}
+        className={`relative isolate flex h-svh min-h-144 flex-col justify-between overflow-hidden transition-colors duration-(--hero-dur) ease-(--hero-ease) ${LAYOUT}`}
         style={
           {
             "--hero-dur": `${TRANSITION_MS}ms`,
@@ -67,7 +67,7 @@ export default function Hero(): React.JSX.Element {
           className="absolute top-(--hill-y) left-[-25%] z-20 h-[86%] w-[150%] rounded-[50%]"
           style={{ backgroundColor: HILL_COLOR }}
         >
-          {/* <Hill /> */}
+          <Hill />
         </div>
 
         <CoffeeShowcase step={step} reduceMotion={reduceMotion} />

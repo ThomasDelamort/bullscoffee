@@ -20,6 +20,7 @@ erDiagram
     %% Managers and cashiers merged into one role-based entity
     EMPLOYEES {
         int employee_id PK "IDENTITY"
+        VARCHAR(255) clerk_id "UNIQUE NOT NULL"
         varchar(50) first_name "NOT NULL"
         varchar(50) last_name "NOT NULL"
         varchar(100) employee_email UK "NOT NULL"
@@ -42,6 +43,7 @@ erDiagram
 
     CUSTOMERS {
         int customer_id PK "IDENTITY"
+        VARCHAR(255) clerk_id UK "UNIQUE NOT NULL"
         varchar(50) first_name "NOT NULL"
         varchar(50) last_name "NOT NULL"
         varchar(50) university_id UK "NULLABLE, qualifies for student discount"
