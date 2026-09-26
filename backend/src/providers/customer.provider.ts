@@ -1,4 +1,4 @@
-import { pool } from "../schema/db.ts";
+import { pool } from "../lib/db.ts";
 import type { Customer } from "../types/customer.types.ts";
 
 export async function createCustomer(

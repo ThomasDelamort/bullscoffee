@@ -1,4 +1,4 @@
-import { pool } from "../schema/db.ts";
+import { pool } from "../lib/db.ts";
 import type { Employee } from "../types/employee.types.ts";
 
 export async function createEmployee(employee: Employee): Promise<Employee | void> {

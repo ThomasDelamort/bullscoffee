@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import type { Request, Response } from "express";
-import { runInitSql } from "./schema/init.ts";
+import { runInitSql } from "./lib/init.ts";
 import responseFormatter from "./middleware/responseFormatter.ts";
 import { StatusCodes } from "http-status-codes";
 
