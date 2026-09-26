@@ -21,7 +21,7 @@ function Hill() {
       <div className="order-1 flex shrink-0 items-center gap-2 sm:order-2">
         <button
           type="button"
-          className="rounded-full px-6 py-3 text-sm font-extrabold uppercase shadow-md transition-transform hover:scale-105"
+          className="rounded-full px-7 py-3 text-lg font-extrabold uppercase shadow-md transition-transform hover:scale-105"
           style={{ backgroundColor: BRAND_GOLD, color: HILL_INK }}
         >
           Order Now
