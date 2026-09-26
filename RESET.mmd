@@ -25,6 +25,7 @@ erDiagram
         varchar(50) last_name "NOT NULL"
         varchar(100) employee_email UK "NOT NULL"
         varchar(20) contact_number "NULLABLE"
+        varchar(255) profile_picture "NULLABLE",
         enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
         enum employee_role "NOT NULL, DEFAULT 'cashier' (cashier / manager)"
         varchar(50) work_schedule "NOT NULL"
@@ -92,6 +93,7 @@ erDiagram
         int category_id FK "NOT NULL"
         varchar(100) product_name UK "NOT NULL"
         text description "NULLABLE"
+        varchar(255) image_url "NULLABLE"
         decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
         boolean is_available "NOT NULL, DEFAULT TRUE"
         timestamptz created_at "NOT NULL, DEFAULT now()"
@@ -134,7 +136,7 @@ erDiagram
         varchar(50) contact_person "NULLABLE"
         varchar(100) supplier_email "NOT NULL"
         varchar(20) contact_number "NULLABLE"
-        varchar(150) address "NULLABLE"
+        varchar(150) supplier_address "NULLABLE"
         boolean is_active "NOT NULL, DEFAULT TRUE"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }

@@ -1,3 +1,4 @@
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import HeroImage from './HeroImage';
 import { BRAND_GOLD, LOGO_MARK, NAV_LINKS, type NavHref } from './hero.config';
@@ -80,9 +81,18 @@ export default function Navbar({ surface }: NavbarProps) {
           <IconButton label="Cart">
             <CartIcon />
           </IconButton>
-          <IconButton label="Account">
-            <AccountIcon />
-          </IconButton>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <IconButton label="Sign in or sign up">
+                <AccountIcon />
+              </IconButton>
+            </SignInButton>
+          </SignedOut>
+          <SignedIn>
+            <div className="grid size-10 place-items-center lg:size-11">
+              <UserButton />
+            </div>
+          </SignedIn>
           <IconButton
             label={menuOpen ? 'Close menu' : 'Open menu'}
             className="md:hidden"

@@ -18,7 +18,7 @@ export async function createEmployeeHandler(
     res
       .status(StatusCodes.CREATED)
       .json({ message: "Successfully registered employee", data: newEmployee });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating employee:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)

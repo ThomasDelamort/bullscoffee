@@ -52,3 +52,14 @@ export async function deleteEmployeeById(employee_id: number): Promise<void> {
     client.release();
   }
 }
+
+// Find Employee by Clerk ID
+export async function getEmployeeByClerkId(clerk_id: string): Promise<Employee | void> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query("SELECT * FROM employees WHERE clerk_id = $1", [clerk_id]);
+    return result.rows[0];
+  } finally {
+    client.release();
+  }
+}

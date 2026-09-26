@@ -5,11 +5,12 @@ export async function createCustomer(
   customer: Customer,
 ): Promise<Customer | void> {
   const query = `
-        INSERT INTO customers (first_name, last_name, university_id, customer_email, contact_number, profile_picture)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO customers (clerk_id, first_name, last_name, university_id, customer_email, contact_number, profile_picture)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
     `;
   const values = [
+    customer.clerk_id,
     customer.first_name,
     customer.last_name,
     customer.university_id,
@@ -36,6 +37,17 @@ export async function getCustomerById(
         SELECT * FROM customers WHERE customer_id = $1
     `;
   const values = [customer_id];
+  const result = await pool.query(query, values);
+  return result.rows[0];
+}
+
+export async function getCustomerByClerkId(
+  clerk_id: string,
+): Promise<Customer | void> {
+  const query = `
+        SELECT * FROM customers WHERE clerk_id = $1
+    `;
+  const values = [clerk_id];
   const result = await pool.query(query, values);
   return result.rows[0];
 }
