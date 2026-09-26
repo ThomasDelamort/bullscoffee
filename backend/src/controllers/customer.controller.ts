@@ -2,23 +2,63 @@ import {
   createCustomer,
   getAllCustomers,
   getCustomerById,
+  getCustomerByClerkId,
   deleteCustomerById,
 } from "../providers/customer.provider.ts";
 import type { Request, Response } from "express";
+import { clerkClient } from "@clerk/express";
 import type { Customer } from "../types/customer.types.ts";
 import { StatusCodes } from "http-status-codes";
 
+// Called by the frontend right after a customer signs in with Microsoft via Clerk.
+// Identity (clerk_id, name, email) comes from Clerk, not the request body.
 export async function createCustomerHandler(
   req: Request,
   res: Response,
 ): Promise<Customer | void> {
   try {
-    const customer: Customer = req.body;
+    const clerk_id: string = res.locals["clerkId"];
+
+    const existingCustomer = await getCustomerByClerkId(clerk_id);
+    if (existingCustomer) {
+      res
+        .status(StatusCodes.OK)
+        .json({ message: "Customer already registered", data: existingCustomer });
+      return;
+    }
+
+    const clerkUser = await clerkClient.users.getUser(clerk_id);
+    const body = req.body ?? {};
+
+    const customer: Customer = {
+      clerk_id,
+      first_name: clerkUser.firstName ?? body.first_name,
+      last_name: clerkUser.lastName ?? body.last_name,
+      customer_email: clerkUser.primaryEmailAddress?.emailAddress ?? "",
+      university_id: body.university_id ?? null,
+      contact_number: body.contact_number ?? null,
+      profile_picture: body.profile_picture ?? null,
+    };
+
+    if (!customer.first_name || !customer.last_name || !customer.customer_email) {
+      res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "First name, last name and email are required" });
+      return;
+    }
+
     const newCustomer = await createCustomer(customer);
     res
       .status(StatusCodes.CREATED)
       .json({ message: "Successfully registered customer", data: newCustomer });
-  } catch (error) {
+  } catch (error: any) {
+    // Postgres unique_violation, e.g. email or university_id already in use
+    if (error?.code === "23505") {
+      res
+        .status(StatusCodes.CONFLICT)
+        .json({ error: "A customer with that email or university ID already exists" });
+      return;
+    }
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ error: "Failed to create customer" });

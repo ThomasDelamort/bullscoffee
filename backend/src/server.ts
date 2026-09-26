@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { clerkMiddleware } from "@clerk/express";
 import type { Request, Response } from "express";
 import { runInitSql } from "./lib/init.ts";
 import responseFormatter from "./middleware/responseFormatter.ts";
@@ -17,6 +18,7 @@ const PORT = process.env["PORT"] || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(clerkMiddleware());
 app.use(responseFormatter);
 
 app.get("/", (_req: Request, res: Response) => {

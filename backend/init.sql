@@ -26,8 +26,9 @@ CREATE TABLE IF NOT EXISTS employees (
     clerk_id VARCHAR(255) UNIQUE NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    employee_email VARCHAR(100) NOT NULL UNIQUE,
+    employee_email VARCHAR(255) NOT NULL UNIQUE,
     contact_number VARCHAR(20),
+    profile_picture VARCHAR(255),
     employee_status employee_status NOT NULL DEFAULT 'active',
     employee_role employee_role NOT NULL DEFAULT 'cashier',
     work_schedule VARCHAR(50) NOT NULL,
@@ -50,9 +51,9 @@ CREATE TABLE IF NOT EXISTS customers (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     university_id VARCHAR(50) UNIQUE,
-    customer_email VARCHAR(100) NOT NULL UNIQUE,
+    customer_email VARCHAR(255) NOT NULL UNIQUE,
     contact_number VARCHAR(20),
-    profile_picture VARCHAR(150),
+    profile_picture VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS products (
     category_id INT NOT NULL REFERENCES categories(category_id),
     product_name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
+    image_url VARCHAR(255),
     price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -134,8 +136,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     supplier_id SERIAL PRIMARY KEY,
     supplier_name VARCHAR(100) NOT NULL UNIQUE,
     contact_person VARCHAR(50),
-    supplier_email VARCHAR(100),
-    contact_number VARCHAR(20) NOT NULL,
+    supplier_email VARCHAR(255) NOT NULL,
+    contact_number VARCHAR(20),
     supplier_address VARCHAR(150),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
