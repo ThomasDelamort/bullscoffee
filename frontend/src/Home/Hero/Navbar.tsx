@@ -1,17 +1,23 @@
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import HeroImage from './HeroImage';
-import { BRAND_GOLD, LOGO_MARK, NAV_LINKS, type NavHref } from './hero.config';
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  UserButton,
+} from "@clerk/clerk-react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import HeroImage from "./HeroImage";
+import { BRAND_GOLD, LOGO_MARK, NAV_LINKS, type NavHref } from "./hero.config";
 
 interface NavbarProps {
   /** Mobile menu panel background. */
   surface: string;
 }
 
-const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current';
+const FOCUS_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current";
 
 export default function Navbar({ surface }: NavbarProps) {
-  const [activeHref, setActiveHref] = useState<NavHref>('#home');
+  const [activeHref, setActiveHref] = useState<NavHref>("#home");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuId = useId();
   const headerRef = useRef<HTMLElement>(null);
@@ -19,16 +25,16 @@ export default function Navbar({ surface }: NavbarProps) {
   useEffect(() => {
     if (!menuOpen) return;
     const closeOnEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
+      if (e.key === "Escape") setMenuOpen(false);
     };
     const closeOnOutsidePress = (e: PointerEvent) => {
       if (!headerRef.current?.contains(e.target as Node)) setMenuOpen(false);
     };
-    document.addEventListener('keydown', closeOnEscape);
-    document.addEventListener('pointerdown', closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("pointerdown", closeOnOutsidePress);
     return () => {
-      document.removeEventListener('keydown', closeOnEscape);
-      document.removeEventListener('pointerdown', closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
     };
   }, [menuOpen]);
 
@@ -45,7 +51,7 @@ export default function Navbar({ surface }: NavbarProps) {
       >
         <a
           href="#home"
-          onClick={() => select('#home')}
+          onClick={() => select("#home")}
           className={`flex items-center gap-2 justify-self-start rounded-md ${FOCUS_RING}`}
         >
           <HeroImage
@@ -67,9 +73,9 @@ export default function Navbar({ surface }: NavbarProps) {
             <li key={link.href}>
               <a
                 href={link.href}
-                aria-current={link.href === activeHref ? 'page' : undefined}
+                aria-current={link.href === activeHref ? "page" : undefined}
                 onClick={() => select(link.href)}
-                className={`relative rounded-sm py-1 text-sm font-medium transition-opacity after:absolute after:inset-x-[-0.5rem] after:-bottom-1 after:h-0.5 after:origin-center after:scale-x-0 after:rounded-full after:bg-current after:transition-transform hover:opacity-70 aria-[current=page]:after:scale-x-100 lg:text-base ${FOCUS_RING}`}
+                className={`relative rounded-sm py-1 text-sm font-medium transition-opacity after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:origin-center after:scale-x-0 after:rounded-full after:bg-current after:transition-transform hover:opacity-70 aria-[current=page]:after:scale-x-100 lg:text-base ${FOCUS_RING}`}
               >
                 {link.label}
               </a>
@@ -94,7 +100,7 @@ export default function Navbar({ surface }: NavbarProps) {
             </div>
           </SignedIn>
           <IconButton
-            label={menuOpen ? 'Close menu' : 'Open menu'}
+            label={menuOpen ? "Close menu" : "Open menu"}
             className="md:hidden"
             aria-expanded={menuOpen}
             aria-controls={menuId}
@@ -116,7 +122,7 @@ export default function Navbar({ surface }: NavbarProps) {
             <li key={link.href}>
               <a
                 href={link.href}
-                aria-current={link.href === activeHref ? 'page' : undefined}
+                aria-current={link.href === activeHref ? "page" : undefined}
                 onClick={() => select(link.href)}
                 className={`block rounded-xl px-4 py-3 text-base font-medium hover:bg-current/5 aria-[current=page]:bg-current/10 ${FOCUS_RING}`}
               >
@@ -135,11 +141,16 @@ interface IconButtonProps {
   children: ReactNode;
   className?: string;
   onClick?: () => void;
-  'aria-expanded'?: boolean;
-  'aria-controls'?: string;
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
 }
 
-function IconButton({ label, children, className = '', ...rest }: IconButtonProps) {
+function IconButton({
+  label,
+  children,
+  className = "",
+  ...rest
+}: IconButtonProps) {
   return (
     <button
       type="button"
@@ -153,14 +164,14 @@ function IconButton({ label, children, className = '', ...rest }: IconButtonProp
 }
 
 const ICON_PROPS = {
-  'aria-hidden': true,
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
+  "aria-hidden": true,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
   strokeWidth: 1.8,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  className: 'size-6 lg:size-7',
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  className: "size-6 lg:size-7",
 } as const;
 
 function CartIcon() {

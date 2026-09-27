@@ -1,22 +1,46 @@
 import HeroImage from "../Home/Hero/HeroImage";
-import { BRAND_GOLD, HILL_INK, LOGO_MARK, NAV_LINKS } from "../Home/Hero/hero.config";
+import {
+  BRAND_GOLD,
+  HILL_INK,
+  LOGO_MARK,
+  NAV_LINKS,
+} from "../Home/Hero/hero.config";
+import type { IconType } from "react-icons";
+import { FiFacebook, FiInstagram } from "react-icons/fi";
+import { RiTwitterXFill } from "react-icons/ri";
+import { FaDiscord } from "react-icons/fa";
 
-const INK_ON_DARK = "#FBF3E8";
+const INK_ON_DARK: string = "#FBF3E8";
 
-const CONTACT = [
-  { label: "NU Cebu SM City Kaohsiung St, Cebu City, 6000 Cebu", href: undefined },
+type socials = {
+  label: string;
+  href: string;
+  icon: IconType;
+};
+
+type contact = {
+  label: string;
+  href: any;
+};
+
+const CONTACT: contact[] = [
+  {
+    label: "NU Cebu SM City Kaohsiung St, Cebu City, 6000 Cebu",
+    href: undefined,
+  },
   { label: "sup@bullscoffee.com", href: "mailto:hello@bullscoffee.com" },
   { label: "(555) 012-3456", href: "tel:+15550123456" },
 ] as const;
 
-const SOCIALS = [
-  { label: "Instagram", href: "#", icon: InstagramIcon },
-  { label: "Facebook", href: "#", icon: FacebookIcon },
-  { label: "X", href: "#", icon: XIcon },
+const SOCIALS: socials[] = [
+  { label: "Instagram", href: "#", icon: FiFacebook },
+  { label: "Facebook", href: "#", icon: FiInstagram },
+  { label: "Discord", href: "#", icon: FaDiscord },
+  { label: "X", href: "#", icon: RiTwitterXFill },
 ] as const;
 
-export default function Footer() {
-  const year = new Date().getFullYear();
+export default function Footer(): React.JSX.Element {
+  const year: number = new Date().getFullYear();
 
   return (
     <footer style={{ backgroundColor: HILL_INK, color: INK_ON_DARK }}>
@@ -54,13 +78,19 @@ export default function Footer() {
         </div>
 
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: BRAND_GOLD }}>
+          <h3
+            className="text-xs font-bold uppercase tracking-wide"
+            style={{ color: BRAND_GOLD }}
+          >
             Explore
           </h3>
           <ul className="mt-4 flex flex-col gap-3 text-sm">
             {NAV_LINKS.map((link) => (
               <li key={link.href}>
-                <a href={link.href} className="opacity-80 transition-opacity hover:opacity-100">
+                <a
+                  href={link.href}
+                  className="opacity-80 transition-opacity hover:opacity-100"
+                >
                   {link.label}
                 </a>
               </li>
@@ -69,14 +99,20 @@ export default function Footer() {
         </div>
 
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wide" style={{ color: BRAND_GOLD }}>
+          <h3
+            className="text-xs font-bold uppercase tracking-wide"
+            style={{ color: BRAND_GOLD }}
+          >
             Get in touch
           </h3>
           <ul className="mt-4 flex flex-col gap-3 text-sm">
             {CONTACT.map((item) =>
               item.href ? (
                 <li key={item.label}>
-                  <a href={item.href} className="opacity-80 transition-opacity hover:opacity-100">
+                  <a
+                    href={item.href}
+                    className="opacity-80 transition-opacity hover:opacity-100"
+                  >
                     {item.label}
                   </a>
                 </li>
@@ -104,42 +140,5 @@ export default function Footer() {
         </div>
       </div>
     </footer>
-  );
-}
-
-const ICON_PROPS = {
-  "aria-hidden": true,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.8,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-  className: "size-4",
-} as const;
-
-function InstagramIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.2" cy="6.8" r="0.6" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function FacebookIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <path d="M15 3h-2.5A4.5 4.5 0 0 0 8 7.5V10H5.5v3.5H8V21h3.5v-7.5h3l.5-3.5h-3.5V7.5c0-.8.7-1.5 1.5-1.5H15V3Z" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <path d="M4 4l16 16M20 4L4 20" />
-    </svg>
   );
 }
