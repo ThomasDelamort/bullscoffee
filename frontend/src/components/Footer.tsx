@@ -2,15 +2,19 @@ import HeroImage from "../Home/Hero/HeroImage";
 import {
   BRAND_GOLD,
   HILL_INK,
+  INK_ON_DARK,
   LOGO_MARK,
   NAV_LINKS,
 } from "../Home/Hero/hero.config";
+import {
+  CONTACT_ADDRESS,
+  CONTACT_EMAIL,
+  CONTACT_PHONE,
+} from "../Home/Contact/contact.config";
 import type { IconType } from "react-icons";
 import { FiFacebook, FiInstagram } from "react-icons/fi";
 import { RiTwitterXFill } from "react-icons/ri";
 import { FaDiscord } from "react-icons/fa";
-
-const INK_ON_DARK: string = "#FBF3E8";
 
 type socials = {
   label: string;
@@ -20,17 +24,15 @@ type socials = {
 
 type contact = {
   label: string;
-  href: any;
+  href: string | undefined;
 };
 
+// Kept in step with the Contact section's info via contact.config.ts.
 const CONTACT: contact[] = [
-  {
-    label: "NU Cebu SM City Kaohsiung St, Cebu City, 6000 Cebu",
-    href: undefined,
-  },
-  { label: "sup@bullscoffee.com", href: "mailto:hello@bullscoffee.com" },
-  { label: "(555) 012-3456", href: "tel:+15550123456" },
-] as const;
+  { label: CONTACT_ADDRESS.join(", "), href: undefined },
+  { label: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` },
+  { label: CONTACT_PHONE.label, href: CONTACT_PHONE.href },
+];
 
 const SOCIALS: socials[] = [
   { label: "Instagram", href: "#", icon: FiFacebook },
@@ -42,11 +44,16 @@ const SOCIALS: socials[] = [
 export default function Footer(): React.JSX.Element {
   const year: number = new Date().getFullYear();
 
+  const scrollToSection = (id: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <footer style={{ backgroundColor: HILL_INK, color: INK_ON_DARK }}>
       <div className="mx-auto flex w-[min(92vw,64rem)] flex-col gap-10 py-14 sm:flex-row sm:justify-between sm:gap-6">
         <div className="max-w-xs">
-          <a href="#home" className="flex items-center gap-2">
+          <a href="#home" onClick={scrollToSection("home")} className="flex items-center gap-2">
             <HeroImage
               file={LOGO_MARK}
               alt="Bull's Coffee"
@@ -86,9 +93,10 @@ export default function Footer(): React.JSX.Element {
           </h3>
           <ul className="mt-4 flex flex-col gap-3 text-sm">
             {NAV_LINKS.map((link) => (
-              <li key={link.href}>
+              <li key={link.id}>
                 <a
-                  href={link.href}
+                  href={`#${link.id}`}
+                  onClick={scrollToSection(link.id)}
                   className="opacity-80 transition-opacity hover:opacity-100"
                 >
                   {link.label}

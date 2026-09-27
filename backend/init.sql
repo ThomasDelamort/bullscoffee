@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS employees (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Self-heals databases created before clerk_id existed on this table:
+-- CREATE TABLE IF NOT EXISTS above is a no-op once the table exists, so a
+-- column added to this schema later never reaches an already-created table.
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE NOT NULL;
+
 CREATE TABLE IF NOT EXISTS attendance_logs (
     log_id SERIAL PRIMARY KEY,
     employee_id INT NOT NULL REFERENCES employees(employee_id),
@@ -56,6 +61,10 @@ CREATE TABLE IF NOT EXISTS customers (
     profile_picture VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Self-heals databases created before clerk_id existed on this table (see
+-- the identical note on the employees table above).
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE NOT NULL;
 
 -- ============================ MENU ==============================
 

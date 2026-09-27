@@ -80,15 +80,17 @@ export const BRAND_GOLD: HexColor = "#E8A33C";
 export const HILL_COLOR: HexColor = "#FFFFFF";
 /** Text on the hill (tagline and secondary button); keep it readable on HILL_COLOR. */
 export const HILL_INK: HexColor = "#2A1A10";
+/** Text on dark, HILL_INK-colored surfaces (footer, contact card). */
+export const INK_ON_DARK: HexColor = "#FBF3E8";
 
 export const NAV_LINKS = [
-  { label: "Home", href: "#home" },
-  { label: "Menu", href: "#menu" },
-  { label: "About", href: "#about" },
-  { label: "Contact", href: "#contact" },
+  { label: "Home", id: "home" },
+  { label: "Menu", id: "menu" },
+  { label: "About", id: "about" },
+  { label: "Contact", id: "contact" },
 ] as const;
 
-export type NavHref = (typeof NAV_LINKS)[number]["href"];
+export type NavId = (typeof NAV_LINKS)[number]["id"];
 
 /**
  * Bean cluster floating behind the center cup: one composed image, centered

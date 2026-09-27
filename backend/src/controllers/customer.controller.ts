@@ -52,6 +52,7 @@ export async function createCustomerHandler(
       .status(StatusCodes.CREATED)
       .json({ message: "Successfully registered customer", data: newCustomer });
   } catch (error: any) {
+    console.error("createCustomerHandler failed:", error);
     // Postgres unique_violation, e.g. email or university_id already in use
     if (error?.code === "23505") {
       res
@@ -75,6 +76,7 @@ export async function getAllCustomersHandler(
       .status(StatusCodes.OK)
       .json({ message: "Successfully fetched customers", data: customers });
   } catch (error) {
+    console.error("getAllCustomersHandler failed:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ error: "Failed to fetch customers" });
@@ -102,6 +104,7 @@ export async function getCustomerByIdHandler(
       res.status(StatusCodes.NOT_FOUND).json({ error: "Customer not found" });
     }
   } catch (error) {
+    console.error("getCustomerByIdHandler failed:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ error: "Failed to fetch customer by ID" });
@@ -125,6 +128,7 @@ export async function deleteCustomerHandler(
       .status(StatusCodes.OK)
       .json({ message: "Customer deleted successfully" });
   } catch (error) {
+    console.error("deleteCustomerHandler failed:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ error: "Failed to delete customer" });

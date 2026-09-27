@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
+import Navbar from "../../components/Navbar";
 import CoffeeShowcase from "./CoffeeShowcase";
 import CoffeeWatermark from "./CoffeeWatermark";
-import Navbar from "./Navbar";
 import Hill from "./Hill";
 import {
   CUP_BOX_ASPECT,
