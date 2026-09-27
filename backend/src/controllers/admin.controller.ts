@@ -4,7 +4,7 @@ import {
   getCustomerById,
   getCustomerByClerkId,
   deleteCustomerById,
-} from "../providers/customer.provider.ts";
+} from "../providers/admin.provider.ts";
 import type { Request, Response } from "express";
 import { clerkClient } from "@clerk/express";
 import type { Customer } from "../types/customer.types.ts";
@@ -12,6 +12,8 @@ import { StatusCodes } from "http-status-codes";
 
 // Called by the frontend right after a customer signs in with Microsoft via Clerk.
 // Identity (clerk_id, name, email) comes from Clerk, not the request body.
+
+// Register Customer
 export async function createCustomerHandler(
   req: Request,
   res: Response,
@@ -130,5 +132,3 @@ export async function deleteCustomerHandler(
       .json({ error: "Failed to delete customer" });
   }
 }
-
-// place an order function

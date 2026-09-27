@@ -1,4 +1,4 @@
-import { createCustomerHandler, deleteCustomerHandler, getAllCustomersHandler, getCustomerByIdHandler } from '../controllers/customer.controller.ts';
+import { createCustomerHandler, deleteCustomerHandler, getAllCustomersHandler, getCustomerByIdHandler } from '../controllers/admin.controller.ts';
 import { Router } from 'express';
 import { protectRoute } from '../middleware/auth.middleware.ts';
 

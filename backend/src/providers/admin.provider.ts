@@ -3,7 +3,9 @@ import type { Customer } from "../types/customer.types.ts";
 
 // CRUD OPERATIONS
 
-// CREATE
+/* 
+    CUSTOMER CRUD FUNCTIONS
+*/
 export async function createCustomer(
   customer: Customer,
 ): Promise<Customer | void> {
@@ -55,6 +57,8 @@ export async function getCustomerByClerkId(
   const result = await pool.query(query, values);
   return result.rows[0];
 }
+
+// UPDATE
 
 // DELETE
 export async function deleteCustomerById(customer_id: number): Promise<void> {

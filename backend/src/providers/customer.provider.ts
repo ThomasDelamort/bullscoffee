@@ -24,16 +24,7 @@ export async function createCustomer(
   const result = await pool.query(query, values);
   return result.rows[0];
 }
-
-// READ
-export async function getAllCustomers(): Promise<Customer[] | void> {
-  const query = `
-        SELECT * FROM customers
-    `;
-  const result = await pool.query(query);
-  return result.rows;
-}
-
+// READ Customer Profile Functions
 export async function getCustomerById(
   customer_id: number,
 ): Promise<Customer | void> {

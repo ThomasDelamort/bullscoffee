@@ -1,8 +1,7 @@
 import {
   createCustomer,
-  getAllCustomers,
-  getCustomerById,
   getCustomerByClerkId,
+  getCustomerById,
   deleteCustomerById,
 } from "../providers/customer.provider.ts";
 import type { Request, Response } from "express";
@@ -12,6 +11,8 @@ import { StatusCodes } from "http-status-codes";
 
 // Called by the frontend right after a customer signs in with Microsoft via Clerk.
 // Identity (clerk_id, name, email) comes from Clerk, not the request body.
+
+// Sign In function
 export async function createCustomerHandler(
   req: Request,
   res: Response,
@@ -66,23 +67,7 @@ export async function createCustomerHandler(
   }
 }
 
-export async function getAllCustomersHandler(
-  _req: Request,
-  res: Response,
-): Promise<Customer[] | void> {
-  try {
-    const customers = await getAllCustomers();
-    res
-      .status(StatusCodes.OK)
-      .json({ message: "Successfully fetched customers", data: customers });
-  } catch (error) {
-    console.error("getAllCustomersHandler failed:", error);
-    res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ error: "Failed to fetch customers" });
-  }
-}
-
+// Get Customer Profile
 export async function getCustomerByIdHandler(
   req: Request,
   res: Response,
@@ -111,6 +96,9 @@ export async function getCustomerByIdHandler(
   }
 }
 
+// Update Profile function
+
+// Delete Account
 export async function deleteCustomerHandler(
   req: Request,
   res: Response,
@@ -135,4 +123,4 @@ export async function deleteCustomerHandler(
   }
 }
 
-// place an order function
+// Place an order handler
