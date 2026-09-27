@@ -25,6 +25,14 @@ export async function createCustomer(
   return result.rows[0];
 }
 // READ Customer Profile Functions
+export async function getAllCustomers(): Promise<Customer[] | void> {
+  const query = `
+        SELECT * FROM customers
+    `;
+  const result = await pool.query(query);
+  return result.rows;
+}
+
 export async function getCustomerById(
   customer_id: number,
 ): Promise<Customer | void> {
@@ -46,6 +54,8 @@ export async function getCustomerByClerkId(
   const result = await pool.query(query, values);
   return result.rows[0];
 }
+
+// Update Profile Functions
 
 // DELETE
 export async function deleteCustomerById(customer_id: number): Promise<void> {

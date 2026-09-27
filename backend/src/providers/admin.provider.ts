@@ -1,5 +1,6 @@
 import { pool } from "../lib/db.ts";
 import type { Customer } from "../types/customer.types.ts";
+import type { Employee } from "../types/employee.types.ts";
 
 // CRUD OPERATIONS
 
@@ -66,5 +67,54 @@ export async function deleteCustomerById(customer_id: number): Promise<void> {
         DELETE FROM customers WHERE customer_id = $1
     `;
   const values = [customer_id];
+  await pool.query(query, values);
+}
+
+/*
+    EMPLOYEE CRUD FUNCTIONS
+ */
+export async function createEmployee(employee: Employee): Promise<Employee | void> {
+  const query = `
+        INSERT INTO employees (clerk_id, first_name, last_name, employee_email, contact_number, profile_picture, employee_status, employee_role, work_schedule) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+        RETURNING *
+    `;
+  const values = [
+    employee.clerk_id,
+    employee.first_name,
+    employee.last_name,
+    employee.employee_email,
+    employee.contact_number,
+    employee.profile_picture,
+    employee.employee_status,
+    employee.employee_role,
+    employee.work_schedule,
+  ];
+  const result = await pool.query(query, values);
+  return result.rows[0];
+}
+
+export async function getAllEmployees(): Promise<Employee[] | void> {
+  const query = `
+        SELECT * FROM employees
+    `;
+  const result = await pool.query(query);
+  return result.rows;
+}
+
+export async function getEmployeeById(employee_id: number): Promise<Employee | void> {
+  const query = `
+        SELECT * FROM employees WHERE employee_id = $1
+    `;
+  const values = [employee_id];
+  const result = await pool.query(query, values);
+  return result.rows[0];
+}
+
+export async function deleteEmployeeById(employee_id: number): Promise<Employee | void> {
+  const query = `
+        DELETE FROM employees WHERE employee_id = $1
+    `;
+  const values = [employee_id];
   await pool.query(query, values);
 }

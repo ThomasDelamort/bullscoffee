@@ -1,5 +1,6 @@
 import {
   createCustomer,
+  getAllCustomers,
   getCustomerByClerkId,
   getCustomerById,
   deleteCustomerById,
@@ -66,6 +67,20 @@ export async function createCustomerHandler(
       .json({ error: "Failed to create customer" });
   }
 }
+
+export async function getAllCustomersHandler(_req: Request, res: Response): Promise<Customer[] | void> {
+  try {
+    const customers = await getAllCustomers();
+    res
+      .status(StatusCodes.OK)
+      .json({ message: "Successfully fetched customers", data: customers });
+  } catch (err: any) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Failed to fetch customers" });
+  }
+}
+
 
 // Get Customer Profile
 export async function getCustomerByIdHandler(

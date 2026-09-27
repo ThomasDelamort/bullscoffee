@@ -86,6 +86,7 @@ erDiagram
     CATEGORIES {
         int category_id PK "IDENTITY"
         varchar(50) category_name UK "NOT NULL"
+        varchar(255) image_url "NULLABLE"
     }
 
     PRODUCTS {
@@ -112,6 +113,7 @@ erDiagram
         int ingredient_id PK "IDENTITY"
         varchar(100) ingredient_name UK "NOT NULL"
         varchar(20) unit_of_measure "NOT NULL"
+        varchar(255) image_url "NULLABLE"
         decimal_10_2 current_quantity "NOT NULL, DEFAULT 0.00, CHECK (current_quantity >= 0)"
         decimal_10_2 minimum_stock_level "NOT NULL, DEFAULT 0.00, CHECK (minimum_stock_level >= 0)"
         boolean is_active "NOT NULL, DEFAULT TRUE"
@@ -136,6 +138,7 @@ erDiagram
         varchar(50) contact_person "NULLABLE"
         varchar(100) supplier_email "NOT NULL"
         varchar(20) contact_number "NULLABLE"
+        varchar(255) image_url "NULLABLE"
         varchar(150) supplier_address "NULLABLE"
         boolean is_active "NOT NULL, DEFAULT TRUE"
         timestamptz created_at "NOT NULL, DEFAULT now()"

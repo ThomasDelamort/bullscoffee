@@ -5,6 +5,7 @@
 
 <em>A campus coffee shop, digitized — ordering, staff, and inventory in one place.</em>
 
+[![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat-square)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org)
 [![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white&style=flat-square)](https://expressjs.com)
@@ -38,18 +39,26 @@ menu, inventory, sales, and suppliers end to end.
 
 This is an active student project, not a finished product. What exists today:
 
-- ✅ Clerk sign-in wired up end to end (frontend + backend), with automatic
-  customer registration on first sign-in
+- ✅ Clerk sign-in and sign-up wired up end to end (frontend + backend),
+  with a custom auth page (email/password + social) and automatic customer
+  registration on first sign-in
+- ✅ Client-side routing (React Router) for the landing page, `/menu`,
+  `/about`, `/contact`, and the auth pages
 - ✅ Full relational schema for staff, sales, menu, inventory, and supply
   (see [Database Schema](#-database-schema))
-- ✅ CRUD APIs for **employees**, **customers**, and **suppliers**
-- ✅ Landing page hero
-- 🔜 Not yet built: menu browsing, cart/checkout, order and payment
-  endpoints, inventory/stock-movement endpoints, and a staff-facing
-  dashboard
-- ⚠️ Only the `POST /api/customers` route currently requires a Clerk
-  session; the employee and supplier routes are not yet auth-protected —
-  don't expose this API publicly as-is
+- ✅ CRUD APIs for **employees**, **customers**, and **suppliers**, plus a
+  parallel **admin** customer API
+- ✅ Landing page hero, navbar/footer, about and contact sections
+- 🔜 Not yet built: menu browsing backed by the API, cart/checkout, order
+  and payment endpoints, inventory/stock-movement endpoints, and a
+  staff-facing dashboard
+- ⚠️ Only the `POST /api/customers` and `POST /api/admin/customers` routes
+  currently require a Clerk session; the employee and supplier routes are
+  not yet auth-protected — don't expose this API publicly as-is
+- ⚠️ `customer.route.ts` and `admin.route.ts` are both mounted at `/api`
+  and both register `GET /customers/:id` and `DELETE /customers/:id` —
+  since admin routes are mounted first, they currently shadow the
+  customer routes for those paths
 
 ## ⚡ Quick Start
 
@@ -110,13 +119,15 @@ Both the frontend and backend need keys from the same
 | 👥  | **Staff records**       | Employees with role (`cashier` / `manager`), status, and work schedule                      |
 | 🚚  | **Supplier records**    | Suppliers and the ingredients they provide, with unit pricing                               |
 | 🎓  | **Student discount ready** | `customers.university_id` is captured for a future student-discount flow                |
+| 🧭  | **Site navigation**     | Navbar/footer and routed sections for home, menu, about, and contact                        |
+| 🔑  | **Custom auth UI**      | Clerk-backed sign-in/sign-up page with email/password, social buttons, and password reset   |
 
 ### Planned
 
-Menu/catalog, cart & checkout, order and payment processing, inventory
-stock movements, attendance logs, and a manager dashboard are modeled in
-the [database schema](#-database-schema) but don't have API routes or UI
-yet.
+Menu/catalog wired to the backend, cart & checkout, order and payment
+processing, inventory stock movements, attendance logs, and a manager
+dashboard are modeled in the [database schema](#-database-schema) but
+don't have API routes or working UI yet.
 
 ## 🧱 Tech Stack
 
@@ -155,9 +166,12 @@ Base URL: `http://localhost:3000/api`. Responses are wrapped as
 | Method | Path              | Auth               | Notes                                              |
 | ------ | ----------------- | ------------------- | --------------------------------------------------- |
 | POST   | `/customers`      | Clerk session        | Idempotent — returns the existing row if already registered |
-| GET    | `/customers`      | —                    |                                                      |
-| GET    | `/customers/:id`  | —                    |                                                      |
-| DELETE | `/customers/:id`  | —                    |                                                      |
+| GET    | `/customers/:id`  | —                    | Shadowed by the admin route below (same path, mounted first) |
+| DELETE | `/customers/:id`  | —                    | Shadowed by the admin route below (same path, mounted first) |
+| POST   | `/admin/customers`| Clerk session        | Same upsert-on-first-sign-in behavior as `POST /customers` |
+| GET    | `/admin/customers`| —                    | List all customers                                  |
+| GET    | `/admin/customers/:id` | —               |                                                      |
+| DELETE | `/admin/customers/:id` | —               |                                                      |
 | POST   | `/employees`      | —                    |                                                      |
 | GET    | `/employees`      | —                    |                                                      |
 | GET    | `/employees/:id`  | —                    |                                                      |
@@ -190,7 +204,7 @@ backend/
   init.sql              # full schema, applied on every server start
   src/
     server.ts           # express app, middleware, route mounting
-    routes/              # one router per resource
+    routes/              # one router per resource (customer, admin, employee, supplier)
     controllers/         # request/response handling
     providers/           # SQL queries
     middleware/           # clerk auth guards, response formatter
@@ -198,8 +212,10 @@ backend/
 
 frontend/
   src/
-    auth/                # ClerkProvider consumer: registration flow
-    Home/Hero/            # landing page hero animation
+    AuthPage/             # custom sign-in/sign-up UI (Clerk-backed), password reset, social buttons
+    auth/                 # ClerkProvider wiring + registration flow (CustomerProvider, RegistrationNotice)
+    components/           # Navbar, Footer
+    Home/                  # Home.tsx + Hero/About/Contact/Menu sections
     App.tsx / main.tsx
 ```
 

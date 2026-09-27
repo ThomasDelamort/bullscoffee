@@ -70,8 +70,13 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE NOT 
 
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
-    category_name VARCHAR(50) NOT NULL UNIQUE
+    category_name VARCHAR(50) NOT NULL UNIQUE,
+    image_url VARCHAR(255)
 );
+
+-- Self-heals databases created before image_url existed on this table (see
+-- the identical note on the employees table above).
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS image_url VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS products (
     product_id SERIAL PRIMARY KEY,
@@ -90,10 +95,15 @@ CREATE TABLE IF NOT EXISTS ingredients (
     ingredient_id SERIAL PRIMARY KEY,
     ingredient_name VARCHAR(100) NOT NULL UNIQUE,
     unit_of_measure VARCHAR(20) NOT NULL,
+    image_url VARCHAR(255),
     current_quantity DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (current_quantity >= 0),
     minimum_stock_level DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (minimum_stock_level >= 0),
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- Self-heals databases created before image_url existed on this table (see
+-- the identical note on the employees table above).
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS image_url VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS product_ingredients (
     product_id INT NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
@@ -147,10 +157,15 @@ CREATE TABLE IF NOT EXISTS suppliers (
     contact_person VARCHAR(50),
     supplier_email VARCHAR(255) NOT NULL,
     contact_number VARCHAR(20),
+    image_url VARCHAR(255),
     supplier_address VARCHAR(150),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Self-heals databases created before image_url existed on this table (see
+-- the identical note on the employees table above).
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS image_url VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS supplier_ingredients (
     supplier_id INT NOT NULL REFERENCES suppliers(supplier_id) ON DELETE CASCADE,
