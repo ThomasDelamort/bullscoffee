@@ -20,17 +20,22 @@ app.use(clerkMiddleware());
 app.use(responseFormatter);
 
 app.get("/", (_req: Request, res: Response) => {
-  return res.status(StatusCodes.OK).json({  message: "Welcome to Bull's Coffee", data: `Server running at http://localhost:${PORT}`,});
+  return res.status(StatusCodes.OK).json({
+    message: "Welcome to Bull's Coffee",
+    data: `Server running at http://localhost:${PORT}`,
+  });
 });
 
 app.get("/health-check", (_req: Request, res: Response) => {
-  return res.status(StatusCodes.OK).json({ message: "Server health check positive", data: `Sever running at http://localhost:${PORT}` });
+  return res.status(StatusCodes.OK).json({
+    message: "Server health check positive",
+    data: `Sever running at http://localhost:${PORT}`,
+  });
 });
 
 // Routes
 app.use("/admin", adminRoutes);
 app.use("/api", customerRoutes);
-
 
 async function startServer() {
   try {

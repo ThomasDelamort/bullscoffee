@@ -5,7 +5,12 @@ import {
   getCustomerByClerkId,
   deleteCustomerById,
 } from "../providers/admin.provider.ts";
-import { createEmployee, getAllEmployees, getEmployeeById, deleteEmployeeById } from "../providers/admin.provider.ts";
+import {
+  createEmployee,
+  getAllEmployees,
+  getEmployeeById,
+  deleteEmployeeById,
+} from "../providers/admin.provider.ts";
 import type { Request, Response } from "express";
 import { clerkClient } from "@clerk/express";
 import type { Customer } from "../types/customer.types.ts";
@@ -27,9 +32,10 @@ export async function createCustomerHandler(
 
     const existingCustomer = await getCustomerByClerkId(clerk_id);
     if (existingCustomer) {
-      res
-        .status(StatusCodes.OK)
-        .json({ message: "Customer already registered", data: existingCustomer });
+      res.status(StatusCodes.OK).json({
+        message: "Customer already registered",
+        data: existingCustomer,
+      });
       return;
     }
 
@@ -46,7 +52,11 @@ export async function createCustomerHandler(
       profile_picture: body.profile_picture ?? null,
     };
 
-    if (!customer.first_name || !customer.last_name || !customer.customer_email) {
+    if (
+      !customer.first_name ||
+      !customer.last_name ||
+      !customer.customer_email
+    ) {
       res
         .status(StatusCodes.BAD_REQUEST)
         .json({ error: "First name, last name and email are required" });
@@ -60,9 +70,9 @@ export async function createCustomerHandler(
   } catch (error: any) {
     // Postgres unique_violation, e.g. email or university_id already in use
     if (error?.code === "23505") {
-      res
-        .status(StatusCodes.CONFLICT)
-        .json({ error: "A customer with that email or university ID already exists" });
+      res.status(StatusCodes.CONFLICT).json({
+        error: "A customer with that email or university ID already exists",
+      });
       return;
     }
     res
@@ -228,4 +238,3 @@ export async function deleteEmployeeHandler(
       .json({ error: "Failed to delete employee" });
   }
 }
-

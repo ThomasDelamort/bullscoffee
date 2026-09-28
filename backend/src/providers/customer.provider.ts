@@ -56,6 +56,35 @@ export async function getCustomerByClerkId(
 }
 
 // Update Profile Functions
+export async function updateCustomerProfile(
+  customer_id: number,
+  customer: Customer,
+): Promise<Customer | void> {
+  const query = `
+          UPDATE customers
+          SET
+            first_name = $1,
+            last_name = $2,
+            university_id = $3,
+            customer_email = $4,
+            contact_number = $5,
+            profile_picture = $6
+          WHERE customer_id = $7
+          RETURNING *;
+      `;
+  const values = [
+    customer.first_name,
+    customer.last_name,
+    customer.university_id,
+    customer.customer_email,
+    customer.contact_number,
+    customer.profile_picture,
+    customer_id,
+  ];
+
+  const result = await pool.query(query, values);
+  return result.rows[0];
+}
 
 // DELETE
 export async function deleteCustomerById(customer_id: number): Promise<void> {

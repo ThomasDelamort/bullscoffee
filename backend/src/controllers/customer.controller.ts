@@ -3,6 +3,7 @@ import {
   getAllCustomers,
   getCustomerByClerkId,
   getCustomerById,
+  updateCustomerProfile,
   deleteCustomerById,
 } from "../providers/customer.provider.ts";
 import type { Request, Response } from "express";
@@ -23,9 +24,10 @@ export async function createCustomerHandler(
 
     const existingCustomer = await getCustomerByClerkId(clerk_id);
     if (existingCustomer) {
-      res
-        .status(StatusCodes.OK)
-        .json({ message: "Customer already registered", data: existingCustomer });
+      res.status(StatusCodes.OK).json({
+        message: "Customer already registered",
+        data: existingCustomer,
+      });
       return;
     }
 
@@ -42,7 +44,11 @@ export async function createCustomerHandler(
       profile_picture: body.profile_picture ?? null,
     };
 
-    if (!customer.first_name || !customer.last_name || !customer.customer_email) {
+    if (
+      !customer.first_name ||
+      !customer.last_name ||
+      !customer.customer_email
+    ) {
       res
         .status(StatusCodes.BAD_REQUEST)
         .json({ error: "First name, last name and email are required" });
@@ -57,9 +63,9 @@ export async function createCustomerHandler(
     console.error("createCustomerHandler failed:", error);
     // Postgres unique_violation, e.g. email or university_id already in use
     if (error?.code === "23505") {
-      res
-        .status(StatusCodes.CONFLICT)
-        .json({ error: "A customer with that email or university ID already exists" });
+      res.status(StatusCodes.CONFLICT).json({
+        error: "A customer with that email or university ID already exists",
+      });
       return;
     }
     res
@@ -68,7 +74,10 @@ export async function createCustomerHandler(
   }
 }
 
-export async function getAllCustomersHandler(_req: Request, res: Response): Promise<Customer[] | void> {
+export async function getAllCustomersHandler(
+  _req: Request,
+  res: Response,
+): Promise<Customer[] | void> {
   try {
     const customers = await getAllCustomers();
     res
@@ -80,7 +89,6 @@ export async function getAllCustomersHandler(_req: Request, res: Response): Prom
       .json({ message: "Failed to fetch customers" });
   }
 }
-
 
 // Get Customer Profile
 export async function getCustomerByIdHandler(
@@ -103,7 +111,7 @@ export async function getCustomerByIdHandler(
     } else {
       res.status(StatusCodes.NOT_FOUND).json({ error: "Customer not found" });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("getCustomerByIdHandler failed:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
@@ -112,6 +120,54 @@ export async function getCustomerByIdHandler(
 }
 
 // Update Profile function
+export async function updateCustomerProfileHandler(
+  req: Request,
+  res: Response,
+): Promise<Customer | void> {
+  try {
+    const customer_id = Number(req.params["id"]);
+    if (Number.isNaN(customer_id)) {
+      res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Invalid customer ID" });
+      return;
+    }
+
+    const existingCustomer = await getCustomerById(customer_id);
+    if (!existingCustomer) {
+      res.status(StatusCodes.NOT_FOUND).json({ error: "Customer not found" });
+      return;
+    }
+
+    const body = req.body ?? {};
+    const updatedCustomer: Customer = {
+      ...existingCustomer,
+      first_name: body.first_name ?? existingCustomer.first_name,
+      last_name: body.last_name ?? existingCustomer.last_name,
+      university_id: body.university_id ?? existingCustomer.university_id,
+      customer_email: body.customer_email ?? existingCustomer.customer_email,
+      contact_number: body.contact_number ?? existingCustomer.contact_number,
+      profile_picture: body.profile_picture ?? existingCustomer.profile_picture,
+    };
+
+    const customer = await updateCustomerProfile(customer_id, updatedCustomer);
+    res.status(StatusCodes.OK).json({
+      message: "Successfully updated customer profile",
+      data: customer,
+    });
+  } catch (error: any) {
+    console.error("updateCustomerProfileHandler failed:", error);
+    if (error?.code === "23505") {
+      res.status(StatusCodes.CONFLICT).json({
+        error: "A customer with that email or university ID already exists",
+      });
+      return;
+    }
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Failed to update customer profile" });
+  }
+}
 
 // Delete Account
 export async function deleteCustomerHandler(
@@ -130,7 +186,7 @@ export async function deleteCustomerHandler(
     res
       .status(StatusCodes.OK)
       .json({ message: "Customer deleted successfully" });
-  } catch (error) {
+  } catch (error: any) {
     console.error("deleteCustomerHandler failed:", error);
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)

@@ -73,7 +73,9 @@ export async function deleteCustomerById(customer_id: number): Promise<void> {
 /*
     EMPLOYEE CRUD FUNCTIONS
  */
-export async function createEmployee(employee: Employee): Promise<Employee | void> {
+export async function createEmployee(
+  employee: Employee,
+): Promise<Employee | void> {
   const query = `
         INSERT INTO employees (clerk_id, first_name, last_name, employee_email, contact_number, profile_picture, employee_status, employee_role, work_schedule) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
@@ -102,7 +104,9 @@ export async function getAllEmployees(): Promise<Employee[] | void> {
   return result.rows;
 }
 
-export async function getEmployeeById(employee_id: number): Promise<Employee | void> {
+export async function getEmployeeById(
+  employee_id: number,
+): Promise<Employee | void> {
   const query = `
         SELECT * FROM employees WHERE employee_id = $1
     `;
@@ -111,7 +115,9 @@ export async function getEmployeeById(employee_id: number): Promise<Employee | v
   return result.rows[0];
 }
 
-export async function deleteEmployeeById(employee_id: number): Promise<Employee | void> {
+export async function deleteEmployeeById(
+  employee_id: number,
+): Promise<Employee | void> {
   const query = `
         DELETE FROM employees WHERE employee_id = $1
     `;

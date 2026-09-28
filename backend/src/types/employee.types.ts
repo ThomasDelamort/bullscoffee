@@ -7,7 +7,7 @@ export interface Employee {
   contact_number: string | null;
   profile_picture: string | null;
   employee_status: string;
-  employee_role: string;
+  employee_role: "manager" | "cashier";
   work_schedule: string;
   created_at?: Date;
 }
