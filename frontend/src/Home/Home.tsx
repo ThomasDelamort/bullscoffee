@@ -1,9 +1,11 @@
+import { MotionConfig } from 'motion/react';
 import { useEffect } from 'react';
 import About from './About/About';
 import { sectionFromPath, setActiveSection } from './activeSection';
 import Contact from './Contact/Contact';
 import Hero from './Hero/Hero';
 import Menu from './Menu/Menu';
+import OrderFlow from './Order/OrderFlow';
 import { NAV_LINKS, type NavId } from './Hero/hero.config';
 
 export default function Home() {
@@ -34,11 +36,15 @@ export default function Home() {
   }, []);
 
   return (
-    <main>
-      <Hero />
-      <Menu />
-      <About />
-      <Contact />
-    </main>
+    // Clip, not hide: sideways overflow is cut without breaking the sticky scenes.
+    <MotionConfig reducedMotion="user">
+      <main className="overflow-x-clip">
+        <Hero />
+        <Menu />
+        <OrderFlow />
+        <About />
+        <Contact />
+      </main>
+    </MotionConfig>
   );
 }
