@@ -1,5 +1,6 @@
 import { AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import AdminRoutes, { ADMIN_BASE_PATH } from './Admin';
 import Home from './Home/Home';
 import AuthPage, { AUTH_PATHS, SSO_CALLBACK_PATH } from './AuthPage';
 import CustomerProvider from './auth/CustomerProvider';
@@ -26,6 +27,7 @@ function App() {
         <Route path={AUTH_PATHS['sign-in']} element={<AuthPage mode="sign-in" />} />
         <Route path={AUTH_PATHS['sign-up']} element={<AuthPage mode="sign-up" />} />
         <Route path={SSO_CALLBACK_PATH} element={<AuthenticateWithRedirectCallback />} />
+        <Route path={`${ADMIN_BASE_PATH}/*`} element={<AdminRoutes />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <RegistrationNotice />

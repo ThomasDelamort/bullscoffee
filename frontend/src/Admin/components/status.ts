@@ -1,0 +1,65 @@
+/** Status → badge tone + label, so every screen describes a state the same way. */
+import type {
+  AccountStatus,
+  Backup,
+  BranchStatus,
+  ExportJob,
+  ServiceState,
+  Severity,
+  TicketPriority,
+  TicketStatus,
+} from "../types";
+import type { Tone } from "./Badge";
+
+type StatusMap<K extends string> = Record<K, { tone: Tone; label: string }>;
+
+export const ACCOUNT_STATUS: StatusMap<AccountStatus> = {
+  active: { tone: "success", label: "Active" },
+  locked: { tone: "warning", label: "Locked" },
+  deactivated: { tone: "neutral", label: "Deactivated" },
+};
+
+export const SEVERITY: StatusMap<Severity> = {
+  info: { tone: "info", label: "Info" },
+  warning: { tone: "warning", label: "Warning" },
+  critical: { tone: "danger", label: "Critical" },
+};
+
+export const TICKET_STATUS: StatusMap<TicketStatus> = {
+  open: { tone: "info", label: "Open" },
+  "in-progress": { tone: "gold", label: "In progress" },
+  resolved: { tone: "success", label: "Resolved" },
+  closed: { tone: "neutral", label: "Closed" },
+};
+
+export const TICKET_PRIORITY: StatusMap<TicketPriority> = {
+  low: { tone: "neutral", label: "Low" },
+  medium: { tone: "info", label: "Medium" },
+  high: { tone: "warning", label: "High" },
+  urgent: { tone: "danger", label: "Urgent" },
+};
+
+export const SERVICE_STATE: StatusMap<ServiceState> = {
+  operational: { tone: "success", label: "Operational" },
+  degraded: { tone: "warning", label: "Degraded" },
+  down: { tone: "danger", label: "Down" },
+  restarting: { tone: "info", label: "Restarting" },
+};
+
+export const BACKUP_STATUS: StatusMap<Backup["status"]> = {
+  completed: { tone: "success", label: "Completed" },
+  failed: { tone: "danger", label: "Failed" },
+  "in-progress": { tone: "info", label: "In progress" },
+};
+
+export const BRANCH_STATUS: StatusMap<BranchStatus> = {
+  open: { tone: "success", label: "Open" },
+  closed: { tone: "warning", label: "Closed today" },
+  inactive: { tone: "neutral", label: "Inactive" },
+};
+
+export const EXPORT_STATUS: StatusMap<ExportJob["status"]> = {
+  queued: { tone: "info", label: "Preparing" },
+  ready: { tone: "success", label: "Ready" },
+  failed: { tone: "danger", label: "Failed" },
+};

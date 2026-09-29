@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { ADMIN_BASE_PATH } from "../Admin/routes";
 import HeroImage from "../Home/Hero/HeroImage";
 import {
   BRAND_GOLD,
@@ -144,6 +146,9 @@ export default function Footer(): React.JSX.Element {
             <a href="#" className="transition-opacity hover:opacity-100">
               Terms of Service
             </a>
+            <Link to={ADMIN_BASE_PATH} className="transition-opacity hover:opacity-100">
+              Admin Portal
+            </Link>
           </div>
         </div>
       </div>

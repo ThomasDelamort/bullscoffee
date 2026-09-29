@@ -1,0 +1,18 @@
+/*
+ * Admin-only design tokens. Scoped to .admin-root (set by MainLayout) so the
+ * storefront is untouched. Use them through Tailwind's var shorthand, e.g.
+ * bg-(--admin-canvas), text-(--admin-muted), border-(--admin-line).
+ */
+.admin-root {
+  --admin-ink: #2a1a10;
+  --admin-ink-soft: #3b271a;
+  --admin-cream: #fbf3e8;
+  --admin-gold: #e8a33c;
+  --admin-canvas: #f6f1ea;
+  --admin-surface: #ffffff;
+  --admin-line: #e8dfd3;
+  --admin-muted: #76665a;
+  /* Single-series chart marks; darker than the brand gold so it clears 3:1 on white. */
+  --admin-chart: #c07a1a;
+  --admin-grid: #efe8df;
+}
