@@ -3,6 +3,7 @@ import {
   getAllCustomers,
   getCustomerByClerkId,
   getCustomerById,
+  searchCustomers,
   updateCustomerProfile,
   deleteCustomerById,
 } from "../providers/customer.provider.ts";
@@ -116,6 +117,30 @@ export async function getCustomerByIdHandler(
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ error: "Failed to fetch customer by ID" });
+  }
+}
+
+// POS customer picker: matches name, university ID or email (max 20 results)
+export async function searchCustomersHandler(
+  req: Request,
+  res: Response,
+): Promise<Customer[] | void> {
+  try {
+    const search = req.query["search"];
+    if (typeof search !== "string" || search.trim() === "") {
+      res.status(StatusCodes.BAD_REQUEST).json({ error: "search is required" });
+      return;
+    }
+
+    const customers = await searchCustomers(search.trim());
+    res
+      .status(StatusCodes.OK)
+      .json({ message: "Successfully searched customers", data: customers });
+  } catch (error: any) {
+    console.error("searchCustomersHandler failed:", error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Failed to search customers" });
   }
 }
 

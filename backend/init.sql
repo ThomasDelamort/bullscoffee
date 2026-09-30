@@ -18,6 +18,22 @@ DO $$ BEGIN CREATE TYPE stock_movement_reason AS ENUM ('delivery', 'sale', 'wast
 EXCEPTION
 WHEN duplicate_object THEN null;
 END $$;
+DO $$ BEGIN CREATE TYPE item_size AS ENUM ('tall', 'grade', 'venti');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE feedback_status AS ENUM ('new', 'reviewed');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE discount_kind AS ENUM ('percent', 'fixed');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE discount_eligibility AS ENUM ('none', 'university_id', 'government_id');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
 
 -- ============================ STAFF ============================
 
@@ -86,8 +102,11 @@ CREATE TABLE IF NOT EXISTS products (
     image_url VARCHAR(255),
     price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    has_sizes BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS has_sizes BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- ========================== INVENTORY ==========================
 
@@ -138,8 +157,11 @@ CREATE TABLE IF NOT EXISTS order_items (
     order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
     product_id INT NOT NULL REFERENCES products(product_id),
     quantity INT NOT NULL CHECK (quantity > 0),
-    selling_price DECIMAL(10, 2) NOT NULL CHECK (selling_price >= 0)
+    size item_size,
+    selling_price DECIMAL(10, 2) NOT NULL CHECK (selling_price >= 0),
+    special_instructions TEXT
 );
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS size item_size;
 
 CREATE TABLE IF NOT EXISTS payments (
     payment_id SERIAL PRIMARY KEY,
@@ -187,4 +209,27 @@ CREATE TABLE IF NOT EXISTS delivery_items (
     quantity_received DECIMAL(10, 2) NOT NULL CHECK (quantity_received > 0),
     unit_cost DECIMAL(10, 2) NOT NULL CHECK (unit_cost >= 0),
     PRIMARY KEY (delivery_id, ingredient_id)
+);
+
+-- =========================== FEEDBACK ============================
+
+CREATE TABLE IF NOT EXISTS feedback (
+    feedback_id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(customer_id),
+    order_id INT REFERENCES orders(order_id),
+    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT NOT NULL,
+    status feedback_status NOT NULL DEFAULT 'new',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =========================== DISCOUNTS ===========================
+
+CREATE TABLE IF NOT EXISTS discounts (
+    discount_id SERIAL PRIMARY KEY,
+    discount_name VARCHAR(100) NOT NULL UNIQUE,
+    kind discount_kind NOT NULL,
+    value DECIMAL(10, 2) NOT NULL CHECK (value > 0),
+    eligibility discount_eligibility NOT NULL DEFAULT 'none',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );

@@ -14,6 +14,8 @@ erDiagram
     classDef menuBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
     classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
     classDef supplyBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+    classDef feedbackBox fill:#fce4ec,stroke:#ad1457,color:#1a1a1a
+    classDef discountBox fill:#e8f5e9,stroke:#2e7d32,color:#1a1a1a
 
     %% ============================ STAFF ============================
 
@@ -23,7 +25,7 @@ erDiagram
         VARCHAR(255) clerk_id "UNIQUE NOT NULL"
         varchar(50) first_name "NOT NULL"
         varchar(50) last_name "NOT NULL"
-        varchar(100) employee_email UK "NOT NULL"
+        varchar(255) employee_email UK "NOT NULL"
         varchar(20) contact_number "NULLABLE"
         varchar(255) profile_picture "NULLABLE"
         enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
@@ -50,7 +52,7 @@ erDiagram
         varchar(50) university_id UK "NULLABLE, qualifies for student discount"
         varchar(100) customer_email UK "NOT NULL"
         varchar(20) contact_number "NULLABLE"
-        varchar(150) profile_picture "NULLABLE"
+        varchar(255) profile_picture "NULLABLE"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }
 
@@ -70,6 +72,7 @@ erDiagram
         int order_id FK "NOT NULL, ON DELETE CASCADE"
         int product_id FK "NOT NULL"
         int quantity "NOT NULL, CHECK (quantity > 0)"
+        enum size "NULLABLE (tall / grade / venti)"
         decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
         text special_instructions "NULLABLE"
     }
@@ -98,6 +101,7 @@ erDiagram
         varchar(255) image_url "NULLABLE"
         decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
         boolean is_available "NOT NULL, DEFAULT TRUE"
+        boolean has_sizes "NOT NULL, DEFAULT FALSE"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }
 
@@ -131,13 +135,36 @@ erDiagram
         timestamptz moved_at "NOT NULL, DEFAULT now()"
     }
 
+    %% ========================== FEEDBACK ===========================
+
+    FEEDBACK {
+        int feedback_id PK "IDENTITY"
+        int customer_id FK "NULLABLE"
+        int order_id FK "NULLABLE"
+        int rating "NOT NULL, CHECK (rating >= 1 AND rating <= 5)"
+        text comment "NOT NULL"
+        enum status "NOT NULL, DEFAULT 'new' (new / reviewed)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+    %% ========================== DISCOUNTS ==========================
+
+    DISCOUNTS {
+        int discount_id PK "IDENTITY"
+        varchar(100) discount_name UK "NOT NULL"
+        enum kind "NOT NULL (percent / fixed)"
+        decimal_10_2 value "NOT NULL, CHECK (value > 0)"
+        enum eligibility "NOT NULL, DEFAULT 'none' (none / university_id / government_id)"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
     %% =========================== SUPPLY ============================
 
     SUPPLIERS {
         int supplier_id PK "IDENTITY"
         varchar(100) supplier_name UK "NOT NULL"
         varchar(50) contact_person "NULLABLE"
-        varchar(100) supplier_email "NOT NULL"
+        varchar(255) supplier_email "NOT NULL"
         varchar(20) contact_number "NULLABLE"
         varchar(255) image_url "NULLABLE"
         varchar(150) supplier_address "NULLABLE"
@@ -182,6 +209,9 @@ erDiagram
     INGREDIENTS ||--o{ STOCK_MOVEMENTS : "tracked by"
     EMPLOYEES ||--o{ STOCK_MOVEMENTS : "records"
 
+    CUSTOMERS |o--o{ FEEDBACK : "leaves"
+    ORDERS |o--o{ FEEDBACK : "linked to"
+
     SUPPLIERS ||--o{ SUPPLIER_INGREDIENTS : "supplies"
     INGREDIENTS ||--o{ SUPPLIER_INGREDIENTS : "supplied by"
     SUPPLIERS ||--o{ DELIVERIES : "delivers"
@@ -204,3 +234,5 @@ erDiagram
     SUPPLIER_INGREDIENTS:::supplyBox
     DELIVERIES:::supplyBox
     DELIVERY_ITEMS:::supplyBox
+    FEEDBACK:::feedbackBox
+    DISCOUNTS:::discountBox

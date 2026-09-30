@@ -55,6 +55,23 @@ export async function getCustomerByClerkId(
   return result.rows[0];
 }
 
+// POS customer picker: matches name, university id or email, capped so a
+// short search term can't pull the whole table.
+export async function searchCustomers(
+  search: string,
+): Promise<Customer[] | void> {
+  const query = `
+        SELECT * FROM customers
+        WHERE (first_name || ' ' || last_name) ILIKE $1
+           OR university_id ILIKE $1
+           OR customer_email ILIKE $1
+        ORDER BY first_name, last_name
+        LIMIT 20
+    `;
+  const result = await pool.query(query, [`%${search}%`]);
+  return result.rows;
+}
+
 // Update Profile Functions
 export async function updateCustomerProfile(
   customer_id: number,

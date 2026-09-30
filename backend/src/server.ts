@@ -10,6 +10,7 @@ import { StatusCodes } from "http-status-codes";
 // Import Routes
 import adminRoutes from "./routes/admin.route.ts";
 import customerRoutes from "./routes/customer.route.ts";
+import productRoutes from "./routes/product.routes.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
@@ -36,6 +37,7 @@ app.get("/health-check", (_req: Request, res: Response) => {
 // Routes
 app.use("/api/admin", adminRoutes);
 app.use("/api", customerRoutes);
+app.use("/api", productRoutes);
 
 async function startServer() {
   try {

@@ -1,0 +1,24 @@
+/*
+ * Manager-only design tokens ("matcha"). Scoped to .manager-root (set by
+ * MainLayout) so the storefront and admin console are untouched. Use them
+ * through Tailwind's var shorthand, e.g. bg-(--mgr-canvas), text-(--mgr-muted).
+ */
+.manager-root {
+  --mgr-ink: #14281f;
+  --mgr-ink-soft: #1f3b2e;
+  --mgr-cream: #eef6f0;
+  /* Focus rings and active states; clears 3:1 on both white and --mgr-ink. */
+  --mgr-accent: #2f9e63;
+  /* Highlights on the dark sidebar only; too light for white backgrounds. */
+  --mgr-mint: #8fe0b0;
+  --mgr-canvas: #f2f6f2;
+  --mgr-surface: #ffffff;
+  --mgr-line: #dde7df;
+  --mgr-muted: #5b6e63;
+  --mgr-chart: #2f8a58;
+  --mgr-grid: #e8efe9;
+}
+
+.manager-display {
+  font-family: "Anton", Impact, "Arial Narrow Bold", sans-serif;
+}
