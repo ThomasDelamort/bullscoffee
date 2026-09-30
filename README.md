@@ -43,19 +43,42 @@ This is an active student project, not a finished product. What exists today:
   with a custom auth page (email/password + social) and automatic customer
   registration on first sign-in
 - ✅ Client-side routing (React Router) for the landing page, `/menu`,
-  `/about`, `/contact`, and the auth pages
-- ✅ Full relational schema for staff, sales, menu, inventory, and supply
-  (see [Database Schema](#-database-schema))
-- ✅ CRUD APIs for **customers** (`/api`) and an **admin** API for
-  customers and employees (`/api/admin`), all behind a Clerk session
-- ✅ Landing page hero, navbar/footer, about and contact sections
-- 🔜 Not yet built: menu browsing backed by the API, cart/checkout, order
-  and payment endpoints, inventory/stock-movement endpoints, supplier
-  endpoints (only `supplier.types.ts` exists today), and a staff-facing
-  dashboard
-- ⚠️ Authentication is enforced on every route, but authorization is not:
-  any signed-in user can read, update, or delete **any** customer or
-  employee by ID. Ownership and manager-only checks still need building.
+  `/about`, `/contact`, the auth pages, and two internal dashboards at
+  `/admin` and `/manager`
+- ✅ Full relational schema for staff, sales, menu, inventory, supply,
+  feedback, and discounts (see [Database Schema](#-database-schema))
+- ✅ Live CRUD APIs for **customers** (`/api`), an **admin** API for
+  customers and employees (`/api/admin`), and read-only **products**
+  (`/api/products`), all behind a Clerk session
+- ✅ Landing page hero, animated menu showcase, order-flow and about-page
+  reveal, navbar/footer
+- 🟡 **Manager dashboard** ([frontend/src/Manager](frontend/src/Manager)):
+  a full UI — dashboard, POS, orders, discounts, reports, feedback,
+  products, staff, schedules, attendance, inventory, suppliers — but it
+  runs entirely on in-memory mock data
+  ([mock.ts](frontend/src/Manager/data/mock.ts)), not the real API
+- 🟡 **Admin dashboard** ([frontend/src/Admin](frontend/src/Admin)): a
+  separate system-admin style UI (users, roles, system health, logs,
+  tickets, branches, payments, backups, …), also mock-data only
+- 🟡 **Backend catching up to the schema**: controllers and providers now
+  exist for categories, ingredients, products (full CRUD + recipes),
+  orders, deliveries, employees, attendance, reports, stock movements,
+  and suppliers, but most aren't mounted as routes yet — see
+  [API Reference](#-api-reference) for exactly what's live today
+  ([server.ts](backend/src/server.ts) only mounts three route files)
+- 🟡 S3 image upload is implemented
+  ([upload.middleware.ts](backend/src/middleware/upload.middleware.ts),
+  multer + `@aws-sdk/client-s3`) but not yet attached to any route
+- 🔜 The customer-facing `/menu` page is still a static/animated mock
+  ([StaticMenu.tsx](frontend/src/Home/Menu/StaticMenu.tsx) /
+  [PourShowcase](frontend/src/Home/Menu/PourShowcase.tsx)), not fetched
+  from `/api/products`; cart, checkout, and payments don't exist yet
+- ⚠️ Authentication is enforced on every backend route, but authorization
+  is not: any signed-in user can read, update, or delete **any** customer
+  or employee by ID (`requireManager` is written in
+  [auth.middleware.ts](backend/src/middleware/auth.middleware.ts) but
+  unused). The `/admin` and `/manager` frontend routes are likewise not
+  gated behind a role check yet — anyone with the URL can open them.
 
 ## ⚡ Quick Start
 
@@ -83,7 +106,9 @@ cp .env.example .env
 npm run dev
 ```
 
-The API starts on **http://localhost:3000** (see `PORT` in `.env`).
+The API starts on **http://localhost:3000** (see `PORT` in `.env`). The
+`AWS_*` variables in `.env.example` are only used by the (currently
+unrouted) S3 image-upload middleware — safe to leave blank for now.
 
 ### 3. Frontend
 
@@ -114,26 +139,34 @@ Both the frontend and backend need keys from the same
 | 🙋  | **Auto-registration**   | On first sign-in, the frontend calls the backend to create a matching `customers` row, pulling name/email from Clerk |
 | 📝  | **Fallback name form**  | If Clerk has no name on file, the customer is prompted for one before registration completes |
 | 👥  | **Staff records**       | Employees with role (`cashier` / `manager`), status, and work schedule                      |
-| 🚚  | **Supplier records**    | Modeled in the schema only — no API or UI yet                                               |
-| 🎓  | **Student discount ready** | `customers.university_id` is captured for a future student-discount flow                |
+| 🚚  | **Supplier records**    | Full CRUD on the backend (controller + provider); no route mounted yet, no UI wired to it   |
+| 🎓  | **Student discount ready** | `customers.university_id` + a new `discounts` table are captured for a future student-discount flow |
 | 🧭  | **Site navigation**     | Navbar/footer and routed sections for home, menu, about, and contact                        |
 | 🔑  | **Custom auth UI**      | Clerk-backed sign-in/sign-up page with email/password, social buttons, and password reset   |
+| 📊  | **Manager dashboard**   | 12-page UI (POS, orders, discounts, reports, feedback, products, staff, schedules, attendance, inventory, suppliers) — currently mock-data only, see [Project Status](#-project-status) |
+| 🛠️  | **Admin dashboard**     | 11-page system-admin UI (users, roles, health, logs, tickets, branches, payments, …) — also mock-data only |
+| ☁️  | **Image uploads**       | S3 upload middleware (multer + `@aws-sdk/client-s3`) implemented but not yet attached to a route |
 
 ### Planned
 
-Menu/catalog wired to the backend, cart & checkout, order and payment
-processing, inventory stock movements, attendance logs, and a manager
-dashboard are modeled in the [database schema](#-database-schema) but
-don't have API routes or working UI yet.
+Wiring the Manager/Admin UIs and the S3 upload middleware to the real
+API, a customer-facing menu backed by `/api/products`, cart & checkout,
+order and payment processing, and role-based authorization
+(`requireManager`) are the next milestones. Most of the backend surface
+for these (controllers + providers for categories, ingredients, orders,
+deliveries, attendance, reports, stock movements, and suppliers) already
+exists — see [API Reference](#-api-reference) for what's actually routed
+today.
 
 ## 🧱 Tech Stack
 
 | Layer      | Tech                                                          |
 | ---------- | -------------------------------------------------------------- |
-| Frontend   | React 19, TypeScript, Vite, Tailwind CSS 4                     |
+| Frontend   | React 19, TypeScript, Vite, Tailwind CSS 4, `react-icons`, `motion` (animation) |
 | Backend    | Express 5, TypeScript (native `.ts` execution via Node's `--watch`) |
 | Database   | PostgreSQL via `pg`, schema applied from a plain `init.sql`    |
 | Auth       | Clerk (`@clerk/express` on the backend, `@clerk/clerk-react` on the frontend) |
+| File storage | AWS S3 (`@aws-sdk/client-s3`) via `multer`, for product images (not yet routed) |
 | Tooling    | oxlint (frontend), `http-status-codes` for consistent API responses |
 
 ## 🔐 Authentication (Clerk)
@@ -160,7 +193,9 @@ Base URL: `http://localhost:3000/api`. Responses are wrapped as
 `{ message, data }` on success or `{ error }` on failure by
 [responseFormatter.ts](backend/src/middleware/responseFormatter.ts).
 
-All routes below require a Clerk session (`Authorization: Bearer <token>`).
+These are the only routes actually mounted in
+[server.ts](backend/src/server.ts) today. All of them except the product
+endpoints require a Clerk session (`Authorization: Bearer <token>`).
 
 | Method | Path                    | Notes                                                       |
 | ------ | ----------------------- | ----------------------------------------------------------- |
@@ -177,6 +212,8 @@ All routes below require a Clerk session (`Authorization: Bearer <token>`).
 | GET    | `/admin/employees`      |                                                              |
 | GET    | `/admin/employees/:id`  |                                                              |
 | DELETE | `/admin/employees/:id`  |                                                              |
+| GET    | `/products`             | List all products — no auth required                        |
+| GET    | `/products/:id`         | No auth required                                             |
 
 The `/customers` and `/admin/customers` handlers are near-duplicates backed
 by two separate providers ([customer.provider.ts](backend/src/providers/customer.provider.ts),
@@ -185,10 +222,20 @@ consolidated.
 
 `GET /` and `GET /health-check` are unauthenticated liveness endpoints.
 
+### Controllers that exist but aren't routed yet
+
+The backend has full controllers + providers for these resources, but no
+route file mounts them, so none of this is reachable over HTTP yet:
+categories, ingredients, the rest of products' CRUD (create/update/delete
++ recipe management), orders, deliveries, employees (beyond the admin
+list/create/delete above), attendance, reports, stock movements, and
+suppliers. See `backend/src/controllers/*.controller.ts` for what each one
+does — wiring these up is the main backend gap right now.
+
 ## 🗄️ Database Schema
 
-The schema covers five modules — staff, sales, menu, inventory, and
-supply — defined in [init.sql](backend/init.sql) and diagrammed in
+The schema covers staff, sales, menu, inventory, supply, feedback, and
+discounts — defined in [init.sql](backend/init.sql) and diagrammed in
 [RESET.mmd](RESET.mmd):
 
 ![Entity relationship diagram](RESET.png)
@@ -198,6 +245,15 @@ supply — defined in [init.sql](backend/init.sql) and diagrammed in
 - Records are retired with `is_active` / `employee_status` flags rather
   than hard-deleted, except where cascades are explicit (e.g. deleting an
   order removes its `order_items`).
+- `products` can have per-size variants (`has_sizes` + the `item_size`
+  enum on `order_items`), and `order_items` carries free-text
+  `special_instructions`.
+- `feedback` (rating + comment per order) and `discounts` (percent/fixed,
+  with an eligibility rule) are new tables backing the Manager
+  dashboard's Feedback and Discounts pages — no API reads/writes them
+  yet, so the dashboard's data is still mocked.
+- ⚠️ `RESET.mmd` includes these newer tables, but `RESET.png` hasn't been
+  regenerated since — the rendered diagram above is stale.
 
 ## 📁 Project Structure
 
@@ -206,18 +262,24 @@ backend/
   init.sql              # full schema, applied on every server start
   src/
     server.ts           # express app, middleware, route mounting
-    routes/              # customer.route.ts (/api), admin.route.ts (/api/admin)
-    controllers/         # request/response handling
+    routes/              # only 3 files mounted: customer, admin, product — see API Reference
+    controllers/         # request/response handling (many more resources than have routes)
     providers/           # SQL queries
-    middleware/           # clerk auth guards, response formatter
+    middleware/           # clerk auth guards, response formatter, S3 upload (unrouted)
     types/                # shared TS types per resource
+    lib/                  # init.sql runner, query helpers
 
 frontend/
   src/
     AuthPage/             # custom sign-in/sign-up UI (Clerk-backed), password reset, social buttons
     auth/                 # ClerkProvider wiring + registration flow (CustomerProvider, RegistrationNotice)
     components/           # Navbar, Footer
-    Home/                  # Home.tsx + Hero/About/Contact/Menu sections
+    Home/                  # Home.tsx + Hero/About/Contact/Menu sections (animated, mock data)
+    Manager/               # /manager — coffee-shop manager dashboard (mock data, see Project Status)
+      components/, layout/, pages/, data/, utils/
+    Admin/                 # /admin — system-admin dashboard (mock data, see Project Status)
+      pages/, layout/, data/
+    POS/                   # placeholder, currently empty
     App.tsx / main.tsx
 ```
 
