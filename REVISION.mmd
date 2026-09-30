@@ -1,0 +1,723 @@
+erDiagram
+    direction TB
+
+%% Target DBMS: PostgreSQL
+%% IDENTITY = GENERATED ALWAYS AS IDENTITY
+%% enum = CREATE TYPE ... AS ENUM (allowed values shown in parentheses)
+%% decimal_10_2 = DECIMAL(10,2), since Mermaid types cannot contain commas
+%% Foreign keys are ON DELETE RESTRICT unless marked CASCADE
+%% Records are retired with status/is_active flags, never hard-deleted
+%% Colors group tables by module: staff, sales, menu, inventory, supply, system
+%% ----
+%% Updated to match the expanded use case diagram:
+%% - Login / Logout / Register Account / Reset Password are handled by Clerk (clerk_id);
+%%   no password columns are stored here. Failed logins are written to AUDIT_LOGS.
+%% - Backup & Restore, Monitor Performance, Generate / Export Reports are operational
+%%   features or queries over existing tables, so they have no tables of their own.
+%% - Payment gateway API keys live in environment secrets, never in SYSTEM_SETTINGS.
+
+    classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef salesBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
+    classDef menuBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
+    classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+    classDef supplyBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+    classDef systemBox fill:#f8d7da,stroke:#c62828,color:#1a1a1a
+
+%% ============================ STAFF ============================
+
+%% Assign Roles & Permissions (RBAC): admin / manager / cashier
+    ROLES {
+        int role_id PK "IDENTITY"
+        varchar(30) role_name UK "NOT NULL (e.g. admin / manager / cashier)"
+        text description "NULLABLE"
+    }
+
+    PERMISSIONS {
+        int permission_id PK "IDENTITY"
+        varchar(100) permission_key UK "NOT NULL, e.g. orders.void, discounts.approve"
+        text description "NULLABLE"
+    }
+
+    ROLE_PERMISSIONS {
+        int role_id PK,FK "ON DELETE CASCADE"
+        int permission_id PK,FK "ON DELETE CASCADE"
+    }
+
+%% Manage Branches; store hours are per branch
+    BRANCHES {
+        int branch_id PK "IDENTITY"
+        varchar(100) branch_name UK "NOT NULL"
+        varchar(150) branch_address "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        time opening_time "NOT NULL"
+        time closing_time "NOT NULL"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Cashiers, managers and admins share one entity; role comes from ROLES
+%% Create / Deactivate / Lock Accounts = employee_status
+    EMPLOYEES {
+        int employee_id PK "IDENTITY"
+        varchar(255) clerk_id UK "NOT NULL"
+        int role_id FK "NOT NULL"
+        int branch_id FK "NOT NULL"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(100) employee_email UK "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) profile_picture "NULLABLE"
+        enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive / locked)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Manage Staff Schedules (replaces EMPLOYEES.work_schedule)
+%% UNIQUE (employee_id, shift_date)
+%% CHECK (is_rest_day OR (shift_start IS NOT NULL AND shift_end > shift_start))
+    STAFF_SCHEDULES {
+        int schedule_id PK "IDENTITY"
+        int employee_id FK "NOT NULL, ON DELETE CASCADE"
+        int created_by FK "NOT NULL, manager who set the shift"
+        date shift_date "NOT NULL"
+        time shift_start "NULLABLE"
+        time shift_end "NULLABLE"
+        boolean is_rest_day "NOT NULL, DEFAULT FALSE"
+    }
+
+%% Clock In / Clock Out, View Attendance / Timekeeping
+%% CHECK (time_out IS NULL OR time_out > time_in)
+    ATTENDANCE_LOGS {
+        int log_id PK "IDENTITY"
+        int employee_id FK "NOT NULL"
+        timestamptz time_in "NOT NULL"
+        timestamptz time_out "NULLABLE"
+    }
+
+%% Evaluate Staff Performance; CHECK (period_end >= period_start)
+    PERFORMANCE_REVIEWS {
+        int review_id PK "IDENTITY"
+        int employee_id FK "NOT NULL"
+        int reviewer_id FK "NOT NULL, manager"
+        date period_start "NOT NULL"
+        date period_end "NOT NULL"
+        smallint rating "NOT NULL, CHECK (rating BETWEEN 1 AND 5)"
+        text comments "NULLABLE"
+        timestamptz reviewed_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Open / Close Shift & Cash Drawer
+%% expected_cash = opening_cash + cash payments in the session, set at close
+    CASH_DRAWER_SESSIONS {
+        int session_id PK "IDENTITY"
+        int employee_id FK "NOT NULL"
+        int branch_id FK "NOT NULL"
+        timestamptz opened_at "NOT NULL, DEFAULT now()"
+        timestamptz closed_at "NULLABLE (NULL = drawer still open)"
+        decimal_10_2 opening_cash "NOT NULL, CHECK (opening_cash >= 0)"
+        decimal_10_2 closing_cash "NULLABLE, CHECK (closing_cash >= 0)"
+        decimal_10_2 expected_cash "NULLABLE"
+    }
+
+%% ============================ SALES ============================
+
+%% loyalty_points = cached SUM(points_change) from LOYALTY_TRANSACTIONS
+    CUSTOMERS {
+        int customer_id PK "IDENTITY"
+        varchar(255) clerk_id UK "NOT NULL"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(50) university_id UK "NULLABLE, qualifies for student discount"
+        varchar(100) customer_email UK "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(150) profile_picture "NULLABLE"
+        int loyalty_points "NOT NULL, DEFAULT 0, CHECK (loyalty_points >= 0)"
+        enum customer_status "NOT NULL, DEFAULT 'active' (active / inactive / locked)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Manage Payment Methods; only gateway tokens are stored, never full card numbers
+    SAVED_PAYMENT_METHODS {
+        int saved_method_id PK "IDENTITY"
+        int customer_id FK "NOT NULL, ON DELETE CASCADE"
+        enum method_type "NOT NULL (card / e_wallet)"
+        varchar(50) provider "NOT NULL, e.g. Visa, GCash"
+        varchar(255) gateway_token UK "NOT NULL"
+        char(4) last_four "NULLABLE"
+        boolean is_default "NOT NULL, DEFAULT FALSE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Manage Cart
+    CART_ITEMS {
+        int cart_item_id PK "IDENTITY"
+        int customer_id FK "NOT NULL, ON DELETE CASCADE"
+        int product_id FK "NOT NULL, ON DELETE CASCADE"
+        int quantity "NOT NULL, CHECK (quantity > 0)"
+        text special_instructions "NULLABLE"
+        timestamptz added_at "NOT NULL, DEFAULT now()"
+    }
+
+    CART_ITEM_MODIFIERS {
+        int cart_item_id PK,FK "ON DELETE CASCADE"
+        int modifier_id PK,FK "ON DELETE CASCADE"
+    }
+
+%% Save Favorite Items
+    FAVORITES {
+        int customer_id PK,FK "ON DELETE CASCADE"
+        int product_id PK,FK "ON DELETE CASCADE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Apply Promo Code / Voucher, Apply Discount (senior / PWD / student), Manage Promotions
+    DISCOUNTS {
+        int discount_id PK "IDENTITY"
+        varchar(100) discount_name "NOT NULL"
+        varchar(30) promo_code UK "NULLABLE, NULL for senior / PWD / student"
+        enum discount_kind "NOT NULL (senior / pwd / student / promo)"
+        enum value_type "NOT NULL (percent / fixed)"
+        decimal_10_2 discount_value "NOT NULL, CHECK (discount_value > 0)"
+        boolean requires_approval "NOT NULL, DEFAULT FALSE"
+        timestamptz starts_at "NULLABLE"
+        timestamptz ends_at "NULLABLE, CHECK (ends_at > starts_at)"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+        int created_by FK "NOT NULL"
+    }
+
+%% total_amount = SUM(quantity * selling_price of active items) - discount_amount, kept in sync by trigger
+%% Choose Order Type, Process Walk-in Order, Accept / Reject Online Order, Update / Track Order Status
+%% CHECK (order_type <> 'delivery' OR delivery_address IS NOT NULL)
+%% CHECK (order_source <> 'walk_in' OR employee_id IS NOT NULL)
+    ORDERS {
+        int order_id PK "IDENTITY"
+        int customer_id FK "NULLABLE (NULL = walk-in)"
+        int employee_id FK "NULLABLE, NULL until an online order is accepted"
+        int branch_id FK "NOT NULL"
+        int discount_id FK "NULLABLE"
+        enum order_source "NOT NULL (walk_in / online)"
+        enum order_type "NOT NULL, DEFAULT 'takeout' (dine_in / takeout / delivery)"
+        text delivery_address "NULLABLE"
+        timestamptz ordered_at "NOT NULL, DEFAULT now()"
+        decimal_10_2 discount_amount "NOT NULL, DEFAULT 0.00, CHECK (discount_amount >= 0)"
+        decimal_10_2 total_amount "NOT NULL, DEFAULT 0.00, CHECK (total_amount >= 0)"
+        enum order_status "NOT NULL, DEFAULT 'pending' (pending / accepted / preparing / ready / completed / rejected / cancelled)"
+        timestamptz status_updated_at "NOT NULL, DEFAULT now()"
+        text cancel_reason "NULLABLE"
+    }
+
+%% selling_price = product price + modifier adjustments at time of order
+%% Void Item = item_status 'voided' (needs an approved APPROVAL_REQUESTS row)
+    ORDER_ITEMS {
+        int order_item_id PK "IDENTITY"
+        int order_id FK "NOT NULL, ON DELETE CASCADE"
+        int product_id FK "NOT NULL"
+        int quantity "NOT NULL, CHECK (quantity > 0)"
+        decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
+        text special_instructions "NULLABLE"
+        enum item_status "NOT NULL, DEFAULT 'active' (active / voided)"
+    }
+
+%% Customize Order (size, milk, sweetness, add-ons); price copied at time of order
+    ORDER_ITEM_MODIFIERS {
+        int order_item_id PK,FK "ON DELETE CASCADE"
+        int modifier_id PK,FK
+        decimal_10_2 price_adjustment "NOT NULL, CHECK (price_adjustment >= 0)"
+    }
+
+%% Payment, Process Payment, Verify Transaction, View / Download / Print Receipt
+    PAYMENTS {
+        int payment_id PK "IDENTITY"
+        int order_id FK "NOT NULL"
+        int session_id FK "NULLABLE, cash drawer session for counter payments"
+        int saved_method_id FK "NULLABLE"
+        decimal_10_2 amount_paid "NOT NULL, CHECK (amount_paid > 0)"
+        enum payment_method "NOT NULL (cash / card / e_wallet)"
+        enum payment_status "NOT NULL, DEFAULT 'pending' (pending / verified / failed / refunded)"
+        varchar(100) gateway_reference UK "NULLABLE, gateway transaction ID; NULL for cash"
+        varchar(30) receipt_number UK "NOT NULL"
+        timestamptz paid_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Cancel Order / Request Refund (customer), Process Refund (cashier + gateway)
+    REFUNDS {
+        int refund_id PK "IDENTITY"
+        int payment_id FK "NOT NULL"
+        int request_id FK "NULLABLE, manager approval"
+        decimal_10_2 refund_amount "NOT NULL, CHECK (refund_amount > 0)"
+        text reason "NOT NULL"
+        enum refund_status "NOT NULL, DEFAULT 'requested' (requested / approved / rejected / completed)"
+        varchar(100) gateway_reference UK "NULLABLE, NULL for cash refunds"
+        timestamptz requested_at "NOT NULL, DEFAULT now()"
+        timestamptz completed_at "NULLABLE"
+    }
+
+%% Approve Void / Refund / Discount Requests
+%% CHECK (request_type <> 'void_item' OR order_item_id IS NOT NULL)
+    APPROVAL_REQUESTS {
+        int request_id PK "IDENTITY"
+        enum request_type "NOT NULL (void_item / cancel_order / refund / discount)"
+        int order_id FK "NOT NULL"
+        int order_item_id FK "NULLABLE, set for void_item"
+        int requested_by FK "NOT NULL, cashier"
+        int reviewed_by FK "NULLABLE, manager"
+        enum request_status "NOT NULL, DEFAULT 'pending' (pending / approved / rejected)"
+        text reason "NOT NULL"
+        timestamptz requested_at "NOT NULL, DEFAULT now()"
+        timestamptz reviewed_at "NULLABLE"
+    }
+
+%% Earn & Redeem Loyalty Points: positive = earned, negative = redeemed
+    LOYALTY_TRANSACTIONS {
+        int loyalty_txn_id PK "IDENTITY"
+        int customer_id FK "NOT NULL"
+        int order_id FK "NULLABLE"
+        int points_change "NOT NULL, CHECK (points_change <> 0)"
+        enum txn_type "NOT NULL (earn / redeem / adjustment / expire)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Rate & Review Products / Submit Feedback or Complaint, View Customer Feedback,
+%% Responds customer system complaints (responded_by = admin or manager)
+%% CHECK (feedback_type <> 'review' OR (product_id IS NOT NULL AND rating IS NOT NULL))
+    FEEDBACK {
+        int feedback_id PK "IDENTITY"
+        int customer_id FK "NOT NULL"
+        int order_id FK "NULLABLE"
+        int product_id FK "NULLABLE"
+        int responded_by FK "NULLABLE"
+        enum feedback_type "NOT NULL (review / feedback / complaint)"
+        smallint rating "NULLABLE, CHECK (rating BETWEEN 1 AND 5)"
+        text message "NOT NULL"
+        enum feedback_status "NOT NULL, DEFAULT 'open' (open / in_progress / resolved)"
+        text response "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz resolved_at "NULLABLE"
+    }
+
+%% ============================ MENU =============================
+
+    CATEGORIES {
+        int category_id PK "IDENTITY"
+        varchar(50) category_name UK "NOT NULL"
+        varchar(255) image_url "NULLABLE"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Manage Menu, Manage Product Pricing, Mark Item Out of Stock (is_available)
+    PRODUCTS {
+        int product_id PK "IDENTITY"
+        int category_id FK "NOT NULL"
+        varchar(100) product_name UK "NOT NULL"
+        text description "NULLABLE"
+        varchar(255) image_url "NULLABLE"
+        decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
+        boolean is_available "NOT NULL, DEFAULT TRUE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Customization options; UNIQUE (modifier_group, modifier_name)
+    MODIFIERS {
+        int modifier_id PK "IDENTITY"
+        enum modifier_group "NOT NULL (size / milk / sweetness / add_on)"
+        varchar(50) modifier_name "NOT NULL"
+        decimal_10_2 price_adjustment "NOT NULL, DEFAULT 0.00, CHECK (price_adjustment >= 0)"
+        boolean is_available "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Manage Recipes: ingredients deducted per product sold
+    PRODUCT_INGREDIENTS {
+        int product_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK
+        decimal_10_2 quantity_required "NOT NULL, CHECK (quantity_required > 0)"
+    }
+
+%% ========================== INVENTORY ==========================
+
+    INGREDIENTS {
+        int ingredient_id PK "IDENTITY"
+        varchar(100) ingredient_name UK "NOT NULL"
+        varchar(20) unit_of_measure "NOT NULL"
+        varchar(255) image_url "NULLABLE"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Stock is tracked per branch (moved from INGREDIENTS)
+%% current_quantity = cached SUM(quantity_change) from STOCK_MOVEMENTS for the branch
+%% Set Reorder Levels = reorder_level
+    BRANCH_STOCK {
+        int branch_id PK,FK
+        int ingredient_id PK,FK
+        decimal_10_2 current_quantity "NOT NULL, DEFAULT 0.00, CHECK (current_quantity >= 0)"
+        decimal_10_2 reorder_level "NOT NULL, DEFAULT 0.00, CHECK (reorder_level >= 0)"
+    }
+
+%% Positive quantity_change = stock in, negative = stock out
+%% Log Wastage / Spoilage = reason 'waste'; Review Wastage Report queries these rows
+    STOCK_MOVEMENTS {
+        int movement_id PK "IDENTITY"
+        int branch_id FK "NOT NULL"
+        int ingredient_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
+        int delivery_id FK "NULLABLE, set when reason = delivery"
+        int order_id FK "NULLABLE, set when reason = sale"
+        decimal_10_2 quantity_change "NOT NULL, CHECK (quantity_change <> 0)"
+        enum reason "NOT NULL (delivery / sale / waste / supplier_return / count_adjustment / adjustment)"
+        text notes "NULLABLE"
+        timestamptz moved_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Conduct Stock Count / Reconcile Inventory
+    STOCK_COUNTS {
+        int count_id PK "IDENTITY"
+        int branch_id FK "NOT NULL"
+        int counted_by FK "NOT NULL"
+        enum count_status "NOT NULL, DEFAULT 'in_progress' (in_progress / completed)"
+        timestamptz started_at "NOT NULL, DEFAULT now()"
+        timestamptz completed_at "NULLABLE"
+    }
+
+%% Variance (counted - system) is posted to STOCK_MOVEMENTS as count_adjustment
+    STOCK_COUNT_ITEMS {
+        int count_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK
+        decimal_10_2 system_quantity "NOT NULL"
+        decimal_10_2 counted_quantity "NOT NULL, CHECK (counted_quantity >= 0)"
+    }
+
+%% Report Low Stock; reported_by NULL = raised automatically at the reorder level
+    LOW_STOCK_ALERTS {
+        int alert_id PK "IDENTITY"
+        int branch_id FK "NOT NULL"
+        int ingredient_id FK "NOT NULL"
+        int reported_by FK "NULLABLE"
+        int po_id FK "NULLABLE, purchase order raised for it"
+        enum alert_status "NOT NULL, DEFAULT 'open' (open / ordered / resolved)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz resolved_at "NULLABLE"
+    }
+
+%% =========================== SUPPLY ============================
+
+%% Manage Suppliers; clerk_id lets suppliers log in to the supplier portal
+    SUPPLIERS {
+        int supplier_id PK "IDENTITY"
+        varchar(255) clerk_id UK "NULLABLE"
+        varchar(100) supplier_name UK "NOT NULL"
+        varchar(50) contact_person "NULLABLE"
+        varchar(100) supplier_email "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) image_url "NULLABLE"
+        varchar(150) supplier_address "NULLABLE"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Manage Product Catalog & Price List (supplier side)
+    SUPPLIER_INGREDIENTS {
+        int supplier_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK "ON DELETE CASCADE"
+        decimal_10_2 unit_price "NOT NULL, CHECK (unit_price >= 0)"
+        boolean is_available "NOT NULL, DEFAULT TRUE"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Create Purchase Order / Manage Purchase Orders (manager),
+%% Receive and Confirm / Reject Purchase Order (supplier)
+    PURCHASE_ORDERS {
+        int po_id PK "IDENTITY"
+        int supplier_id FK "NOT NULL"
+        int branch_id FK "NOT NULL"
+        int created_by FK "NOT NULL, manager"
+        enum po_status "NOT NULL, DEFAULT 'draft' (draft / sent / confirmed / partially_confirmed / rejected / cancelled / completed)"
+        text rejection_reason "NULLABLE"
+        date expected_date "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz responded_at "NULLABLE"
+    }
+
+%% quantity_confirmed < quantity_ordered = partial fulfillment
+    PURCHASE_ORDER_ITEMS {
+        int po_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK
+        decimal_10_2 quantity_ordered "NOT NULL, CHECK (quantity_ordered > 0)"
+        decimal_10_2 quantity_confirmed "NULLABLE, CHECK (quantity_confirmed >= 0)"
+        decimal_10_2 unit_price "NOT NULL, CHECK (unit_price >= 0)"
+    }
+
+%% Deliver Ingredients / Update Delivery Status (supplier), Receives deliveries (staff)
+    DELIVERIES {
+        int delivery_id PK "IDENTITY"
+        int po_id FK "NULLABLE"
+        int supplier_id FK "NOT NULL"
+        int branch_id FK "NOT NULL"
+        int employee_id FK "NULLABLE, receiving employee; NULL until delivered"
+        enum delivery_status "NOT NULL, DEFAULT 'shipped' (shipped / in_transit / delivered)"
+        date delivery_date "NOT NULL, scheduled date"
+        timestamptz delivered_at "NULLABLE"
+    }
+
+    DELIVERY_ITEMS {
+        int delivery_id PK,FK "ON DELETE CASCADE"
+        int ingredient_id PK,FK
+        decimal_10_2 quantity_received "NOT NULL, CHECK (quantity_received > 0)"
+        decimal_10_2 unit_cost "NOT NULL, CHECK (unit_cost >= 0)"
+    }
+
+%% Send Invoice / Delivery Receipt, Receive Payment Confirmation
+%% UNIQUE (delivery_id, invoice_number)
+    SUPPLIER_INVOICES {
+        int invoice_id PK "IDENTITY"
+        int delivery_id FK "NOT NULL"
+        varchar(50) invoice_number "NOT NULL"
+        decimal_10_2 invoice_amount "NOT NULL, CHECK (invoice_amount >= 0)"
+        enum invoice_status "NOT NULL, DEFAULT 'unpaid' (unpaid / paid)"
+        date issued_on "NOT NULL"
+        int paid_by FK "NULLABLE"
+        timestamptz paid_at "NULLABLE, payment confirmation sent to supplier"
+    }
+
+%% Handle Returns of Damaged or Wrong Items
+%% (delivery_id, ingredient_id) references DELIVERY_ITEMS
+    SUPPLIER_RETURNS {
+        int return_id PK "IDENTITY"
+        int delivery_id FK "NOT NULL"
+        int ingredient_id FK "NOT NULL"
+        int requested_by FK "NOT NULL"
+        decimal_10_2 quantity_returned "NOT NULL, CHECK (quantity_returned > 0)"
+        text reason "NOT NULL"
+        enum return_status "NOT NULL, DEFAULT 'requested' (requested / accepted / rejected / completed)"
+        timestamptz requested_at "NOT NULL, DEFAULT now()"
+        timestamptz resolved_at "NULLABLE"
+    }
+
+%% Notify Stock Shortage or Delay
+    SUPPLIER_NOTICES {
+        int notice_id PK "IDENTITY"
+        int supplier_id FK "NOT NULL"
+        int po_id FK "NULLABLE"
+        enum notice_type "NOT NULL (stock_shortage / delay)"
+        text message "NOT NULL"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% =========================== SYSTEM ============================
+
+%% Tracks logs / View Logs / Audit Trail / Detect Suspicious Activity
+%% Insert-only; no FK because the actor may be an employee, customer, supplier or the system
+    AUDIT_LOGS {
+        bigint audit_id PK "IDENTITY"
+        enum actor_type "NOT NULL (employee / customer / supplier / system)"
+        varchar(255) actor_clerk_id "NULLABLE"
+        varchar(100) action "NOT NULL, e.g. login_failed, item_voided"
+        varchar(50) entity_name "NULLABLE"
+        varchar(50) entity_id "NULLABLE"
+        jsonb details "NULLABLE"
+        inet ip_address "NULLABLE"
+        boolean is_suspicious "NOT NULL, DEFAULT FALSE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Configure System Settings (tax rate, currency, receipt format, loyalty rules),
+%% Manage Payment Gateway Settings (enabled methods only)
+    SYSTEM_SETTINGS {
+        varchar(100) setting_key PK
+        enum setting_group "NOT NULL (general / tax / receipt / loyalty / payment_gateway)"
+        text setting_value "NOT NULL"
+        int updated_by FK "NULLABLE"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Manage Notification Templates
+    NOTIFICATION_TEMPLATES {
+        int template_id PK "IDENTITY"
+        varchar(50) template_key UK "NOT NULL, e.g. order_ready"
+        enum channel "NOT NULL (email / sms / push)"
+        varchar(150) subject "NULLABLE"
+        text body "NOT NULL"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+        int updated_by FK "NULLABLE"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Order status updates notify customers
+%% CHECK (num_nonnulls(customer_id, employee_id, supplier_id) = 1)
+    NOTIFICATIONS {
+        int notification_id PK "IDENTITY"
+        int template_id FK "NOT NULL"
+        int customer_id FK "NULLABLE"
+        int employee_id FK "NULLABLE"
+        int supplier_id FK "NULLABLE"
+        int order_id FK "NULLABLE"
+        enum delivery_status "NOT NULL, DEFAULT 'queued' (queued / sent / failed)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz sent_at "NULLABLE"
+    }
+
+%% Handle Bug Reports / Support Tickets, Troubleshoot System
+%% CHECK (feedback_id IS NOT NULL OR reported_by IS NOT NULL)
+    SUPPORT_TICKETS {
+        int ticket_id PK "IDENTITY"
+        int feedback_id FK "NULLABLE, customer complaint that raised it"
+        int reported_by FK "NULLABLE, staff reporter"
+        int assigned_to FK "NULLABLE, admin"
+        varchar(150) title "NOT NULL"
+        text description "NOT NULL"
+        enum priority "NOT NULL, DEFAULT 'medium' (low / medium / high / critical)"
+        enum ticket_status "NOT NULL, DEFAULT 'open' (open / in_progress / resolved / closed)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz resolved_at "NULLABLE"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+
+%% Staff
+    ROLES ||--o{ ROLE_PERMISSIONS : "grants"
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "granted via"
+    ROLES ||--o{ EMPLOYEES : "assigned to"
+    BRANCHES ||--o{ EMPLOYEES : "employs"
+    EMPLOYEES ||--o{ STAFF_SCHEDULES : "scheduled in"
+    EMPLOYEES ||--o{ STAFF_SCHEDULES : "creates"
+    EMPLOYEES ||--o{ ATTENDANCE_LOGS : "clocks in via"
+    EMPLOYEES ||--o{ PERFORMANCE_REVIEWS : "evaluated in"
+    EMPLOYEES ||--o{ PERFORMANCE_REVIEWS : "writes"
+    EMPLOYEES ||--o{ CASH_DRAWER_SESSIONS : "opens"
+    BRANCHES ||--o{ CASH_DRAWER_SESSIONS : "hosts"
+
+%% Sales
+    CUSTOMERS ||--o{ SAVED_PAYMENT_METHODS : "saves"
+    CUSTOMERS ||--o{ CART_ITEMS : "fills cart with"
+    PRODUCTS ||--o{ CART_ITEMS : "added as"
+    CART_ITEMS ||--o{ CART_ITEM_MODIFIERS : "customized by"
+    MODIFIERS ||--o{ CART_ITEM_MODIFIERS : "chosen in"
+    CUSTOMERS ||--o{ FAVORITES : "favorites"
+    PRODUCTS ||--o{ FAVORITES : "favorited as"
+    EMPLOYEES ||--o{ DISCOUNTS : "creates"
+    DISCOUNTS |o--o{ ORDERS : "applied to"
+
+    CUSTOMERS |o--o{ ORDERS : "places"
+    EMPLOYEES |o--o{ ORDERS : "processes"
+    BRANCHES ||--o{ ORDERS : "receives"
+    ORDERS ||--|{ ORDER_ITEMS : "includes"
+    PRODUCTS ||--o{ ORDER_ITEMS : "appears in"
+    ORDER_ITEMS ||--o{ ORDER_ITEM_MODIFIERS : "customized by"
+    MODIFIERS ||--o{ ORDER_ITEM_MODIFIERS : "chosen in"
+
+    ORDERS ||--o{ PAYMENTS : "paid via"
+    CASH_DRAWER_SESSIONS |o--o{ PAYMENTS : "collects"
+    SAVED_PAYMENT_METHODS |o--o{ PAYMENTS : "charged via"
+    PAYMENTS ||--o{ REFUNDS : "refunded by"
+    APPROVAL_REQUESTS |o--o| REFUNDS : "authorizes"
+    ORDERS ||--o{ APPROVAL_REQUESTS : "subject of"
+    ORDER_ITEMS |o--o{ APPROVAL_REQUESTS : "voided via"
+    EMPLOYEES ||--o{ APPROVAL_REQUESTS : "requests"
+    EMPLOYEES |o--o{ APPROVAL_REQUESTS : "reviews"
+
+    CUSTOMERS ||--o{ LOYALTY_TRANSACTIONS : "earns / redeems"
+    ORDERS |o--o{ LOYALTY_TRANSACTIONS : "awards"
+    CUSTOMERS ||--o{ FEEDBACK : "submits"
+    ORDERS |o--o{ FEEDBACK : "reviewed in"
+    PRODUCTS |o--o{ FEEDBACK : "rated in"
+    EMPLOYEES |o--o{ FEEDBACK : "responds to"
+
+%% Menu
+    CATEGORIES ||--o{ PRODUCTS : "groups"
+    PRODUCTS ||--|{ PRODUCT_INGREDIENTS : "has"
+    INGREDIENTS ||--o{ PRODUCT_INGREDIENTS : "used in"
+
+%% Inventory
+    BRANCHES ||--o{ BRANCH_STOCK : "stocks"
+    INGREDIENTS ||--o{ BRANCH_STOCK : "stocked as"
+    INGREDIENTS ||--o{ STOCK_MOVEMENTS : "tracked by"
+    BRANCHES ||--o{ STOCK_MOVEMENTS : "logs"
+    EMPLOYEES ||--o{ STOCK_MOVEMENTS : "records"
+    DELIVERIES |o--o{ STOCK_MOVEMENTS : "posts"
+    ORDERS |o--o{ STOCK_MOVEMENTS : "consumes"
+    BRANCHES ||--o{ STOCK_COUNTS : "counted in"
+    EMPLOYEES ||--o{ STOCK_COUNTS : "conducts"
+    STOCK_COUNTS ||--|{ STOCK_COUNT_ITEMS : "lists"
+    INGREDIENTS ||--o{ STOCK_COUNT_ITEMS : "counted as"
+    BRANCHES ||--o{ LOW_STOCK_ALERTS : "raises"
+    INGREDIENTS ||--o{ LOW_STOCK_ALERTS : "flagged in"
+    EMPLOYEES |o--o{ LOW_STOCK_ALERTS : "reports"
+    PURCHASE_ORDERS |o--o{ LOW_STOCK_ALERTS : "resolves"
+
+%% Supply
+    SUPPLIERS ||--o{ SUPPLIER_INGREDIENTS : "supplies"
+    INGREDIENTS ||--o{ SUPPLIER_INGREDIENTS : "supplied by"
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "receives"
+    BRANCHES ||--o{ PURCHASE_ORDERS : "orders via"
+    EMPLOYEES ||--o{ PURCHASE_ORDERS : "creates"
+    PURCHASE_ORDERS ||--|{ PURCHASE_ORDER_ITEMS : "lists"
+    INGREDIENTS ||--o{ PURCHASE_ORDER_ITEMS : "ordered as"
+    PURCHASE_ORDERS |o--o{ DELIVERIES : "fulfilled by"
+    SUPPLIERS ||--o{ DELIVERIES : "delivers"
+    BRANCHES ||--o{ DELIVERIES : "receives"
+    EMPLOYEES |o--o{ DELIVERIES : "receives"
+    DELIVERIES ||--|{ DELIVERY_ITEMS : "contains"
+    INGREDIENTS ||--o{ DELIVERY_ITEMS : "restocks"
+    DELIVERIES ||--o{ SUPPLIER_INVOICES : "billed by"
+    EMPLOYEES |o--o{ SUPPLIER_INVOICES : "pays"
+    DELIVERY_ITEMS ||--o{ SUPPLIER_RETURNS : "returned via"
+    EMPLOYEES ||--o{ SUPPLIER_RETURNS : "requests"
+    SUPPLIERS ||--o{ SUPPLIER_NOTICES : "sends"
+    PURCHASE_ORDERS |o--o{ SUPPLIER_NOTICES : "concerns"
+
+%% System
+    EMPLOYEES |o--o{ SYSTEM_SETTINGS : "updates"
+    EMPLOYEES |o--o{ NOTIFICATION_TEMPLATES : "edits"
+    NOTIFICATION_TEMPLATES ||--o{ NOTIFICATIONS : "renders"
+    CUSTOMERS |o--o{ NOTIFICATIONS : "notified by"
+    EMPLOYEES |o--o{ NOTIFICATIONS : "notified by"
+    SUPPLIERS |o--o{ NOTIFICATIONS : "notified by"
+    ORDERS |o--o{ NOTIFICATIONS : "triggers"
+    FEEDBACK |o--o{ SUPPORT_TICKETS : "escalated to"
+    EMPLOYEES |o--o{ SUPPORT_TICKETS : "reports"
+    EMPLOYEES |o--o{ SUPPORT_TICKETS : "handles"
+
+    ROLES:::staffBox
+    PERMISSIONS:::staffBox
+    ROLE_PERMISSIONS:::staffBox
+    BRANCHES:::staffBox
+    EMPLOYEES:::staffBox
+    STAFF_SCHEDULES:::staffBox
+    ATTENDANCE_LOGS:::staffBox
+    PERFORMANCE_REVIEWS:::staffBox
+    CASH_DRAWER_SESSIONS:::staffBox
+    CUSTOMERS:::salesBox
+    SAVED_PAYMENT_METHODS:::salesBox
+    CART_ITEMS:::salesBox
+    CART_ITEM_MODIFIERS:::salesBox
+    FAVORITES:::salesBox
+    DISCOUNTS:::salesBox
+    ORDERS:::salesBox
+    ORDER_ITEMS:::salesBox
+    ORDER_ITEM_MODIFIERS:::salesBox
+    PAYMENTS:::salesBox
+    REFUNDS:::salesBox
+    APPROVAL_REQUESTS:::salesBox
+    LOYALTY_TRANSACTIONS:::salesBox
+    FEEDBACK:::salesBox
+    CATEGORIES:::menuBox
+    PRODUCTS:::menuBox
+    MODIFIERS:::menuBox
+    PRODUCT_INGREDIENTS:::menuBox
+    INGREDIENTS:::inventoryBox
+    BRANCH_STOCK:::inventoryBox
+    STOCK_MOVEMENTS:::inventoryBox
+    STOCK_COUNTS:::inventoryBox
+    STOCK_COUNT_ITEMS:::inventoryBox
+    LOW_STOCK_ALERTS:::inventoryBox
+    SUPPLIERS:::supplyBox
+    SUPPLIER_INGREDIENTS:::supplyBox
+    PURCHASE_ORDERS:::supplyBox
+    PURCHASE_ORDER_ITEMS:::supplyBox
+    DELIVERIES:::supplyBox
+    DELIVERY_ITEMS:::supplyBox
+    SUPPLIER_INVOICES:::supplyBox
+    SUPPLIER_RETURNS:::supplyBox
+    SUPPLIER_NOTICES:::supplyBox
+    AUDIT_LOGS:::systemBox
+    SYSTEM_SETTINGS:::systemBox
+    NOTIFICATION_TEMPLATES:::systemBox
+    NOTIFICATIONS:::systemBox
+    SUPPORT_TICKETS:::systemBox

@@ -71,6 +71,7 @@ erDiagram
         int product_id FK "NOT NULL"
         int quantity "NOT NULL, CHECK (quantity > 0)"
         decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
+        text special_instructions "NULLABLE"
     }
 
     PAYMENTS {

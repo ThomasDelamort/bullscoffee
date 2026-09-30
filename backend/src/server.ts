@@ -34,7 +34,7 @@ app.get("/health-check", (_req: Request, res: Response) => {
 });
 
 // Routes
-app.use("/admin", adminRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api", customerRoutes);
 
 async function startServer() {

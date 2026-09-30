@@ -19,16 +19,16 @@ const router = Router();
     CUSTOMER ROUTES
 */
 router.post("/customers", protectRoute, createCustomerHandler);
-router.get("/customers", getAllCustomersHandler);
-router.get("/customers/:id", getCustomerByIdHandler);
-router.delete("/customers/:id", deleteCustomerHandler);
+router.get("/customers", protectRoute, getAllCustomersHandler);
+router.get("/customers/:id", protectRoute, getCustomerByIdHandler);
+router.delete("/customers/:id", protectRoute, deleteCustomerHandler);
 
 /* 
     EMPLOYEE ROUTES
 */
 router.post("/employees", protectRoute, createEmployeeHandler);
-router.get("/employees", getAllEmployeesHandler);
-router.get("/employees/:id", getEmployeeByIdHandler);
-router.delete("/employees/:id", deleteEmployeeHandler);
+router.get("/employees", protectRoute, getAllEmployeesHandler);
+router.get("/employees/:id", protectRoute, getEmployeeByIdHandler);
+router.delete("/employees/:id", protectRoute, deleteEmployeeHandler);
 
 export default router;

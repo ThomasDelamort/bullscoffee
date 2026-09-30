@@ -46,19 +46,16 @@ This is an active student project, not a finished product. What exists today:
   `/about`, `/contact`, and the auth pages
 - ✅ Full relational schema for staff, sales, menu, inventory, and supply
   (see [Database Schema](#-database-schema))
-- ✅ CRUD APIs for **employees**, **customers**, and **suppliers**, plus a
-  parallel **admin** customer API
+- ✅ CRUD APIs for **customers** (`/api`) and an **admin** API for
+  customers and employees (`/api/admin`), all behind a Clerk session
 - ✅ Landing page hero, navbar/footer, about and contact sections
 - 🔜 Not yet built: menu browsing backed by the API, cart/checkout, order
-  and payment endpoints, inventory/stock-movement endpoints, and a
-  staff-facing dashboard
-- ⚠️ Only the `POST /api/customers` and `POST /api/admin/customers` routes
-  currently require a Clerk session; the employee and supplier routes are
-  not yet auth-protected — don't expose this API publicly as-is
-- ⚠️ `customer.route.ts` and `admin.route.ts` are both mounted at `/api`
-  and both register `GET /customers/:id` and `DELETE /customers/:id` —
-  since admin routes are mounted first, they currently shadow the
-  customer routes for those paths
+  and payment endpoints, inventory/stock-movement endpoints, supplier
+  endpoints (only `supplier.types.ts` exists today), and a staff-facing
+  dashboard
+- ⚠️ Authentication is enforced on every route, but authorization is not:
+  any signed-in user can read, update, or delete **any** customer or
+  employee by ID. Ownership and manager-only checks still need building.
 
 ## ⚡ Quick Start
 
@@ -117,7 +114,7 @@ Both the frontend and backend need keys from the same
 | 🙋  | **Auto-registration**   | On first sign-in, the frontend calls the backend to create a matching `customers` row, pulling name/email from Clerk |
 | 📝  | **Fallback name form**  | If Clerk has no name on file, the customer is prompted for one before registration completes |
 | 👥  | **Staff records**       | Employees with role (`cashier` / `manager`), status, and work schedule                      |
-| 🚚  | **Supplier records**    | Suppliers and the ingredients they provide, with unit pricing                               |
+| 🚚  | **Supplier records**    | Modeled in the schema only — no API or UI yet                                               |
 | 🎓  | **Student discount ready** | `customers.university_id` is captured for a future student-discount flow                |
 | 🧭  | **Site navigation**     | Navbar/footer and routed sections for home, menu, about, and contact                        |
 | 🔑  | **Custom auth UI**      | Clerk-backed sign-in/sign-up page with email/password, social buttons, and password reset   |
@@ -155,7 +152,7 @@ flowchart LR
 2. `CustomerProvider` ([CustomerProvider.tsx](frontend/src/auth/CustomerProvider.tsx)) watches Clerk's auth state and, on sign-in, calls `POST /api/customers` with the session token.
 3. On the backend, `clerkMiddleware()` runs globally in [server.ts](backend/src/server.ts); the `protectRoute` middleware ([auth.middleware.ts](backend/src/middleware/auth.middleware.ts)) rejects unauthenticated requests and puts the Clerk `userId` on `res.locals.clerkId`.
 4. `createCustomerHandler` ([customer.controller.ts](backend/src/controllers/customer.controller.ts)) looks up the Clerk profile for name/email, creates the `customers` row if one doesn't exist yet, and returns it. If Clerk has no name on file, the frontend shows a short form ([RegistrationNotice.tsx](frontend/src/auth/RegistrationNotice.tsx)) and retries.
-5. `requireManager` (same middleware file) exists for gating manager-only actions but isn't wired into any route yet.
+5. Every other route is wrapped in `protectRoute` too, so an unauthenticated request never reaches a handler. There is no role-based guard yet — a manager-only check still needs to be written.
 
 ## 📋 API Reference
 
@@ -163,23 +160,28 @@ Base URL: `http://localhost:3000/api`. Responses are wrapped as
 `{ message, data }` on success or `{ error }` on failure by
 [responseFormatter.ts](backend/src/middleware/responseFormatter.ts).
 
-| Method | Path              | Auth               | Notes                                              |
-| ------ | ----------------- | ------------------- | --------------------------------------------------- |
-| POST   | `/customers`      | Clerk session        | Idempotent — returns the existing row if already registered |
-| GET    | `/customers/:id`  | —                    | Shadowed by the admin route below (same path, mounted first) |
-| DELETE | `/customers/:id`  | —                    | Shadowed by the admin route below (same path, mounted first) |
-| POST   | `/admin/customers`| Clerk session        | Same upsert-on-first-sign-in behavior as `POST /customers` |
-| GET    | `/admin/customers`| —                    | List all customers                                  |
-| GET    | `/admin/customers/:id` | —               |                                                      |
-| DELETE | `/admin/customers/:id` | —               |                                                      |
-| POST   | `/employees`      | —                    |                                                      |
-| GET    | `/employees`      | —                    |                                                      |
-| GET    | `/employees/:id`  | —                    |                                                      |
-| DELETE | `/employees/:id`  | —                    |                                                      |
-| POST   | `/suppliers`      | —                    |                                                      |
-| GET    | `/suppliers`      | —                    |                                                      |
-| GET    | `/suppliers/:id`  | —                    |                                                      |
-| DELETE | `/suppliers/:id`  | —                    |                                                      |
+All routes below require a Clerk session (`Authorization: Bearer <token>`).
+
+| Method | Path                    | Notes                                                       |
+| ------ | ----------------------- | ----------------------------------------------------------- |
+| POST   | `/customers`            | Idempotent — returns the existing row if already registered |
+| GET    | `/customers`            | List all customers                                          |
+| GET    | `/customers/:id`        |                                                              |
+| PUT    | `/customers/:id`        | Update profile                                              |
+| DELETE | `/customers/:id`        |                                                              |
+| POST   | `/admin/customers`      | Same upsert-on-first-sign-in behavior as `POST /customers`  |
+| GET    | `/admin/customers`      | List all customers                                          |
+| GET    | `/admin/customers/:id`  |                                                              |
+| DELETE | `/admin/customers/:id`  |                                                              |
+| POST   | `/admin/employees`      |                                                              |
+| GET    | `/admin/employees`      |                                                              |
+| GET    | `/admin/employees/:id`  |                                                              |
+| DELETE | `/admin/employees/:id`  |                                                              |
+
+The `/customers` and `/admin/customers` handlers are near-duplicates backed
+by two separate providers ([customer.provider.ts](backend/src/providers/customer.provider.ts),
+[admin.provider.ts](backend/src/providers/admin.provider.ts)); they should be
+consolidated.
 
 `GET /` and `GET /health-check` are unauthenticated liveness endpoints.
 
@@ -204,7 +206,7 @@ backend/
   init.sql              # full schema, applied on every server start
   src/
     server.ts           # express app, middleware, route mounting
-    routes/              # one router per resource (customer, admin, employee, supplier)
+    routes/              # customer.route.ts (/api), admin.route.ts (/api/admin)
     controllers/         # request/response handling
     providers/           # SQL queries
     middleware/           # clerk auth guards, response formatter
