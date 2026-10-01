@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import AdminRoutes, { ADMIN_BASE_PATH } from './Admin';
 import Home from './Home/Home';
 import ManagerRoutes, { MANAGER_BASE_PATH } from './Manager';
+import POSRoutes, { POS_BASE_PATH } from './POS';
+import KioskRoutes, { KIOSK_BASE_PATH } from './kiosk';
 import AuthPage, { AUTH_PATHS, SSO_CALLBACK_PATH } from './AuthPage';
 import CustomerProvider from './auth/CustomerProvider';
 import RegistrationNotice from './auth/RegistrationNotice';
@@ -30,6 +32,8 @@ function App() {
         <Route path={SSO_CALLBACK_PATH} element={<AuthenticateWithRedirectCallback />} />
         <Route path={`${ADMIN_BASE_PATH}/*`} element={<AdminRoutes />} />
         <Route path={`${MANAGER_BASE_PATH}/*`} element={<ManagerRoutes />} />
+        <Route path={`${POS_BASE_PATH}/*`} element={<POSRoutes />} />
+        <Route path={`${KIOSK_BASE_PATH}/*`} element={<KioskRoutes />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <RegistrationNotice />

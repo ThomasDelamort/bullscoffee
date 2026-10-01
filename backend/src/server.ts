@@ -10,10 +10,17 @@ import { StatusCodes } from "http-status-codes";
 // Import Routes
 import adminRoutes from "./routes/admin.route.ts";
 import customerRoutes from "./routes/customer.route.ts";
+import employeeRoutes from "./routes/employee.routes.ts";
+import managerRoutes from "./routes/manager.route.ts";
+import reportRoutes from "./routes/report.route.ts";
 import productRoutes from "./routes/product.routes.ts";
 import categoryRoutes from "./routes/category.route.ts";
 import ingredientRoutes from "./routes/ingredients.route.ts";
 import supplierRoutes from "./routes/supplier.route.ts";
+import deliveryRoutes from "./routes/delivery.route.ts";
+import orderRoutes from "./routes/order.route.ts"
+import stockMovementsRoute from "./routes/stock-movement.route.ts";
+import attendanceRoutes from "./routes/attendance.route.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
@@ -40,10 +47,18 @@ app.get("/health-check", (_req: Request, res: Response) => {
 // Routes
 app.use("/api/admin", adminRoutes);
 app.use("/api", customerRoutes);
+app.use("/api", employeeRoutes);
+app.use("/api", managerRoutes);
+app.use("/api", reportRoutes);
+
 app.use("/api", productRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", ingredientRoutes);
 app.use("/api", supplierRoutes);
+app.use("/api", deliveryRoutes);
+app.use("/api", orderRoutes);
+app.use("/api", stockMovementsRoute);
+app.use("/api", attendanceRoutes);
 
 async function startServer() {
   try {

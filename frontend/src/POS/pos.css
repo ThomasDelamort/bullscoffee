@@ -1,0 +1,31 @@
+/*
+ * Cashier POS design tokens ("night shift"). A deep navy taken from the
+ * storefront's java chip blue (#2B3A4A), with the brand gold as the accent.
+ * Scoped to .pos-root (set by POSRoutes) so the storefront, admin and manager
+ * consoles are untouched. Use them through Tailwind's var shorthand, e.g.
+ * bg-(--pos-panel), text-(--pos-muted).
+ */
+.pos-root {
+  /* Page background behind the menu. */
+  --pos-canvas: #0b1520;
+  /* Sidebar, ticket and orders panel. */
+  --pos-panel: #0f1c2b;
+  /* Tooltips and toasts. */
+  --pos-raised: #1d3049;
+  --pos-line: #24384f;
+  --pos-ink: #e6edf5;
+  /* Secondary text; clears 4.5:1 on --pos-panel. */
+  --pos-muted: #8ea2b8;
+  /* Brand gold, used sparingly: the charge button, selection and focus rings. */
+  --pos-gold: #e8a33c;
+  --pos-gold-soft: #f3c47c;
+  /* Online orders. */
+  --pos-sky: #7cb8f2;
+  color-scheme: dark;
+}
+
+/* Thin scrollbars for the scrolling columns. */
+.pos-root .pos-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pos-line) transparent;
+}

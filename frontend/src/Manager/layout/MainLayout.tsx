@@ -6,19 +6,26 @@ import { buttonClass, FOCUS_RING } from "../components/styles";
 import ManagerDataProvider from "../data/ManagerDataProvider";
 import { managerPath } from "../routes";
 import LeftSideBar from "./LeftSideBar";
+import { useSidebarCollapsed } from "./useSidebarCollapsed";
 import { navItemFor } from "./nav";
 import "../manager.css";
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed("bulls:manager-sidebar-collapsed");
   const current = navItemFor(useLocation().pathname);
 
   return (
     <div className="manager-root flex min-h-screen bg-(--mgr-canvas) text-(--mgr-ink)">
       <ManagerDataProvider>
         <ToastProvider>
-          <LeftSideBar open={sidebarOpen} onClose={closeSidebar} />
+          <LeftSideBar
+            open={sidebarOpen}
+            onClose={closeSidebar}
+            collapsed={collapsed}
+            onToggleCollapsed={toggleCollapsed}
+          />
 
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-(--mgr-line) bg-(--mgr-canvas)/85 px-4 backdrop-blur sm:px-6 lg:px-8">

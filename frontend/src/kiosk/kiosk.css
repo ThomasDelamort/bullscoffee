@@ -1,0 +1,77 @@
+/*
+ * Self-order kiosk design tokens. The storefront's palette: cream canvas,
+ * espresso ink and the brand gold, with Anton (.hero-display) for headlines.
+ * Scoped to .kiosk-root (set by KioskRoutes) so the other apps are untouched.
+ * Use them through Tailwind's var shorthand, e.g. bg-(--k-canvas).
+ */
+.kiosk-root {
+  --k-canvas: #fbf3e8;
+  /* Cards and sheets. */
+  --k-surface: #ffffff;
+  --k-ink: #2a1a10;
+  /* Secondary text; clears 4.5:1 on both --k-canvas and --k-surface. */
+  --k-muted: #6e5a4b;
+  --k-line: #ecdcc6;
+  /* Fills only (buttons, badges): too light for text on cream. */
+  --k-gold: #e8a33c;
+  --k-gold-soft: #f3c47c;
+  /* Focus outline; .kiosk-dark swaps it for gold on espresso surfaces. */
+  --k-focus: var(--k-ink);
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+  /* A shared touch screen: long presses shouldn't select menu text. */
+  user-select: none;
+}
+
+.kiosk-root textarea {
+  user-select: text;
+}
+
+.kiosk-root .kiosk-dark {
+  --k-focus: var(--k-gold);
+}
+
+/* The category row scrolls sideways by touch; no scrollbar needed. */
+.kiosk-root .kiosk-scroll-x {
+  scrollbar-width: none;
+}
+.kiosk-root .kiosk-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+.kiosk-root .kiosk-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--k-line) transparent;
+}
+
+/* Native <dialog> doesn't stop the page behind it from scrolling. */
+html:has(.kiosk-sheet[open]) {
+  overflow: hidden;
+}
+
+.kiosk-sheet[open] {
+  animation: kiosk-sheet-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.kiosk-sheet[open]::backdrop {
+  animation: kiosk-fade-in 320ms ease-out;
+}
+
+@keyframes kiosk-sheet-in {
+  from {
+    opacity: 0;
+    translate: 0 2.5rem;
+  }
+}
+
+@keyframes kiosk-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-sheet[open],
+  .kiosk-sheet[open]::backdrop {
+    animation: none;
+  }
+}
