@@ -10,10 +10,10 @@ import { protectRoute } from "../middleware/auth.middleware.ts";
 
 const router = Router();
 
-router.post("/customers", protectRoute, createCustomerHandler);
-router.get("/customers", protectRoute, getAllCustomersHandler);
-router.get("/customers/:id", protectRoute, getCustomerByIdHandler);
-router.put("/customers/:id", protectRoute, updateCustomerProfileHandler);
-router.delete("/customers/:id", protectRoute, deleteCustomerHandler);
+router.post("/customers", createCustomerHandler);
+router.get("/customers", getAllCustomersHandler);
+router.get("/customers/:id", getCustomerByIdHandler);
+router.put("/customers/:id", updateCustomerProfileHandler);
+router.delete("/customers/:id", deleteCustomerHandler);
 
 export default router;

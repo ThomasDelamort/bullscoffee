@@ -11,6 +11,9 @@ import { StatusCodes } from "http-status-codes";
 import adminRoutes from "./routes/admin.route.ts";
 import customerRoutes from "./routes/customer.route.ts";
 import productRoutes from "./routes/product.routes.ts";
+import categoryRoutes from "./routes/category.route.ts";
+import ingredientRoutes from "./routes/ingredients.route.ts";
+import supplierRoutes from "./routes/supplier.route.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
@@ -38,6 +41,9 @@ app.get("/health-check", (_req: Request, res: Response) => {
 app.use("/api/admin", adminRoutes);
 app.use("/api", customerRoutes);
 app.use("/api", productRoutes);
+app.use("/api", categoryRoutes);
+app.use("/api", ingredientRoutes);
+app.use("/api", supplierRoutes);
 
 async function startServer() {
   try {
