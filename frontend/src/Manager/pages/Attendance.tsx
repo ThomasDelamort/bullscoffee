@@ -1,18 +1,19 @@
 import { useMemo, useState } from "react";
 import { FiAlertCircle, FiClock, FiDownload, FiLogIn, FiWatch } from "react-icons/fi";
+import { useAttendance, useEmployees, useSetClockOut } from "../api/staff";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import { Field, Input, Select } from "../components/Field";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import StatCard from "../components/StatCard";
 import { ATTENDANCE_STATE } from "../components/status";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
+import { useNotifyError, useToast } from "../components/toastContext";
 import { attendanceState, LATE_GRACE_MINUTES } from "../data/selectors";
 import type { AttendanceLog } from "../types";
 import { groupBy, indexBy, sumBy } from "../utils/collections";
@@ -24,8 +25,8 @@ import { parseSchedule, worksOn } from "../utils/schedule";
 type View = "logs" | "summary";
 
 export default function Attendance() {
-  const { db, update } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const now = new Date();
   const todayKey = dayKey(now);
   const [view, setView] = useState<View>("logs");
@@ -34,18 +35,25 @@ export default function Attendance() {
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [fixing, setFixing] = useState<AttendanceLog | null>(null);
 
-  const employees = useMemo(() => indexBy(db.employees, (e) => e.employee_id), [db.employees]);
+  const employeesQuery = useEmployees();
+  const rangeQuery = useAttendance({
+    from,
+    to,
+    employee_id: employeeFilter === "all" ? undefined : Number(employeeFilter),
+  });
+  // "On shift now" ignores the filters; this is the same cache entry the dashboard uses.
+  const todayQuery = useAttendance({ from: todayKey, to: todayKey });
+  const setClockOut = useSetClockOut();
+
+  const allEmployees = useMemo(() => employeesQuery.data ?? [], [employeesQuery.data]);
+  const employees = useMemo(() => indexBy(allEmployees, (e) => e.employee_id), [allEmployees]);
   const worked = (l: AttendanceLog) =>
     hoursBetween(l.time_in, l.time_out ?? (dayKey(l.time_in) === todayKey ? now.toISOString() : l.time_in));
 
-  const logs = db.attendance_logs
-    .filter((l) => {
-      const key = dayKey(l.time_in);
-      return key >= from && key <= to && (employeeFilter === "all" || String(l.employee_id) === employeeFilter);
-    })
-    .sort((a, b) => b.time_in.localeCompare(a.time_in));
+  // The API returns newest first.
+  const logs = rangeQuery.data ?? [];
   const states = new Map(logs.map((l) => [l.log_id, attendanceState(l, employees.get(l.employee_id), now)]));
-  const onShift = db.attendance_logs.filter((l) => !l.time_out && dayKey(l.time_in) === todayKey);
+  const onShift = (todayQuery.data ?? []).filter((l) => !l.time_out);
   const late = logs.filter((l) => states.get(l.log_id) === "late").length;
   const missed = logs.filter((l) => states.get(l.log_id) === "no-clock-out").length;
 
@@ -55,7 +63,7 @@ export default function Attendance() {
     const days: Date[] = [];
     for (let d = fromDayKey(from); dayKey(d) <= lastCounted; d = addDays(d, 1)) days.push(d);
 
-    return db.employees
+    return allEmployees
       .filter((e) => (employeeFilter === "all" || String(e.employee_id) === employeeFilter) && (e.employee_status === "active" || byEmployee.has(e.employee_id)))
       .map((e) => {
         const mine = byEmployee.get(e.employee_id) ?? [];
@@ -80,7 +88,7 @@ export default function Attendance() {
     downloadCsv(
       `attendance-${from}-to-${to}.csv`,
       logs.map((l) => ({
-        employee: fullName(employees.get(l.employee_id) ?? { first_name: "?", last_name: "" }),
+        employee: l.employee_name,
         date: dayKey(l.time_in),
         time_in: formatTime(l.time_in),
         time_out: l.time_out ? formatTime(l.time_out) : "",
@@ -89,12 +97,19 @@ export default function Attendance() {
       })),
     );
 
-  const saveClockOut = (log: AttendanceLog, time_out: string) => {
-    update("attendance_logs", (rows) => rows.map((l) => (l.log_id === log.log_id ? { ...l, time_out } : l)));
-    const e = employees.get(log.employee_id);
-    notify(`Clock-out set for ${e ? fullName(e) : "the shift"} on ${formatDate(log.time_in)}.`);
-    setFixing(null);
-  };
+  const saveClockOut = (log: AttendanceLog, time_out: string) =>
+    setClockOut.mutate(
+      { logId: log.log_id, time_out },
+      {
+        onSuccess: () => {
+          notify(`Clock-out set for ${log.employee_name} on ${formatDate(log.time_in)}.`);
+          setFixing(null);
+        },
+        onError: notifyError,
+      },
+    );
+
+  const failed = rangeQuery.error ?? employeesQuery.error;
 
   return (
     <>
@@ -108,11 +123,20 @@ export default function Attendance() {
         }
       />
 
+      {failed && (
+        <ErrorNotice
+          className="mb-6"
+          title="Couldn't load attendance"
+          error={failed}
+          onRetry={() => void Promise.all([rangeQuery.refetch(), employeesQuery.refetch()])}
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="On shift now"
           value={onShift.length}
-          hint={onShift.map((l) => employees.get(l.employee_id)?.first_name).join(", ") || "Nobody clocked in"}
+          hint={onShift.map((l) => employees.get(l.employee_id)?.first_name ?? l.employee_name).join(", ") || "Nobody clocked in"}
           icon={FiLogIn}
         />
         <StatCard label="Hours logged" value={formatHours(sumBy(logs, worked))} hint={`${logs.length} shifts in range`} icon={FiClock} />
@@ -137,7 +161,7 @@ export default function Attendance() {
             <Input type="date" aria-label="To" value={to} min={from} max={todayKey} onChange={(e) => e.target.value && setTo(e.target.value)} className="sm:w-40" />
             <Select aria-label="Filter by employee" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="sm:w-48">
               <option value="all">Everyone</option>
-              {db.employees.map((e) => (
+              {allEmployees.map((e) => (
                 <option key={e.employee_id} value={e.employee_id}>
                   {fullName(e)}
                   {e.employee_status === "inactive" ? " (inactive)" : ""}
@@ -161,6 +185,7 @@ export default function Attendance() {
               </tr>
             </thead>
             <tbody>
+              {rangeQuery.isPending && <LoadingRow colSpan={7} label="Loading clock-ins…" />}
               {logs.map((l) => {
                 const e = employees.get(l.employee_id);
                 const state = states.get(l.log_id)!;
@@ -168,7 +193,7 @@ export default function Attendance() {
                 return (
                   <tr key={l.log_id} className="hover:bg-(--mgr-canvas)/50">
                     <Td>
-                      <p className="font-medium">{e ? fullName(e) : `#${l.employee_id}`}</p>
+                      <p className="font-medium">{l.employee_name}</p>
                       <p className="text-xs text-(--mgr-muted) capitalize">{e?.employee_role}</p>
                     </Td>
                     <Td>{formatDate(l.time_in)}</Td>
@@ -186,7 +211,7 @@ export default function Attendance() {
                   </tr>
                 );
               })}
-              {logs.length === 0 && <EmptyRow colSpan={7}>No clock-ins in this range.</EmptyRow>}
+              {rangeQuery.isSuccess && logs.length === 0 && <EmptyRow colSpan={7}>No clock-ins in this range.</EmptyRow>}
             </tbody>
           </Table>
         ) : (
@@ -215,7 +240,10 @@ export default function Attendance() {
                   <Td className="text-right tabular-nums">{row.rate === null ? "—" : `${row.rate}%`}</Td>
                 </tr>
               ))}
-              {summary.length === 0 && <EmptyRow colSpan={6}>Nobody to summarise.</EmptyRow>}
+              {(rangeQuery.isPending || employeesQuery.isPending) && <LoadingRow colSpan={6} />}
+              {rangeQuery.isSuccess && employeesQuery.isSuccess && summary.length === 0 && (
+                <EmptyRow colSpan={6}>Nobody to summarise.</EmptyRow>
+              )}
             </tbody>
           </Table>
         )}
@@ -224,8 +252,9 @@ export default function Attendance() {
       <ClockOutModal
         key={`clock-out-${fixing?.log_id ?? "closed"}`}
         log={fixing}
-        name={fixing ? fullName(employees.get(fixing.employee_id) ?? { first_name: "", last_name: "" }) : ""}
+        name={fixing?.employee_name ?? ""}
         defaultEnd={fixing ? parseSchedule(employees.get(fixing.employee_id)?.work_schedule ?? "")?.end : undefined}
+        saving={setClockOut.isPending}
         onClose={() => setFixing(null)}
         onSave={saveClockOut}
       />
@@ -238,11 +267,12 @@ interface ClockOutModalProps {
   name: string;
   /** Scheduled end, "HH:MM", as the starting guess. */
   defaultEnd: string | undefined;
+  saving: boolean;
   onClose: () => void;
   onSave: (log: AttendanceLog, timeOut: string) => void;
 }
 
-function ClockOutModal({ log, name, defaultEnd, onClose, onSave }: ClockOutModalProps) {
+function ClockOutModal({ log, name, defaultEnd, saving, onClose, onSave }: ClockOutModalProps) {
   const [time, setTime] = useState(defaultEnd ?? (log ? timeOfDay(new Date(new Date(log.time_in).getTime() + 8 * 3_600_000).toISOString()) : ""));
   const timeOut = log && time ? atTime(dayKey(log.time_in), time) : null;
   // CHECK (time_out > time_in)
@@ -258,8 +288,8 @@ function ClockOutModal({ log, name, defaultEnd, onClose, onSave }: ClockOutModal
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={invalid} onClick={() => log && timeOut && onSave(log, timeOut)}>
-            Save
+          <Button variant="primary" disabled={invalid || saving} onClick={() => log && timeOut && onSave(log, timeOut)}>
+            {saving ? "Saving…" : "Save"}
           </Button>
         </>
       }

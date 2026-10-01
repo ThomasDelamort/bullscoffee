@@ -29,7 +29,7 @@ erDiagram
         varchar(20) contact_number "NULLABLE"
         varchar(255) profile_picture "NULLABLE"
         enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
-        enum employee_role "NOT NULL, DEFAULT 'cashier' (cashier / manager)"
+        enum employee_role "NOT NULL, DEFAULT 'cashier' (cashier / manager / admin)"
         varchar(50) work_schedule "NOT NULL"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }

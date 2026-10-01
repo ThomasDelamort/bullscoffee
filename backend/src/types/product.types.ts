@@ -12,6 +12,8 @@ export interface Product {
   image_url: string;
   price: number;
   is_available: boolean;
+  /** Whether the POS asks for a size; price is then the tall price. */
+  has_sizes: boolean;
   created_at?: Date;
 }
 export interface NewProduct {
@@ -21,6 +23,7 @@ export interface NewProduct {
   image_url: string | null;
   price: number;
   is_available: boolean;
+  has_sizes: boolean;
 }
 
 export type ProductChanges = Partial<NewProduct>;

@@ -90,9 +90,10 @@ interface ScheduleModalProps {
   employee: Employee | null;
   onClose: () => void;
   onSave: (workSchedule: string) => void;
+  saving?: boolean;
 }
 
-export default function ScheduleModal({ employee, onClose, onSave }: ScheduleModalProps) {
+export default function ScheduleModal({ employee, onClose, onSave, saving = false }: ScheduleModalProps) {
   const current = employee ? parseSchedule(employee.work_schedule) : null;
   const [shift, setShift] = useState<Shift>(current ?? DEFAULT_SHIFT);
   const [touched, setTouched] = useState(false);
@@ -109,12 +110,13 @@ export default function ScheduleModal({ employee, onClose, onSave }: ScheduleMod
           <Button onClick={onClose}>Cancel</Button>
           <Button
             variant="primary"
+            disabled={saving}
             onClick={() => {
               setTouched(true);
               if (!problem) onSave(formatSchedule(shift));
             }}
           >
-            Save schedule
+            {saving ? "Saving…" : "Save schedule"}
           </Button>
         </>
       }

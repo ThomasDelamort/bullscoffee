@@ -1,16 +1,7 @@
-/** Derived values several screens share. Pure functions over store rows. */
+/** Derived values several screens share. Pure functions over API rows. */
 import type { AttendanceState } from "../components/status";
-import type {
-  AttendanceLog,
-  Employee,
-  Ingredient,
-  ManagerDb,
-  Order,
-  OrderItem,
-  Product,
-  ProductIngredient,
-} from "../types";
-import { groupBy, indexBy, sumBy } from "../utils/collections";
+import type { AttendanceLog, Employee, Ingredient, Order, OrderItem, ProductIngredient } from "../types";
+import { sumBy } from "../utils/collections";
 import { dayKey } from "../utils/dates";
 import { round2 } from "../utils/format";
 import { SIZE_LABELS } from "../utils/pricing";
@@ -25,7 +16,7 @@ export function stockState(i: Pick<Ingredient, "current_quantity" | "minimum_sto
 
 /** How many of a product the current stock can make; Infinity when it has no recipe. */
 export function makeableCount(
-  recipe: readonly ProductIngredient[],
+  recipe: readonly Pick<ProductIngredient, "ingredient_id" | "quantity_required">[],
   ingredients: ReadonlyMap<number, Ingredient>,
 ): number {
   return recipe.reduce((min, r) => {
@@ -34,8 +25,8 @@ export function makeableCount(
   }, Infinity);
 }
 
-/** Cancelled orders are not revenue; pending ones are already paid. */
-export const isSale = (o: Order): boolean => o.order_status !== "cancelled";
+/** Only completed orders count as sales, matching the backend's sales report. */
+export const isSale = (o: Pick<Order, "order_status">): boolean => o.order_status === "completed";
 
 export interface SalesTotals {
   orders: number;
@@ -59,32 +50,6 @@ export function salesTotals(orders: readonly Order[]): SalesTotals {
   };
 }
 
-export interface ProductSales {
-  product_id: number;
-  quantity: number;
-  revenue: number;
-}
-
-/** Line revenue before order-level discounts, most sold first. */
-export function productSales(items: readonly OrderItem[]): ProductSales[] {
-  return [...groupBy(items, (i) => i.product_id)]
-    .map(([product_id, lines]) => ({
-      product_id,
-      quantity: sumBy(lines, (l) => l.quantity),
-      revenue: round2(sumBy(lines, (l) => l.quantity * l.selling_price)),
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
-}
-
-/** Order items of the given orders only. */
-export function itemsOf(db: Pick<ManagerDb, "order_items">, orders: readonly Order[]): OrderItem[] {
-  const ids = new Set(orders.map((o) => o.order_id));
-  return db.order_items.filter((i) => ids.has(i.order_id));
-}
-
-export const ordersOnDay = (orders: readonly Order[], key: string) =>
-  orders.filter((o) => dayKey(o.ordered_at) === key);
-
 /** Minutes after the scheduled start before a clock-in counts as late. */
 export const LATE_GRACE_MINUTES = 10;
 
@@ -98,26 +63,10 @@ export function attendanceState(log: AttendanceLog, employee: Employee | undefin
   return new Date(log.time_in) > due ? "late" : "on-time";
 }
 
-export function lookups(db: ManagerDb) {
-  return {
-    employees: indexBy(db.employees, (e) => e.employee_id),
-    customers: indexBy(db.customers, (c) => c.customer_id),
-    products: indexBy(db.products, (p) => p.product_id),
-    categories: indexBy(db.categories, (c) => c.category_id),
-    ingredients: indexBy(db.ingredients, (i) => i.ingredient_id),
-    suppliers: indexBy(db.suppliers, (s) => s.supplier_id),
-  };
-}
-
 /** Opening hours, one entry per hour that takes orders (7 AM to 8 PM). */
 export const STORE_HOURS = Array.from({ length: 14 }, (_, i) => i + 7);
 
 /** "2× Café latte (Grande), 1× Butter croissant" */
-export function describeItems(items: readonly OrderItem[], products: ReadonlyMap<number, Product>): string {
-  return items
-    .map((i) => {
-      const name = products.get(i.product_id)?.product_name ?? `Product #${i.product_id}`;
-      return `${i.quantity}× ${name}${i.size ? ` (${SIZE_LABELS[i.size]})` : ""}`;
-    })
-    .join(", ");
+export function describeItems(items: readonly Pick<OrderItem, "quantity" | "product_name" | "size">[]): string {
+  return items.map((i) => `${i.quantity}× ${i.product_name}${i.size ? ` (${SIZE_LABELS[i.size]})` : ""}`).join(", ");
 }

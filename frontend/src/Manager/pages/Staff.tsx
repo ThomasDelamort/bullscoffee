@@ -1,21 +1,22 @@
 import { useState, type FormEvent } from "react";
 import { FiEdit2, FiUserCheck, FiUserPlus, FiUserX } from "react-icons/fi";
+import { errorMessage } from "../../lib/api";
+import { useAttendance, useEmployees, useSaveCashier, useUpdateEmployee, type EmployeeFields } from "../api/staff";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import { Field, Input } from "../components/Field";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import { ShiftFields } from "../components/ScheduleModal";
 import SearchInput from "../components/SearchInput";
 import { EMPLOYEE_STATUS } from "../components/status";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
+import { useNotifyError, useToast } from "../components/toastContext";
 import type { Employee, EmployeeStatus } from "../types";
-import { nextId } from "../utils/collections";
 import { dayKey } from "../utils/dates";
 import { formatDate, formatTime, fullName, initials } from "../utils/format";
 import {
@@ -29,11 +30,10 @@ import {
 } from "../utils/schedule";
 
 type StatusFilter = EmployeeStatus | "all";
-type CashierForm = Pick<Employee, "first_name" | "last_name" | "employee_email" | "contact_number" | "work_schedule">;
 
 export default function Staff() {
-  const { db, update } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [status, setStatus] = useState<StatusFilter>("active");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Employee | "new" | null>(null);
@@ -41,7 +41,12 @@ export default function Staff() {
 
   const now = new Date();
   const today = dayKey(now);
-  const cashiers = db.employees.filter((e) => e.employee_role === "cashier");
+  const employees = useEmployees();
+  const attendance = useAttendance({ from: today, to: today });
+  const saveCashier = useSaveCashier();
+  const updateEmployee = useUpdateEmployee();
+
+  const cashiers = (employees.data ?? []).filter((e) => e.employee_role === "cashier");
   const count = (s: EmployeeStatus) => cashiers.filter((e) => e.employee_status === s).length;
   const visible = cashiers.filter((e) => {
     const q = query.trim().toLowerCase();
@@ -51,40 +56,40 @@ export default function Staff() {
     );
   });
 
-  const openLog = (e: Employee) =>
-    db.attendance_logs.find((l) => l.employee_id === e.employee_id && !l.time_out && dayKey(l.time_in) === today);
+  const openLog = (e: Employee) => attendance.data?.find((l) => l.employee_id === e.employee_id && !l.time_out);
 
-  const setStatusOf = (e: Employee, employee_status: EmployeeStatus) =>
-    update("employees", (rows) => rows.map((x) => (x.employee_id === e.employee_id ? { ...x, employee_status } : x)));
-
-  const save = (form: CashierForm) => {
-    if (editing === "new") {
-      update("employees", (rows) => [
-        ...rows,
-        {
-          ...form,
-          employee_id: nextId(rows, (e) => e.employee_id),
-          // Replaced by the real Clerk user id once they accept the invite.
-          clerk_id: `invite_${Date.now()}`,
-          profile_picture: null,
-          employee_status: "active",
-          employee_role: "cashier",
-          created_at: new Date().toISOString(),
+  const setStatusOf = (e: Employee, employee_status: EmployeeStatus, done: string) =>
+    updateEmployee.mutate(
+      { employeeId: e.employee_id, changes: { employee_status } },
+      {
+        onSuccess: () => {
+          notify(done);
+          setDeactivating(null);
         },
-      ]);
-      notify(`${form.first_name} was added. An invite was sent to ${form.employee_email}.`);
-    } else if (editing) {
-      update("employees", (rows) => rows.map((e) => (e.employee_id === editing.employee_id ? { ...e, ...form } : e)));
-      notify(`${form.first_name} ${form.last_name}'s details were updated.`);
-    }
+        onError: notifyError,
+      },
+    );
+
+  const closeEditor = () => {
     setEditing(null);
+    saveCashier.reset();
   };
 
-  const confirmDeactivate = () => {
-    if (!deactivating) return;
-    setStatusOf(deactivating, "inactive");
-    notify(`${fullName(deactivating)} was deactivated.`);
-    setDeactivating(null);
+  const save = (fields: EmployeeFields) => {
+    const employeeId = editing === "new" || editing === null ? null : editing.employee_id;
+    saveCashier.mutate(
+      { employeeId, fields },
+      {
+        onSuccess: () => {
+          notify(
+            employeeId === null
+              ? `${fields.first_name} was added. They can sign in once their account is linked.`
+              : `${fields.first_name} ${fields.last_name}'s details were updated.`,
+          );
+          closeEditor();
+        },
+      },
+    );
   };
 
   return (
@@ -98,6 +103,10 @@ export default function Staff() {
           </Button>
         }
       />
+
+      {employees.error && (
+        <ErrorNotice className="mb-4" title="Couldn't load cashiers" error={employees.error} onRetry={() => void employees.refetch()} />
+      )}
 
       <Card flush>
         <div className="flex flex-col gap-3 border-b border-(--mgr-line) p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -126,6 +135,7 @@ export default function Staff() {
             </tr>
           </thead>
           <tbody>
+            {employees.isPending && <LoadingRow colSpan={6} label="Loading cashiers…" />}
             {visible.map((e) => {
               const shift = parseSchedule(e.work_schedule);
               const log = openLog(e);
@@ -174,10 +184,8 @@ export default function Staff() {
                         <RowAction
                           icon={FiUserCheck}
                           label={`Reactivate ${fullName(e)}`}
-                          onClick={() => {
-                            setStatusOf(e, "active");
-                            notify(`${fullName(e)} is active again.`);
-                          }}
+                          disabled={updateEmployee.isPending}
+                          onClick={() => setStatusOf(e, "active", `${fullName(e)} is active again.`)}
                         />
                       )}
                     </div>
@@ -185,7 +193,7 @@ export default function Staff() {
                 </tr>
               );
             })}
-            {visible.length === 0 && <EmptyRow colSpan={6}>No cashiers match these filters.</EmptyRow>}
+            {employees.isSuccess && visible.length === 0 && <EmptyRow colSpan={6}>No cashiers match these filters.</EmptyRow>}
           </tbody>
         </Table>
       </Card>
@@ -193,7 +201,10 @@ export default function Staff() {
       <CashierModal
         key={`cashier-${editing === null ? "closed" : editing === "new" ? "new" : editing.employee_id}`}
         cashier={editing}
-        onClose={() => setEditing(null)}
+        employees={employees.data ?? []}
+        saving={saveCashier.isPending}
+        serverError={saveCashier.error ? errorMessage(saveCashier.error) : null}
+        onClose={closeEditor}
         onSave={save}
       />
 
@@ -210,8 +221,14 @@ export default function Staff() {
         footer={
           <>
             <Button onClick={() => setDeactivating(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDeactivate}>
-              Deactivate
+            <Button
+              variant="danger"
+              disabled={updateEmployee.isPending}
+              onClick={() =>
+                deactivating && setStatusOf(deactivating, "inactive", `${fullName(deactivating)} was deactivated.`)
+              }
+            >
+              {updateEmployee.isPending ? "Deactivating…" : "Deactivate"}
             </Button>
           </>
         }
@@ -222,12 +239,14 @@ export default function Staff() {
 
 interface CashierModalProps {
   cashier: Employee | "new" | null;
+  employees: readonly Employee[];
+  saving: boolean;
+  serverError: string | null;
   onClose: () => void;
-  onSave: (form: CashierForm) => void;
+  onSave: (fields: EmployeeFields) => void;
 }
 
-function CashierModal({ cashier, onClose, onSave }: CashierModalProps) {
-  const { db } = useManagerData();
+function CashierModal({ cashier, employees, saving, serverError, onClose, onSave }: CashierModalProps) {
   const existing = cashier === "new" ? null : cashier;
   const [shift, setShift] = useState<Shift>((existing && parseSchedule(existing.work_schedule)) ?? DEFAULT_SHIFT);
   const [error, setError] = useState<string | null>(null);
@@ -236,10 +255,11 @@ function CashierModal({ cashier, onClose, onSave }: CashierModalProps) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const email = String(form.get("employee_email")).trim().toLowerCase();
-    const taken = db.employees.some((x) => x.employee_email.toLowerCase() === email && x.employee_id !== existing?.employee_id);
+    const taken = employees.some((x) => x.employee_email.toLowerCase() === email && x.employee_id !== existing?.employee_id);
     if (taken) return setError("Another employee already uses that email.");
     const problem = shiftProblem(shift);
     if (problem) return setError(problem);
+    setError(null);
     onSave({
       first_name: String(form.get("first_name")).trim(),
       last_name: String(form.get("last_name")).trim(),
@@ -249,18 +269,20 @@ function CashierModal({ cashier, onClose, onSave }: CashierModalProps) {
     });
   };
 
+  const shownError = error ?? serverError;
+
   return (
     <Modal
       open={cashier !== null}
       onClose={onClose}
       size="lg"
       title={existing ? `Edit ${fullName(existing)}` : "Add cashier"}
-      description={existing ? undefined : "They'll get an email invite to set up their sign-in."}
+      description={existing ? undefined : "Their sign-in is linked to this record when their account is set up."}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" form="cashier-form">
-            {existing ? "Save changes" : "Add cashier"}
+          <Button variant="primary" type="submit" form="cashier-form" disabled={saving}>
+            {saving ? "Saving…" : existing ? "Save changes" : "Add cashier"}
           </Button>
         </>
       }
@@ -289,9 +311,9 @@ function CashierModal({ cashier, onClose, onSave }: CashierModalProps) {
           <p className="mb-3 text-sm font-semibold">Weekly schedule</p>
           <ShiftFields value={shift} onChange={setShift} />
         </div>
-        {error && (
+        {shownError && (
           <p role="alert" className="text-sm text-red-700 sm:col-span-2">
-            {error}
+            {shownError}
           </p>
         )}
       </form>

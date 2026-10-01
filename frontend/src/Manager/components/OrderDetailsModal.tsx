@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
-import { useManagerData } from "../data/dataContext";
-import { lookups } from "../data/selectors";
-import { formatDateTime, formatPeso, fullName } from "../utils/format";
+import { useOrder } from "../api/orders";
+import type { OrderDetails } from "../types";
+import { formatDateTime, formatPeso } from "../utils/format";
 import { SIZE_LABELS, subtotalOf } from "../utils/pricing";
 import Badge from "./Badge";
 import Modal from "./Modal";
+import { ErrorNotice, Loading } from "./QueryState";
 import { ORDER_STATUS, PAYMENT_METHOD_LABELS } from "./status";
 
 interface OrderDetailsModalProps {
@@ -15,26 +16,32 @@ interface OrderDetailsModalProps {
 }
 
 export default function OrderDetailsModal({ orderId, onClose, footer }: OrderDetailsModalProps) {
-  const { db } = useManagerData();
-  const order = orderId === null ? undefined : db.orders.find((o) => o.order_id === orderId);
-  if (!order) return <Modal open={false} onClose={onClose} title="" />;
-
-  const { employees, customers, products } = lookups(db);
-  const items = db.order_items.filter((i) => i.order_id === order.order_id);
-  const payments = db.payments.filter((p) => p.order_id === order.order_id);
-  const customer = order.customer_id === null ? undefined : customers.get(order.customer_id);
-  const cashier = employees.get(order.employee_id);
-  const status = ORDER_STATUS[order.order_status];
+  const { data: order, error, refetch } = useOrder(orderId);
 
   return (
     <Modal
-      open
+      open={orderId !== null}
       onClose={onClose}
       size="lg"
-      title={`Order #${order.order_id}`}
-      description={formatDateTime(order.ordered_at)}
-      footer={footer}
+      title={`Order #${orderId ?? ""}`}
+      description={order ? formatDateTime(order.ordered_at) : undefined}
+      footer={order && footer}
     >
+      {order ? (
+        <OrderBody order={order} />
+      ) : error ? (
+        <ErrorNotice title="Couldn't load this order" error={error} onRetry={() => void refetch()} />
+      ) : (
+        <Loading />
+      )}
+    </Modal>
+  );
+}
+
+function OrderBody({ order }: { order: OrderDetails }) {
+  const status = ORDER_STATUS[order.order_status];
+  return (
+    <>
       <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-xs text-(--mgr-muted)">Status</dt>
@@ -44,16 +51,11 @@ export default function OrderDetailsModal({ orderId, onClose, footer }: OrderDet
         </div>
         <div>
           <dt className="text-xs text-(--mgr-muted)">Customer</dt>
-          <dd className="mt-1 font-medium">
-            {customer ? fullName(customer) : "Walk-in"}
-            {customer?.university_id && (
-              <span className="block text-xs font-normal text-(--mgr-muted)">ID {customer.university_id}</span>
-            )}
-          </dd>
+          <dd className="mt-1 font-medium">{order.customer_name ?? "Walk-in"}</dd>
         </div>
         <div>
           <dt className="text-xs text-(--mgr-muted)">Handled by</dt>
-          <dd className="mt-1 font-medium">{cashier ? fullName(cashier) : "—"}</dd>
+          <dd className="mt-1 font-medium">{order.employee_name}</dd>
         </div>
       </dl>
 
@@ -67,10 +69,10 @@ export default function OrderDetailsModal({ orderId, onClose, footer }: OrderDet
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
+          {order.items.map((item) => (
             <tr key={item.order_item_id} className="border-b border-(--mgr-line) align-top">
               <td className="py-2 pr-3">
-                <p className="font-medium">{products.get(item.product_id)?.product_name}</p>
+                <p className="font-medium">{item.product_name}</p>
                 {(item.size || item.special_instructions) && (
                   <p className="text-xs text-(--mgr-muted)">
                     {[item.size && SIZE_LABELS[item.size], item.special_instructions].filter(Boolean).join(" · ")}
@@ -86,15 +88,15 @@ export default function OrderDetailsModal({ orderId, onClose, footer }: OrderDet
       </table>
 
       <dl className="mt-4 ml-auto w-full max-w-60 space-y-1 text-sm">
-        <Row label="Subtotal" value={formatPeso(subtotalOf(items))} />
+        <Row label="Subtotal" value={formatPeso(subtotalOf(order.items))} />
         {order.discount_amount > 0 && <Row label="Discount" value={`− ${formatPeso(order.discount_amount)}`} />}
         <Row label="Total" value={formatPeso(order.total_amount)} strong />
       </dl>
 
       <h3 className="mt-5 text-xs font-medium text-(--mgr-muted)">Payments</h3>
-      {payments.length ? (
+      {order.payments.length ? (
         <ul className="mt-2 divide-y divide-(--mgr-line) rounded-lg ring-1 ring-(--mgr-line)">
-          {payments.map((p) => (
+          {order.payments.map((p) => (
             <li key={p.payment_id} className="flex justify-between px-3 py-2 text-sm">
               <span>
                 {PAYMENT_METHOD_LABELS[p.payment_method]}
@@ -107,7 +109,7 @@ export default function OrderDetailsModal({ orderId, onClose, footer }: OrderDet
       ) : (
         <p className="mt-2 text-sm text-(--mgr-muted)">No payment recorded.</p>
       )}
-    </Modal>
+    </>
   );
 }
 

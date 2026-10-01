@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { FiCheck, FiDownload, FiEye, FiX } from "react-icons/fi";
+import { useCancelOrder, useCompleteOrder, useOrder, useOrders } from "../api/orders";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -7,19 +8,19 @@ import { Select } from "../components/Field";
 import Modal from "../components/Modal";
 import OrderDetailsModal from "../components/OrderDetailsModal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import SearchInput from "../components/SearchInput";
-import { ORDER_STATUS, PAYMENT_METHOD_LABELS } from "../components/status";
+import { ORDER_STATUS } from "../components/status";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
-import { describeItems, lookups } from "../data/selectors";
+import { useNotifyError, useToast } from "../components/toastContext";
 import type { Order, OrderStatus } from "../types";
-import { groupBy } from "../utils/collections";
+import { sumBy } from "../utils/collections";
 import { downloadCsv } from "../utils/csv";
 import { addDays, dayKey, startOfDay } from "../utils/dates";
-import { formatDateTime, formatPeso, formatRelative, fullName } from "../utils/format";
+import { formatDateTime, formatPeso, formatRelative } from "../utils/format";
+import { useDebouncedValue } from "../utils/useDebouncedValue";
 
 type StatusFilter = OrderStatus | "all";
 type Range = "today" | "yesterday" | "7d" | "30d" | "all";
@@ -34,60 +35,68 @@ const RANGES: Record<Range, { label: string; from: number; to: number }> = {
 
 const PAGE_SIZE = 50;
 
+function rangeBounds(range: Range): { from?: string; to: string } {
+  const { from, to } = RANGES[range];
+  const today = startOfDay(new Date());
+  return {
+    from: from === Infinity ? undefined : dayKey(addDays(today, -from)),
+    to: dayKey(addDays(today, -to)),
+  };
+}
+
 export default function Orders() {
-  const { db, completeOrder, cancelOrder } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [range, setRange] = useState<Range>("today");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
-  const [viewing, setViewing] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<Order | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
 
-  const maps = useMemo(() => lookups(db), [db]);
-  const itemsByOrder = useMemo(() => groupBy(db.order_items, (i) => i.order_id), [db.order_items]);
-  const paymentsByOrder = useMemo(() => groupBy(db.payments, (p) => p.order_id), [db.payments]);
+  const search = useDebouncedValue(query.trim().replace(/^#/, "")) || undefined;
+  // Pending orders are a live queue, so they ignore the date range; the rest is filtered server-side.
+  const queue = useOrders({ status: "pending", search }, { live: true });
+  const history = useOrders({ ...rangeBounds(range), search });
+  const completeOrder = useCompleteOrder();
+  const cancelOrder = useCancelOrder();
+  const cancellingDetails = useOrder(cancelling?.order_id ?? null);
 
-  // Pending orders are a live queue, so they ignore the date range.
-  const inRange = useMemo(() => {
-    const { from, to } = RANGES[range];
-    const today = startOfDay(new Date());
-    const start = from === Infinity ? "" : dayKey(addDays(today, -from));
-    const end = dayKey(addDays(today, -to));
-    return db.orders.filter((o) => {
-      if (o.order_status === "pending") return true;
-      const key = dayKey(o.ordered_at);
-      return key >= start && key <= end;
-    });
-  }, [db.orders, range]);
-
-  const customerName = (o: Order) => {
-    const c = o.customer_id === null ? undefined : maps.customers.get(o.customer_id);
-    return c ? fullName(c) : "Walk-in";
-  };
-
-  const matching = inRange.filter((o) => {
-    const q = query.trim().toLowerCase().replace(/^#/, "");
-    return !q || String(o.order_id).includes(q) || customerName(o).toLowerCase().includes(q);
-  });
+  const matching = [
+    ...(queue.data ?? []).filter((o) => o.order_status === "pending"),
+    ...(history.data ?? []).filter((o) => o.order_status !== "pending"),
+  ];
   const count = (s: OrderStatus) => matching.filter((o) => o.order_status === s).length;
   const visible = matching
     .filter((o) => status === "all" || o.order_status === status)
     .sort((a, b) =>
       status === "pending" ? a.ordered_at.localeCompare(b.ordered_at) : b.ordered_at.localeCompare(a.ordered_at),
     );
+  const showsQueue = status === "pending" || status === "all";
+  const showsHistory = status !== "pending";
+  const loading = (showsQueue && queue.isPending) || (showsHistory && history.isPending);
+  const failed = (showsQueue && queue.error) || (showsHistory && history.error);
 
-  const complete = (o: Order) => {
-    completeOrder(o.order_id);
-    notify(`Order #${o.order_id} completed. Stock was updated.`);
-  };
+  const complete = (o: Order, then?: () => void) =>
+    completeOrder.mutate(o.order_id, {
+      onSuccess: () => {
+        notify(`Order #${o.order_id} completed.`);
+        then?.();
+      },
+      onError: notifyError,
+    });
 
   const confirmCancel = () => {
     if (!cancelling) return;
-    cancelOrder(cancelling.order_id);
-    notify(`Order #${cancelling.order_id} cancelled.`, "info");
-    setCancelling(null);
-    setViewing(null);
+    const { order_id } = cancelling;
+    cancelOrder.mutate(order_id, {
+      onSuccess: () => {
+        notify(`Order #${order_id} cancelled.`, "info");
+        setCancelling(null);
+        setViewing(null);
+      },
+      onError: notifyError,
+    });
   };
 
   const exportCsv = () => {
@@ -97,32 +106,37 @@ export default function Orders() {
         order_id: o.order_id,
         ordered_at: o.ordered_at,
         status: o.order_status,
-        customer: customerName(o),
-        cashier: fullName(maps.employees.get(o.employee_id) ?? { first_name: "", last_name: "" }).trim(),
-        items: describeItems(itemsByOrder.get(o.order_id) ?? [], maps.products),
+        customer: o.customer_name ?? "Walk-in",
+        cashier: o.employee_name,
         discount: o.discount_amount,
         total: o.total_amount,
-        payment: (paymentsByOrder.get(o.order_id) ?? []).map((p) => PAYMENT_METHOD_LABELS[p.payment_method]).join(" + "),
       })),
     );
   };
 
-  const viewed = viewing === null ? undefined : db.orders.find((o) => o.order_id === viewing);
-  const paidForCancel = cancelling
-    ? (paymentsByOrder.get(cancelling.order_id) ?? []).reduce((sum, p) => sum + p.amount_paid, 0)
-    : 0;
+  const paidForCancel = sumBy(cancellingDetails.data?.payments ?? [], (p) => p.amount_paid);
+  const viewed = viewing && matching.find((o) => o.order_id === viewing.order_id);
 
   return (
     <>
       <PageHeader
         title="Orders"
-        description="Work the queue, look up past orders and cancel mistakes. Completing an order deducts its recipe from stock."
+        description="Work the queue, look up past orders and cancel mistakes. The queue refreshes on its own as orders come in."
         actions={
           <Button icon={FiDownload} onClick={exportCsv} disabled={visible.length === 0}>
             Export CSV
           </Button>
         }
       />
+
+      {failed && (
+        <ErrorNotice
+          className="mb-4"
+          title="Couldn't load orders"
+          error={failed}
+          onRetry={() => void Promise.all([queue.refetch(), history.refetch()])}
+        />
+      )}
 
       <Card flush>
         <div className="flex flex-col gap-3 border-b border-(--mgr-line) p-4 xl:flex-row xl:items-center xl:justify-between">
@@ -141,7 +155,7 @@ export default function Orders() {
             ]}
           />
           <div className="flex flex-col gap-2 sm:flex-row">
-            <SearchInput value={query} onChange={setQuery} placeholder="Order # or customer" className="sm:w-56" />
+            <SearchInput value={query} onChange={setQuery} placeholder="Order #, customer or cashier" className="sm:w-60" />
             <Select
               aria-label="Date range"
               value={range}
@@ -165,7 +179,6 @@ export default function Orders() {
             <tr>
               <Th>Order</Th>
               <Th>Customer</Th>
-              <Th>Items</Th>
               <Th>Handled by</Th>
               <Th className="text-right">Total</Th>
               <Th>Status</Th>
@@ -173,48 +186,46 @@ export default function Orders() {
             </tr>
           </thead>
           <tbody>
-            {visible.slice(0, limit).map((o) => {
-              const s = ORDER_STATUS[o.order_status];
-              const cashier = maps.employees.get(o.employee_id);
-              const pending = o.order_status === "pending";
-              return (
-                <tr key={o.order_id} className="hover:bg-(--mgr-canvas)/50">
-                  <Td>
-                    <p className="font-medium">#{o.order_id}</p>
-                    <p className="text-xs text-(--mgr-muted)">
-                      {pending ? formatRelative(o.ordered_at) : formatDateTime(o.ordered_at)}
-                    </p>
-                  </Td>
-                  <Td>{customerName(o)}</Td>
-                  <Td className="max-w-72 truncate text-(--mgr-muted)">
-                    {describeItems(itemsByOrder.get(o.order_id) ?? [], maps.products)}
-                  </Td>
-                  <Td className="text-(--mgr-muted)">{cashier ? fullName(cashier) : "—"}</Td>
-                  <Td className="text-right tabular-nums">
-                    {formatPeso(o.total_amount)}
-                    {o.discount_amount > 0 && (
-                      <span className="block text-xs text-(--mgr-muted)">−{formatPeso(o.discount_amount)} disc.</span>
-                    )}
-                  </Td>
-                  <Td>
-                    <Badge tone={s.tone} dot>{s.label}</Badge>
-                  </Td>
-                  <Td>
-                    <div className="flex justify-end gap-1">
-                      <RowAction icon={FiEye} label={`View order #${o.order_id}`} onClick={() => setViewing(o.order_id)} />
-                      {pending && (
-                        <>
-                          <RowAction icon={FiCheck} label={`Complete order #${o.order_id}`} onClick={() => complete(o)} />
-                          <RowAction icon={FiX} label={`Cancel order #${o.order_id}`} danger onClick={() => setCancelling(o)} />
-                        </>
+            {loading && <LoadingRow colSpan={6} label="Loading orders…" />}
+            {!loading &&
+              visible.slice(0, limit).map((o) => {
+                const s = ORDER_STATUS[o.order_status];
+                const pending = o.order_status === "pending";
+                return (
+                  <tr key={o.order_id} className="hover:bg-(--mgr-canvas)/50">
+                    <Td>
+                      <p className="font-medium">#{o.order_id}</p>
+                      <p className="text-xs text-(--mgr-muted)">
+                        {pending ? formatRelative(o.ordered_at) : formatDateTime(o.ordered_at)}
+                      </p>
+                    </Td>
+                    <Td>{o.customer_name ?? "Walk-in"}</Td>
+                    <Td className="text-(--mgr-muted)">{o.employee_name}</Td>
+                    <Td className="text-right tabular-nums">
+                      {formatPeso(o.total_amount)}
+                      {o.discount_amount > 0 && (
+                        <span className="block text-xs text-(--mgr-muted)">−{formatPeso(o.discount_amount)} disc.</span>
                       )}
-                    </div>
-                  </Td>
-                </tr>
-              );
-            })}
-            {visible.length === 0 && (
-              <EmptyRow colSpan={7}>{status === "pending" ? "The queue is clear." : "No orders match these filters."}</EmptyRow>
+                    </Td>
+                    <Td>
+                      <Badge tone={s.tone} dot>{s.label}</Badge>
+                    </Td>
+                    <Td>
+                      <div className="flex justify-end gap-1">
+                        <RowAction icon={FiEye} label={`View order #${o.order_id}`} onClick={() => setViewing(o)} />
+                        {pending && (
+                          <>
+                            <RowAction icon={FiCheck} label={`Complete order #${o.order_id}`} onClick={() => complete(o)} />
+                            <RowAction icon={FiX} label={`Cancel order #${o.order_id}`} danger onClick={() => setCancelling(o)} />
+                          </>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
+            {!loading && !failed && visible.length === 0 && (
+              <EmptyRow colSpan={6}>{status === "pending" ? "The queue is clear." : "No orders match these filters."}</EmptyRow>
             )}
           </tbody>
         </Table>
@@ -231,7 +242,7 @@ export default function Orders() {
       </Card>
 
       <OrderDetailsModal
-        orderId={viewing}
+        orderId={viewing?.order_id ?? null}
         onClose={() => setViewing(null)}
         footer={
           viewed?.order_status === "pending" && (
@@ -242,10 +253,8 @@ export default function Orders() {
               <Button
                 variant="primary"
                 icon={FiCheck}
-                onClick={() => {
-                  complete(viewed);
-                  setViewing(null);
-                }}
+                disabled={completeOrder.isPending}
+                onClick={() => complete(viewed, () => setViewing(null))}
               >
                 Mark completed
               </Button>
@@ -267,8 +276,8 @@ export default function Orders() {
         footer={
           <>
             <Button onClick={() => setCancelling(null)}>Keep order</Button>
-            <Button variant="danger" onClick={confirmCancel}>
-              Cancel order
+            <Button variant="danger" onClick={confirmCancel} disabled={cancelOrder.isPending}>
+              {cancelOrder.isPending ? "Cancelling…" : "Cancel order"}
             </Button>
           </>
         }

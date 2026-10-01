@@ -2,7 +2,7 @@ DO $$ BEGIN CREATE TYPE employee_status AS ENUM ('active', 'inactive');
 EXCEPTION
 WHEN duplicate_object THEN null;
 END $$;
-DO $$ BEGIN CREATE TYPE employee_role AS ENUM ('cashier', 'manager');
+DO $$ BEGIN CREATE TYPE employee_role AS ENUM ('cashier', 'manager', 'admin');
 EXCEPTION
 WHEN duplicate_object THEN null;
 END $$;

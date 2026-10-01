@@ -3,9 +3,9 @@ import { FiExternalLink, FiMenu, FiPlus } from "react-icons/fi";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import ToastProvider from "../components/ToastProvider";
 import { buttonClass, FOCUS_RING } from "../components/styles";
-import ManagerDataProvider from "../data/ManagerDataProvider";
 import { managerPath } from "../routes";
 import LeftSideBar from "./LeftSideBar";
+import ManagerGate from "./ManagerGate";
 import { useSidebarCollapsed } from "./useSidebarCollapsed";
 import { navItemFor } from "./nav";
 import "../manager.css";
@@ -18,8 +18,8 @@ export default function MainLayout() {
 
   return (
     <div className="manager-root flex min-h-screen bg-(--mgr-canvas) text-(--mgr-ink)">
-      <ManagerDataProvider>
-        <ToastProvider>
+      <ToastProvider>
+        <ManagerGate>
           <LeftSideBar
             open={sidebarOpen}
             onClose={closeSidebar}
@@ -69,8 +69,8 @@ export default function MainLayout() {
               <Outlet />
             </main>
           </div>
-        </ToastProvider>
-      </ManagerDataProvider>
+        </ManagerGate>
+      </ToastProvider>
     </div>
   );
 }

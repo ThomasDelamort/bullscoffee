@@ -15,6 +15,7 @@ const PRODUCT_COLUMNS = [
   "image_url",
   "price",
   "is_available",
+  "has_sizes",
 ] as const;
 
 export const getProducts = async (): Promise<Product[] | void> => {
@@ -35,8 +36,8 @@ export const createProduct = async (
   product: NewProduct,
 ): Promise<Product | void> => {
   const query = `
-      INSERT INTO products (category_id, product_name, description, image_url, price, is_available)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO products (category_id, product_name, description, image_url, price, is_available, has_sizes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
   const values = [
@@ -46,6 +47,7 @@ export const createProduct = async (
     product.image_url,
     product.price,
     product.is_available,
+    product.has_sizes,
   ];
   const result = await pool.query(query, values);
   return result.rows[0];

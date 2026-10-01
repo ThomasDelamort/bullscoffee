@@ -1,6 +1,18 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { FiAlertTriangle, FiArchive, FiBox, FiDollarSign, FiEdit2, FiPlus, FiRotateCcw, FiSliders, FiXOctagon } from "react-icons/fi";
 import { Link } from "react-router-dom";
+import { errorMessage } from "../../lib/api";
+import { useProducts, useRecipes } from "../api/catalog";
+import type { ImageChange } from "../api/forms";
+import {
+  useIngredients,
+  useRecordMovement,
+  useSaveIngredient,
+  useSetIngredientActive,
+  useStockMovements,
+  type IngredientFields,
+} from "../api/inventory";
+import { usePriceLists, useSuppliers } from "../api/suppliers";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -8,6 +20,7 @@ import { Field, Input, Select } from "../components/Field";
 import ImageField from "../components/ImageField";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import SearchInput from "../components/SearchInput";
 import StatCard from "../components/StatCard";
@@ -15,13 +28,12 @@ import { MOVEMENT_REASON, STOCK_STATE } from "../components/status";
 import { FOCUS_RING } from "../components/styles";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
+import { useNotifyError, useToast } from "../components/toastContext";
 import { stockState } from "../data/selectors";
 import { managerPath } from "../routes";
-import type { Ingredient, StockMovementReason } from "../types";
-import { groupBy, indexBy, nextId } from "../utils/collections";
-import { formatDateTime, formatNumber, formatPesoWhole, fullName, round2 } from "../utils/format";
+import type { Ingredient, StockMovementReason, SupplierIngredient } from "../types";
+import { formatDateTime, formatNumber, formatPesoWhole, round2 } from "../utils/format";
+import { useImageDraft } from "../utils/useImageDraft";
 
 type View = "stock" | "movements";
 type StockFilter = "all" | "low" | "out" | "inactive";
@@ -29,10 +41,11 @@ type ReasonFilter = StockMovementReason | "all";
 
 const PAGE_SIZE = 50;
 const UNITS = ["g", "kg", "ml", "L", "pc", "slice", "pack"];
+const NO_IDS: readonly number[] = [];
 
 export default function Inventory() {
-  const { db, update, recordMovement } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [view, setView] = useState<View>("stock");
   const [filter, setFilter] = useState<StockFilter>("all");
   const [query, setQuery] = useState("");
@@ -43,71 +56,102 @@ export default function Inventory() {
   const [editing, setEditing] = useState<Ingredient | "new" | null>(null);
   const [retiring, setRetiring] = useState<Ingredient | null>(null);
 
-  const employees = useMemo(() => indexBy(db.employees, (e) => e.employee_id), [db.employees]);
-  const ingredients = useMemo(() => indexBy(db.ingredients, (i) => i.ingredient_id), [db.ingredients]);
-  const suppliers = useMemo(() => indexBy(db.suppliers, (s) => s.supplier_id), [db.suppliers]);
-  const supplyOf = useMemo(
-    () => groupBy(db.supplier_ingredients.filter((si) => suppliers.get(si.supplier_id)?.is_active), (si) => si.ingredient_id),
-    [db.supplier_ingredients, suppliers],
+  const ingredientsQuery = useIngredients();
+  // The ingredient filter runs server-side; reasons are counted per tab, so that one stays client-side.
+  const movementsQuery = useStockMovements(
+    ingredientFilter === "all" ? {} : { ingredient_id: Number(ingredientFilter) },
   );
+  const suppliersQuery = useSuppliers();
+  const activeSupplierIds = useMemo(
+    () => (suppliersQuery.data ?? []).filter((s) => s.is_active).map((s) => s.supplier_id),
+    [suppliersQuery.data],
+  );
+  const { prices } = usePriceLists(activeSupplierIds);
+  const products = useProducts();
+  // Only the retire dialog needs recipes ("still used in ..."), so load them on demand.
+  const productIds = useMemo(() => (products.data ?? []).map((p) => p.product_id), [products.data]);
+  const { recipes } = useRecipes(retiring ? productIds : NO_IDS);
 
-  const active = db.ingredients.filter((i) => i.is_active);
+  const saveIngredient = useSaveIngredient();
+  const setIngredientActive = useSetIngredientActive();
+  const recordMovement = useRecordMovement();
+
+  const allIngredients = useMemo(() => ingredientsQuery.data ?? [], [ingredientsQuery.data]);
+  const supplierNames = useMemo(
+    () => new Map((suppliersQuery.data ?? []).map((s) => [s.supplier_id, s.supplier_name])),
+    [suppliersQuery.data],
+  );
+  const supplyOf = useMemo(() => {
+    const byIngredient = new Map<number, SupplierIngredient[]>();
+    for (const list of prices.values()) {
+      for (const si of list) byIngredient.set(si.ingredient_id, [...(byIngredient.get(si.ingredient_id) ?? []), si]);
+    }
+    return byIngredient;
+  }, [prices]);
+
+  const active = allIngredients.filter((i) => i.is_active);
   const low = active.filter((i) => stockState(i) === "low");
   const out = active.filter((i) => stockState(i) === "out");
   const value = active.reduce((sum, i) => {
-    const prices = (supplyOf.get(i.ingredient_id) ?? []).map((si) => si.unit_price);
-    return sum + (prices.length ? i.current_quantity * Math.min(...prices) : 0);
+    const unitPrices = (supplyOf.get(i.ingredient_id) ?? []).map((si) => si.unit_price);
+    return sum + (unitPrices.length ? i.current_quantity * Math.min(...unitPrices) : 0);
   }, 0);
 
   const q = query.trim().toLowerCase();
-  const stockRows = db.ingredients
-    .filter((i) => {
-      if (q && !i.ingredient_name.toLowerCase().includes(q)) return false;
-      if (filter === "inactive") return !i.is_active;
-      if (!i.is_active) return false;
-      return filter === "all" || stockState(i) === filter;
-    })
-    .sort((a, b) => a.ingredient_name.localeCompare(b.ingredient_name));
+  const stockRows = allIngredients.filter((i) => {
+    if (q && !i.ingredient_name.toLowerCase().includes(q)) return false;
+    if (filter === "inactive") return !i.is_active;
+    if (!i.is_active) return false;
+    return filter === "all" || stockState(i) === filter;
+  });
 
-  const movements = db.stock_movements
-    .filter(
-      (m) =>
-        (reason === "all" || m.reason === reason) &&
-        (ingredientFilter === "all" || String(m.ingredient_id) === ingredientFilter),
-    )
-    .sort((a, b) => b.moved_at.localeCompare(a.moved_at) || b.movement_id - a.movement_id);
-  const reasonCount = (r: StockMovementReason) =>
-    db.stock_movements.filter((m) => m.reason === r && (ingredientFilter === "all" || String(m.ingredient_id) === ingredientFilter)).length;
+  // The API returns movements newest first.
+  const allMovements = movementsQuery.data ?? [];
+  const movements = allMovements.filter((m) => reason === "all" || m.reason === reason);
+  const reasonCount = (r: StockMovementReason) => allMovements.filter((m) => m.reason === r).length;
 
-  const saveIngredient = (form: IngredientForm, openingStock: number) => {
-    if (editing === "new") {
-      const ingredient_id = nextId(db.ingredients, (i) => i.ingredient_id);
-      update("ingredients", (rows) => [...rows, { ...form, ingredient_id, current_quantity: 0, is_active: true }]);
-      if (openingStock > 0) recordMovement({ ingredient_id, quantity_change: openingStock, reason: "adjustment" });
-      notify(`${form.ingredient_name} is now tracked.`);
-    } else if (editing) {
-      update("ingredients", (rows) => rows.map((i) => (i.ingredient_id === editing.ingredient_id ? { ...i, ...form } : i)));
-      notify(`${form.ingredient_name} updated.`);
-    }
+  const closeEditor = () => {
     setEditing(null);
+    saveIngredient.reset();
   };
 
-  const setActive = (i: Ingredient, is_active: boolean) => {
-    update("ingredients", (rows) => rows.map((x) => (x.ingredient_id === i.ingredient_id ? { ...x, is_active } : x)));
-    notify(is_active ? `${i.ingredient_name} is tracked again.` : `${i.ingredient_name} was retired.`);
+  const submitIngredient = (fields: IngredientFields, image: ImageChange, openingStock: number) => {
+    const ingredientId = editing === "new" || editing === null ? null : editing.ingredient_id;
+    saveIngredient.mutate(
+      { ingredientId, fields, image, openingStock },
+      {
+        onSuccess: () => {
+          notify(ingredientId === null ? `${fields.ingredient_name} is now tracked.` : `${fields.ingredient_name} updated.`);
+          closeEditor();
+        },
+      },
+    );
   };
+
+  const setActive = (i: Ingredient, is_active: boolean) =>
+    setIngredientActive.mutate(
+      { ingredientId: i.ingredient_id, is_active },
+      {
+        onSuccess: () => {
+          notify(is_active ? `${i.ingredient_name} is tracked again.` : `${i.ingredient_name} was retired.`);
+          setRetiring(null);
+        },
+        onError: notifyError,
+      },
+    );
 
   const usedBy = (i: Ingredient) =>
-    db.product_ingredients
-      .filter((r) => r.ingredient_id === i.ingredient_id)
-      .map((r) => db.products.find((p) => p.product_id === r.product_id)?.product_name)
-      .filter(Boolean);
+    (products.data ?? [])
+      .filter((p) => (recipes.get(p.product_id) ?? []).some((r) => r.ingredient_id === i.ingredient_id))
+      .map((p) => p.product_name);
+
+  const failed = ingredientsQuery.error ?? (view === "movements" ? movementsQuery.error : null);
 
   return (
     <>
       <PageHeader
         title="Inventory"
-        description="Stock on hand for every ingredient. Sales and deliveries update it automatically; record waste and count corrections here."
+        description="Stock on hand for every ingredient. Deliveries add to it automatically; record waste and count corrections here."
         actions={
           view === "stock" ? (
             <Button variant="primary" icon={FiPlus} onClick={() => setEditing("new")}>
@@ -117,8 +161,17 @@ export default function Inventory() {
         }
       />
 
+      {failed && (
+        <ErrorNotice
+          className="mb-6"
+          title="Couldn't load inventory"
+          error={failed}
+          onRetry={() => void Promise.all([ingredientsQuery.refetch(), movementsQuery.refetch()])}
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Ingredients tracked" value={active.length} hint={`${db.ingredients.length - active.length} retired`} icon={FiBox} />
+        <StatCard label="Ingredients tracked" value={active.length} hint={`${allIngredients.length - active.length} retired`} icon={FiBox} />
         <StatCard label="Low stock" value={low.length} hint="At or below minimum" icon={FiAlertTriangle} />
         <StatCard label="Out of stock" value={out.length} hint={out.map((i) => i.ingredient_name).join(", ") || "None"} icon={FiXOctagon} />
         <StatCard label="Stock value" value={formatPesoWhole(value)} hint="At each item's cheapest supplier price" icon={FiDollarSign} />
@@ -150,7 +203,7 @@ export default function Inventory() {
                 { value: "all", label: "All", count: active.length },
                 { value: "low", label: "Low", count: low.length },
                 { value: "out", label: "Out", count: out.length },
-                { value: "inactive", label: "Retired", count: db.ingredients.length - active.length },
+                { value: "inactive", label: "Retired", count: allIngredients.length - active.length },
               ]}
             />
             <SearchInput value={query} onChange={setQuery} placeholder="Search ingredients" className="lg:w-64" />
@@ -168,10 +221,11 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
+              {ingredientsQuery.isPending && <LoadingRow colSpan={6} label="Loading stock…" />}
               {stockRows.map((i) => {
                 const state = stockState(i);
                 const s = STOCK_STATE[state];
-                const names = (supplyOf.get(i.ingredient_id) ?? []).map((si) => suppliers.get(si.supplier_id)?.supplier_name);
+                const names = (supplyOf.get(i.ingredient_id) ?? []).map((si) => supplierNames.get(si.supplier_id));
                 const pct = i.minimum_stock_level > 0 ? Math.min(100, (i.current_quantity / (i.minimum_stock_level * 2)) * 100) : i.current_quantity > 0 ? 100 : 0;
                 return (
                   <tr key={i.ingredient_id} className="hover:bg-(--mgr-canvas)/50">
@@ -203,14 +257,19 @@ export default function Inventory() {
                             <RowAction icon={FiArchive} label={`Retire ${i.ingredient_name}`} danger onClick={() => setRetiring(i)} />
                           </>
                         ) : (
-                          <RowAction icon={FiRotateCcw} label={`Track ${i.ingredient_name} again`} onClick={() => setActive(i, true)} />
+                          <RowAction
+                            icon={FiRotateCcw}
+                            label={`Track ${i.ingredient_name} again`}
+                            disabled={setIngredientActive.isPending}
+                            onClick={() => setActive(i, true)}
+                          />
                         )}
                       </div>
                     </Td>
                   </tr>
                 );
               })}
-              {stockRows.length === 0 && <EmptyRow colSpan={6}>No ingredients match.</EmptyRow>}
+              {ingredientsQuery.isSuccess && stockRows.length === 0 && <EmptyRow colSpan={6}>No ingredients match.</EmptyRow>}
             </tbody>
           </Table>
         </Card>
@@ -242,7 +301,7 @@ export default function Inventory() {
               className="lg:w-56"
             >
               <option value="all">All ingredients</option>
-              {db.ingredients.map((i) => (
+              {allIngredients.map((i) => (
                 <option key={i.ingredient_id} value={i.ingredient_id}>{i.ingredient_name}</option>
               ))}
             </Select>
@@ -259,26 +318,27 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
+              {movementsQuery.isPending && <LoadingRow colSpan={5} label="Loading movements…" />}
               {movements.slice(0, limit).map((m) => {
-                const i = ingredients.get(m.ingredient_id);
-                const e = employees.get(m.employee_id);
                 const r = MOVEMENT_REASON[m.reason];
                 return (
                   <tr key={m.movement_id} className="hover:bg-(--mgr-canvas)/50">
                     <Td className="text-(--mgr-muted)">{formatDateTime(m.moved_at)}</Td>
-                    <Td className="font-medium">{i?.ingredient_name}</Td>
+                    <Td className="font-medium">{m.ingredient_name}</Td>
                     <Td className={`text-right font-medium tabular-nums ${m.quantity_change > 0 ? "text-emerald-700" : "text-red-700"}`}>
                       {m.quantity_change > 0 ? "+" : "−"}
-                      {formatNumber(Math.abs(m.quantity_change))} {i?.unit_of_measure}
+                      {formatNumber(Math.abs(m.quantity_change))} {m.unit_of_measure}
                     </Td>
                     <Td>
                       <Badge tone={r.tone}>{r.label}</Badge>
                     </Td>
-                    <Td className="text-(--mgr-muted)">{e ? fullName(e) : "—"}</Td>
+                    <Td className="text-(--mgr-muted)">{m.employee_name}</Td>
                   </tr>
                 );
               })}
-              {movements.length === 0 && <EmptyRow colSpan={5}>No movements match these filters.</EmptyRow>}
+              {movementsQuery.isSuccess && movements.length === 0 && (
+                <EmptyRow colSpan={5}>No movements match these filters.</EmptyRow>
+              )}
             </tbody>
           </Table>
           {movements.length > limit && (
@@ -297,22 +357,33 @@ export default function Inventory() {
       <MovementModal
         key={`movement-${adjusting?.ingredient_id ?? "closed"}`}
         ingredient={adjusting}
+        saving={recordMovement.isPending}
         onClose={() => setAdjusting(null)}
         onSave={(change, why) => {
           if (!adjusting) return;
-          recordMovement({ ingredient_id: adjusting.ingredient_id, quantity_change: change, reason: why });
-          notify(
-            `${change > 0 ? "Added" : "Removed"} ${formatNumber(Math.abs(change))} ${adjusting.unit_of_measure} of ${adjusting.ingredient_name}.`,
+          recordMovement.mutate(
+            { ingredient_id: adjusting.ingredient_id, quantity_change: change, reason: why },
+            {
+              onSuccess: () => {
+                notify(
+                  `${change > 0 ? "Added" : "Removed"} ${formatNumber(Math.abs(change))} ${adjusting.unit_of_measure} of ${adjusting.ingredient_name}.`,
+                );
+                setAdjusting(null);
+              },
+              onError: notifyError,
+            },
           );
-          setAdjusting(null);
         }}
       />
 
       <IngredientModal
         key={`ingredient-${editing === null ? "closed" : editing === "new" ? "new" : editing.ingredient_id}`}
         ingredient={editing}
-        onClose={() => setEditing(null)}
-        onSave={saveIngredient}
+        ingredients={allIngredients}
+        saving={saveIngredient.isPending}
+        serverError={saveIngredient.error ? errorMessage(saveIngredient.error) : null}
+        onClose={closeEditor}
+        onSave={submitIngredient}
       />
 
       <Modal
@@ -330,12 +401,10 @@ export default function Inventory() {
             <Button onClick={() => setRetiring(null)}>Cancel</Button>
             <Button
               variant="danger"
-              onClick={() => {
-                if (retiring) setActive(retiring, false);
-                setRetiring(null);
-              }}
+              disabled={setIngredientActive.isPending}
+              onClick={() => retiring && setActive(retiring, false)}
             >
-              Retire
+              {setIngredientActive.isPending ? "Retiring…" : "Retire"}
             </Button>
           </>
         }
@@ -346,13 +415,14 @@ export default function Inventory() {
 
 interface MovementModalProps {
   ingredient: Ingredient | null;
+  saving: boolean;
   onClose: () => void;
-  onSave: (quantityChange: number, reason: StockMovementReason) => void;
+  onSave: (quantityChange: number, reason: "waste" | "adjustment") => void;
 }
 
-function MovementModal({ ingredient, onClose, onSave }: MovementModalProps) {
+function MovementModal({ ingredient, saving, onClose, onSave }: MovementModalProps) {
   const [direction, setDirection] = useState<"in" | "out">("out");
-  const [reason, setReason] = useState<StockMovementReason>("waste");
+  const [reason, setReason] = useState<"waste" | "adjustment">("waste");
   const [quantity, setQuantity] = useState("");
   const qty = Number(quantity) || 0;
   const onHand = ingredient?.current_quantity ?? 0;
@@ -368,8 +438,12 @@ function MovementModal({ ingredient, onClose, onSave }: MovementModalProps) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={qty <= 0 || tooMuch} onClick={() => onSave(direction === "in" ? qty : -qty, reason)}>
-            Record
+          <Button
+            variant="primary"
+            disabled={qty <= 0 || tooMuch || saving}
+            onClick={() => onSave(direction === "in" ? qty : -qty, reason)}
+          >
+            {saving ? "Recording…" : "Record"}
           </Button>
         </>
       }
@@ -400,7 +474,7 @@ function MovementModal({ ingredient, onClose, onSave }: MovementModalProps) {
             <Input type="number" min={0.01} step="0.01" inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} autoFocus />
           </Field>
           <Field label="Reason">
-            <Select value={reason} onChange={(e) => setReason(e.target.value as StockMovementReason)}>
+            <Select value={reason} onChange={(e) => setReason(e.target.value as "waste" | "adjustment")}>
               {direction === "out" && <option value="waste">Waste (spoiled, spilled, expired)</option>}
               <option value="adjustment">Count correction</option>
             </Select>
@@ -426,38 +500,41 @@ function MovementModal({ ingredient, onClose, onSave }: MovementModalProps) {
   );
 }
 
-type IngredientForm = Pick<Ingredient, "ingredient_name" | "unit_of_measure" | "minimum_stock_level" | "image_url">;
-
 interface IngredientModalProps {
   ingredient: Ingredient | "new" | null;
+  ingredients: readonly Ingredient[];
+  saving: boolean;
+  serverError: string | null;
   onClose: () => void;
-  onSave: (form: IngredientForm, openingStock: number) => void;
+  onSave: (fields: IngredientFields, image: ImageChange, openingStock: number) => void;
 }
 
-function IngredientModal({ ingredient, onClose, onSave }: IngredientModalProps) {
-  const { db } = useManagerData();
+function IngredientModal({ ingredient, ingredients, saving, serverError, onClose, onSave }: IngredientModalProps) {
   const existing = ingredient === "new" ? null : ingredient;
   const [error, setError] = useState<string | null>(null);
-  const [image, setImage] = useState(existing?.image_url ?? null);
+  const image = useImageDraft(existing?.image_url ?? null);
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const name = String(form.get("ingredient_name")).trim();
-    const taken = db.ingredients.some(
+    const taken = ingredients.some(
       (i) => i.ingredient_name.toLowerCase() === name.toLowerCase() && i.ingredient_id !== existing?.ingredient_id,
     );
     if (taken) return setError(`${name} is already tracked.`);
+    setError(null);
     onSave(
       {
         ingredient_name: name,
         unit_of_measure: String(form.get("unit_of_measure")).trim(),
         minimum_stock_level: Number(form.get("minimum_stock_level")) || 0,
-        image_url: image,
       },
+      image.change,
       Number(form.get("opening_stock")) || 0,
     );
   };
+
+  const shownError = error ?? serverError;
 
   return (
     <Modal
@@ -467,8 +544,8 @@ function IngredientModal({ ingredient, onClose, onSave }: IngredientModalProps) 
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" form="ingredient-form">
-            {existing ? "Save changes" : "Add ingredient"}
+          <Button variant="primary" type="submit" form="ingredient-form" disabled={saving}>
+            {saving ? "Saving…" : existing ? "Save changes" : "Add ingredient"}
           </Button>
         </>
       }
@@ -493,10 +570,10 @@ function IngredientModal({ ingredient, onClose, onSave }: IngredientModalProps) 
             <Input name="opening_stock" type="number" min={0} step="0.01" defaultValue={0} />
           </Field>
         )}
-        <ImageField label="Image" value={image} onChange={setImage} className="sm:col-span-2" />
-        {error && (
+        <ImageField label="Image" value={image.preview} onChange={image.onChange} className="sm:col-span-2" />
+        {shownError && (
           <p role="alert" className="text-sm text-red-700 sm:col-span-2">
-            {error}
+            {shownError}
           </p>
         )}
       </form>

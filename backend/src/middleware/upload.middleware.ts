@@ -15,13 +15,18 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/gif": "gif",
 };
 
-const s3 = new S3Client({
-  region: REGION,
-  credentials: {
-    accessKeyId: process.env["AWS_ACCESS_KEY_ID"] ?? "",
-    secretAccessKey: process.env["AWS_SECRET_ACCESS_KEY"] ?? "",
-  },
-});
+// Built on first upload, not at import: S3Client throws without a region, and
+// the server should still boot without AWS settings (uploadToS3 reports that
+// per request instead).
+let s3: S3Client | undefined;
+const getS3 = (): S3Client =>
+  (s3 ??= new S3Client({
+    region: REGION,
+    credentials: {
+      accessKeyId: process.env["AWS_ACCESS_KEY_ID"] ?? "",
+      secretAccessKey: process.env["AWS_SECRET_ACCESS_KEY"] ?? "",
+    },
+  }));
 
 // Files are held in memory so they can be streamed straight to S3 -
 // nothing ever touches the server's disk.
@@ -65,7 +70,7 @@ export async function uploadToS3(
     const extension = ALLOWED_MIME_TYPES[file.mimetype];
     const key = `${file.fieldname}/${randomUUID()}.${extension}`;
 
-    await s3.send(
+    await getS3().send(
       new PutObjectCommand({
         Bucket: BUCKET,
         Key: key,
