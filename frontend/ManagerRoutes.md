@@ -1,8 +1,17 @@
-# Manager API routes (planned)
+# Manager API routes
 
-Backend endpoints the Manager UI will need once it moves off mock data
-(`data/mock.ts`) onto real API calls. Grouped by resource, matching the
-tables in `backend/init.sql`.
+Backend endpoints behind the Manager UI. The screens fetch them through
+TanStack Query hooks in `src/Manager/api/` (one file per resource; query keys
+in `api/keys.ts`). Grouped by resource, matching the tables in
+`backend/init.sql`.
+
+Everything below is wired up except **Discounts** and **Feedback**: their
+tables exist but their routes don't yet. The UI already calls the contract
+listed for them and shows a "not supported yet" notice until they land.
+
+Where this list says `PATCH /:id` for products, categories, ingredients,
+suppliers and employees, the backend implements it as `PUT /:id` (still a
+partial update), and that's what the UI calls.
 
 ## Image uploads
 
@@ -44,7 +53,7 @@ GIF, max 5 MB), using `uploadSingle` + `uploadToS3` from
 - `PATCH /api/orders/:id/cancel`
 - `GET /api/customers?search=` (for POS customer picker)
 
-## Discounts
+## Discounts (not built yet)
 
 - `GET /api/discounts`
 - `POST /api/discounts`
@@ -56,9 +65,10 @@ GIF, max 5 MB), using `uploadSingle` + `uploadToS3` from
 - `GET /api/reports/sales?period=daily|monthly&date=`
 - `GET /api/reports/sales/export?...` (CSV)
 
-## Feedback
+## Feedback (not built yet)
 
-- `GET /api/feedback` (filters: status, rating, search)
+- `GET /api/feedback` (filters: status, rating, search). Rows should include
+  `customer_name`, like orders do.
 - `PATCH /api/feedback/:id` (status)
 
 ## Employees / Cashiers
@@ -70,7 +80,7 @@ GIF, max 5 MB), using `uploadSingle` + `uploadToS3` from
 ## Attendance
 
 - `GET /api/attendance?from=&to=&employee_id=`
-- `PATCH /api/attendance/:id` (set time_out)
+- `PATCH /api/attendance/:id/time-out` (set time_out)
 
 ## Inventory
 

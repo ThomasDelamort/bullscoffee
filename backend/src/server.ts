@@ -5,6 +5,7 @@ import { clerkMiddleware } from "@clerk/express";
 import type { Request, Response } from "express";
 import { runInitSql } from "./lib/init.ts";
 import responseFormatter from "./middleware/responseFormatter.ts";
+import { handleUploadError } from "./middleware/upload.middleware.ts";
 import { StatusCodes } from "http-status-codes";
 
 // Import Routes
@@ -18,7 +19,7 @@ import categoryRoutes from "./routes/category.route.ts";
 import ingredientRoutes from "./routes/ingredients.route.ts";
 import supplierRoutes from "./routes/supplier.route.ts";
 import deliveryRoutes from "./routes/delivery.route.ts";
-import orderRoutes from "./routes/order.route.ts"
+import orderRoutes from "./routes/order.route.ts";
 import stockMovementsRoute from "./routes/stock-movement.route.ts";
 import attendanceRoutes from "./routes/attendance.route.ts";
 
@@ -59,6 +60,9 @@ app.use("/api", deliveryRoutes);
 app.use("/api", orderRoutes);
 app.use("/api", stockMovementsRoute);
 app.use("/api", attendanceRoutes);
+
+// After the routes: turns multer's size/type rejections into the API's JSON shape.
+app.use(handleUploadError);
 
 async function startServer() {
   try {

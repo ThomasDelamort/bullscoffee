@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { FiAlertTriangle, FiEdit2 } from "react-icons/fi";
+import { useEmployees, useUpdateEmployee } from "../api/staff";
 import Card from "../components/Card";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, Loading } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import ScheduleModal from "../components/ScheduleModal";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
+import { useNotifyError, useToast } from "../components/toastContext";
 import type { Employee } from "../types";
 import { formatHours, fullName } from "../utils/format";
 import {
@@ -25,12 +26,14 @@ import {
 const MIN_STAFF = 2;
 
 export default function Schedule() {
-  const { db, update } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [editing, setEditing] = useState<Employee | null>(null);
+  const employees = useEmployees();
+  const updateEmployee = useUpdateEmployee();
 
   const today = weekdayOf(new Date());
-  const roster = db.employees
+  const roster = (employees.data ?? [])
     .filter((e) => e.employee_role === "cashier" && e.employee_status === "active")
     .map((e) => ({ employee: e, shift: parseSchedule(e.work_schedule) }));
 
@@ -47,12 +50,17 @@ export default function Schedule() {
 
   const save = (work_schedule: string) => {
     if (!editing) return;
-    update("employees", (rows) =>
-      rows.map((e) => (e.employee_id === editing.employee_id ? { ...e, work_schedule } : e)),
+    updateEmployee.mutate(
+      { employeeId: editing.employee_id, changes: { work_schedule } },
+      {
+        onSuccess: () => {
+          const shift = parseSchedule(work_schedule);
+          notify(`${fullName(editing)} now works ${shift ? describeShift(shift) : work_schedule}.`);
+          setEditing(null);
+        },
+        onError: notifyError,
+      },
     );
-    const shift = parseSchedule(work_schedule);
-    notify(`${fullName(editing)} now works ${shift ? describeShift(shift) : work_schedule}.`);
-    setEditing(null);
   };
 
   return (
@@ -62,7 +70,11 @@ export default function Schedule() {
         description={`Each cashier's weekly shift. The store opens at ${formatClock(OPENING)} and closes at ${formatClock(CLOSING)}.`}
       />
 
-      {gaps.length > 0 && (
+      {employees.error && (
+        <ErrorNotice className="mb-6" title="Couldn't load the roster" error={employees.error} onRetry={() => void employees.refetch()} />
+      )}
+
+      {employees.isSuccess && gaps.length > 0 && (
         <div className="mb-6 flex items-start gap-3 rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-900 ring-1 ring-amber-200">
           <FiAlertTriangle aria-hidden className="mt-0.5 size-5 shrink-0" />
           <ul className="space-y-0.5">
@@ -130,7 +142,14 @@ export default function Schedule() {
                   </td>
                 </tr>
               ))}
-              {roster.length === 0 && (
+              {employees.isPending && (
+                <tr>
+                  <td colSpan={WEEKDAYS.length + 3}>
+                    <Loading label="Loading the roster…" />
+                  </td>
+                </tr>
+              )}
+              {employees.isSuccess && roster.length === 0 && (
                 <tr>
                   <td colSpan={WEEKDAYS.length + 3} className="px-5 py-10 text-center text-(--mgr-muted)">
                     No active cashiers.
@@ -168,6 +187,7 @@ export default function Schedule() {
         employee={editing}
         onClose={() => setEditing(null)}
         onSave={save}
+        saving={updateEmployee.isPending}
       />
     </>
   );

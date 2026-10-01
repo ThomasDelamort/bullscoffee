@@ -6,11 +6,14 @@ import { Link, NavLink } from "react-router-dom";
 import { AUTH_PATHS } from "../../AuthPage";
 import HeroImage from "../../Home/Hero/HeroImage";
 import { LOGO_MARK } from "../../Home/Hero/hero.config";
+import { useFeedback } from "../api/feedback";
+import { useIngredients } from "../api/inventory";
+import { useOrders } from "../api/orders";
+import { useCurrentEmployee } from "../api/staff";
 import { FOCUS_RING } from "../components/styles";
-import { useManagerData } from "../data/dataContext";
 import { stockState } from "../data/selectors";
 import { managerPath, type ManagerPage } from "../routes";
-import { initials } from "../utils/format";
+import { fullName, initials } from "../utils/format";
 import { MANAGER_NAV } from "./nav";
 
 interface LeftSideBarProps {
@@ -22,13 +25,18 @@ interface LeftSideBarProps {
   onToggleCollapsed: () => void;
 }
 
-/** Counts that need the manager's attention, shown next to their nav item. */
+/**
+ * Counts that need the manager's attention, shown next to their nav item.
+ * These share cache entries with the screens, so they cost no extra requests.
+ */
 function useAttentionCounts(): Partial<Record<ManagerPage, number>> {
-  const { db } = useManagerData();
+  const pending = useOrders({ status: "pending" }, { live: true });
+  const feedback = useFeedback();
+  const ingredients = useIngredients();
   return {
-    orders: db.orders.filter((o) => o.order_status === "pending").length,
-    feedback: db.feedback.filter((f) => f.status === "new").length,
-    inventory: db.ingredients.filter((i) => i.is_active && stockState(i) !== "in").length,
+    orders: pending.data?.filter((o) => o.order_status === "pending").length,
+    feedback: feedback.data?.filter((f) => f.status === "new").length,
+    inventory: ingredients.data?.filter((i) => i.is_active && stockState(i) !== "in").length,
   };
 }
 
@@ -59,7 +67,7 @@ export default function LeftSideBar({ open, onClose, collapsed, onToggleCollapse
       <aside
         id="manager-sidebar"
         className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-(--mgr-ink) text-(--mgr-cream) transition-[translate,width] duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
-          collapsed ? "lg:w-[4.5rem]" : "lg:w-64"
+          collapsed ? "lg:w-18" : "lg:w-64"
         } ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className={`flex items-center justify-between gap-2 px-5 pt-5 pb-4 ${rail("lg:justify-center lg:px-0")}`}>
@@ -203,7 +211,9 @@ function RailTooltip({ label }: { label: string }) {
 function AccountFooter({ collapsed }: { collapsed: boolean }) {
   const { user } = useUser();
   const { signOut } = useClerk();
-  const name = user?.fullName || user?.primaryEmailAddress?.emailAddress || "Manager";
+  const { data: employee } = useCurrentEmployee();
+  const name =
+    (employee && fullName(employee)) || user?.fullName || user?.primaryEmailAddress?.emailAddress || "Manager";
 
   return (
     <div className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${collapsed ? "lg:flex-col lg:gap-2 lg:px-0" : ""}`}>

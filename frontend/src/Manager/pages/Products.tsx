@@ -1,5 +1,20 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { FiEdit2, FiPlus, FiTrash2, FiX } from "react-icons/fi";
+import { ApiError, errorMessage } from "../../lib/api";
+import {
+  useCategories,
+  useDeleteCategory,
+  useDeleteProduct,
+  useProducts,
+  useRecipe,
+  useRecipes,
+  useSaveCategory,
+  useSaveProduct,
+  useUpdateProduct,
+  type ProductFields,
+} from "../api/catalog";
+import type { ImageChange } from "../api/forms";
+import { useIngredients } from "../api/inventory";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -7,51 +22,60 @@ import { Field, Input, Select, TextArea } from "../components/Field";
 import ImageField from "../components/ImageField";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, Loading, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import SearchInput from "../components/SearchInput";
 import { INPUT_BASE } from "../components/styles";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
 import Toggle from "../components/Toggle";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
+import { useNotifyError, useToast } from "../components/toastContext";
 import { makeableCount } from "../data/selectors";
-import type { Category, Product, ProductIngredient } from "../types";
-import { groupBy, indexBy, nextId } from "../utils/collections";
+import type { Category, Ingredient, Product, ProductIngredient } from "../types";
+import { indexBy } from "../utils/collections";
 import { formatNumber, formatPeso, initials } from "../utils/format";
 import { SIZES } from "../utils/pricing";
+import { useImageDraft } from "../utils/useImageDraft";
 
 type View = "products" | "categories";
 type Availability = "all" | "available" | "unavailable";
-type ProductForm = Omit<Product, "product_id" | "created_at">;
-type RecipeLine = Omit<ProductIngredient, "product_id">;
+type RecipeLine = Pick<ProductIngredient, "ingredient_id" | "quantity_required">;
 
 const SIZE_HINT = SIZES.filter((s) => s.upcharge)
   .map((s) => `${s.label} +₱${s.upcharge}`)
   .join(", ");
 
 export default function Products() {
-  const { db, update } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [view, setView] = useState<View>("products");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [availability, setAvailability] = useState<Availability>("all");
   const [editing, setEditing] = useState<Product | "new" | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
+  /** The server's reason when it refuses a delete (the product has been ordered). */
+  const [deleteBlocked, setDeleteBlocked] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | "new" | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
-  const ingredients = useMemo(() => indexBy(db.ingredients, (i) => i.ingredient_id), [db.ingredients]);
-  const recipes = useMemo(() => groupBy(db.product_ingredients, (r) => r.product_id), [db.product_ingredients]);
-  const categories = useMemo(() => indexBy(db.categories, (c) => c.category_id), [db.categories]);
-  const orderCounts = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const i of db.order_items) counts.set(i.product_id, (counts.get(i.product_id) ?? 0) + 1);
-    return counts;
-  }, [db.order_items]);
+  const productsQuery = useProducts();
+  const categoriesQuery = useCategories();
+  const ingredientsQuery = useIngredients();
+  const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
+  const productIds = useMemo(() => products.map((p) => p.product_id), [products]);
+  const { recipes } = useRecipes(productIds);
+  const ingredients = useMemo(() => indexBy(ingredientsQuery.data ?? [], (i) => i.ingredient_id), [ingredientsQuery.data]);
+  const categoryNames = useMemo(() => indexBy(categories, (c) => c.category_id), [categories]);
 
-  const inFilters = db.products.filter((p) => {
+  const updateProduct = useUpdateProduct();
+  const saveProduct = useSaveProduct();
+  const deleteProduct = useDeleteProduct();
+  const saveCategory = useSaveCategory();
+  const deleteCategory = useDeleteCategory();
+
+  const inFilters = products.filter((p) => {
     const q = query.trim().toLowerCase();
     return (
       (categoryFilter === "all" || String(p.category_id) === categoryFilter) &&
@@ -62,68 +86,94 @@ export default function Products() {
     (p) => availability === "all" || (availability === "available") === p.is_available,
   );
 
-  const patchProduct = (id: number, change: Partial<Product>) =>
-    update("products", (rows) => rows.map((p) => (p.product_id === id ? { ...p, ...change } : p)));
-
-  const saveProduct = (form: ProductForm, recipe: RecipeLine[]) => {
-    const product_id = editing === "new" || editing === null ? nextId(db.products, (p) => p.product_id) : editing.product_id;
-    if (editing === "new") {
-      update("products", (rows) => [...rows, { ...form, product_id, created_at: new Date().toISOString() }]);
-      notify(`${form.product_name} added to the menu.`);
-    } else {
-      patchProduct(product_id, form);
-      notify(`${form.product_name} updated.`);
-    }
-    update("product_ingredients", (rows) => [
-      ...rows.filter((r) => r.product_id !== product_id),
-      ...recipe.map((r) => ({ ...r, product_id })),
-    ]);
+  const closeEditor = () => {
     setEditing(null);
+    saveProduct.reset();
   };
 
-  const setAvailable = (p: Product, is_available: boolean) => {
-    patchProduct(p.product_id, { is_available });
-    notify(is_available ? `${p.product_name} is back on the menu.` : `${p.product_name} is hidden from the POS.`);
+  const submitProduct = (fields: ProductFields, image: ImageChange, recipe: RecipeLine[]) => {
+    const productId = editing === "new" || editing === null ? null : editing.product_id;
+    saveProduct.mutate(
+      { productId, fields, image, recipe },
+      {
+        onSuccess: () => {
+          notify(productId === null ? `${fields.product_name} added to the menu.` : `${fields.product_name} updated.`);
+          closeEditor();
+        },
+      },
+    );
   };
 
-  const recategorize = (p: Product, category_id: number) => {
-    patchProduct(p.product_id, { category_id });
-    notify(`${p.product_name} moved to ${categories.get(category_id)?.category_name}.`);
+  const setAvailable = (p: Product, is_available: boolean) =>
+    updateProduct.mutate(
+      { productId: p.product_id, changes: { is_available } },
+      {
+        onSuccess: () =>
+          notify(is_available ? `${p.product_name} is back on the menu.` : `${p.product_name} is hidden from the POS.`),
+        onError: notifyError,
+      },
+    );
+
+  const recategorize = (p: Product, category_id: number) =>
+    updateProduct.mutate(
+      { productId: p.product_id, changes: { category_id } },
+      {
+        onSuccess: () => notify(`${p.product_name} moved to ${categoryNames.get(category_id)?.category_name}.`),
+        onError: notifyError,
+      },
+    );
+
+  const closeDelete = () => {
+    setDeleting(null);
+    setDeleteBlocked(null);
   };
 
   const confirmDelete = () => {
     if (!deleting) return;
-    update("products", (rows) => rows.filter((p) => p.product_id !== deleting.product_id));
-    // product_ingredients cascades with the product.
-    update("product_ingredients", (rows) => rows.filter((r) => r.product_id !== deleting.product_id));
-    notify(`${deleting.product_name} deleted.`);
-    setDeleting(null);
+    deleteProduct.mutate(deleting.product_id, {
+      onSuccess: () => {
+        notify(`${deleting.product_name} deleted.`);
+        closeDelete();
+      },
+      // 409: it's been ordered, and order_items must keep pointing at it.
+      onError: (error) =>
+        error instanceof ApiError && error.status === 409 ? setDeleteBlocked(error.message) : notifyError(error),
+    });
   };
 
-  const saveCategory = (form: Omit<Category, "category_id">) => {
-    if (editingCategory === "new") {
-      update("categories", (rows) => [...rows, { ...form, category_id: nextId(rows, (c) => c.category_id) }]);
-      notify(`${form.category_name} category created.`);
-    } else if (editingCategory) {
-      update("categories", (rows) =>
-        rows.map((c) => (c.category_id === editingCategory.category_id ? { ...c, ...form } : c)),
-      );
-      notify(`${form.category_name} category updated.`);
-    }
+  const closeCategoryEditor = () => {
     setEditingCategory(null);
+    saveCategory.reset();
+  };
+
+  const submitCategory = (category_name: string, image: ImageChange) => {
+    const categoryId = editingCategory === "new" || editingCategory === null ? null : editingCategory.category_id;
+    saveCategory.mutate(
+      { categoryId, category_name, image },
+      {
+        onSuccess: () => {
+          notify(categoryId === null ? `${category_name} category created.` : `${category_name} category updated.`);
+          closeCategoryEditor();
+        },
+      },
+    );
   };
 
   const confirmDeleteCategory = () => {
     if (!deletingCategory) return;
-    update("categories", (rows) => rows.filter((c) => c.category_id !== deletingCategory.category_id));
-    notify(`${deletingCategory.category_name} category deleted.`);
-    setDeletingCategory(null);
+    deleteCategory.mutate(deletingCategory.category_id, {
+      onSuccess: () => {
+        notify(`${deletingCategory.category_name} category deleted.`);
+        setDeletingCategory(null);
+      },
+      onError: notifyError,
+    });
   };
 
-  const deletingOrders = deleting ? (orderCounts.get(deleting.product_id) ?? 0) : 0;
   const categoryProducts = deletingCategory
-    ? db.products.filter((p) => p.category_id === deletingCategory.category_id).length
+    ? products.filter((p) => p.category_id === deletingCategory.category_id).length
     : 0;
+  const failed = productsQuery.error ?? categoriesQuery.error;
 
   return (
     <>
@@ -132,7 +182,7 @@ export default function Products() {
         description="Add, edit and categorise menu items, set their recipes, and take them off the POS when they can't be made."
         actions={
           view === "products" ? (
-            <Button variant="primary" icon={FiPlus} onClick={() => setEditing("new")} disabled={db.categories.length === 0}>
+            <Button variant="primary" icon={FiPlus} onClick={() => setEditing("new")} disabled={categories.length === 0}>
               Add product
             </Button>
           ) : (
@@ -143,14 +193,23 @@ export default function Products() {
         }
       />
 
+      {failed && (
+        <ErrorNotice
+          className="mb-4"
+          title="Couldn't load the menu"
+          error={failed}
+          onRetry={() => void Promise.all([productsQuery.refetch(), categoriesQuery.refetch()])}
+        />
+      )}
+
       <div className="mb-4">
         <Tabs
           label="Section"
           value={view}
           onChange={setView}
           options={[
-            { value: "products", label: "Products", count: db.products.length },
-            { value: "categories", label: "Categories", count: db.categories.length },
+            { value: "products", label: "Products", count: products.length },
+            { value: "categories", label: "Categories", count: categories.length },
           ]}
         />
       </div>
@@ -177,7 +236,7 @@ export default function Products() {
                 className="sm:w-44"
               >
                 <option value="all">All categories</option>
-                {db.categories.map((c) => (
+                {categories.map((c) => (
                   <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                 ))}
               </Select>
@@ -196,9 +255,10 @@ export default function Products() {
               </tr>
             </thead>
             <tbody>
+              {productsQuery.isPending && <LoadingRow colSpan={6} label="Loading products…" />}
               {visible.map((p) => {
-                const recipe = recipes.get(p.product_id) ?? [];
-                const makeable = makeableCount(recipe, ingredients);
+                const recipe = recipes.get(p.product_id);
+                const makeable = recipe ? makeableCount(recipe, ingredients) : 0;
                 return (
                   <tr key={p.product_id} className="hover:bg-(--mgr-canvas)/50">
                     <Td>
@@ -226,7 +286,7 @@ export default function Products() {
                         onChange={(e) => recategorize(p, Number(e.target.value))}
                         className={`${INPUT_BASE} w-36`}
                       >
-                        {db.categories.map((c) => (
+                        {categories.map((c) => (
                           <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
                         ))}
                       </select>
@@ -236,7 +296,9 @@ export default function Products() {
                       {p.has_sizes && <span className="block text-xs text-(--mgr-muted)">{SIZE_HINT}</span>}
                     </Td>
                     <Td>
-                      {recipe.length === 0 ? (
+                      {!recipe || !ingredientsQuery.data ? (
+                        <span className="text-sm text-(--mgr-muted)">…</span>
+                      ) : recipe.length === 0 ? (
                         <Badge tone="neutral">No recipe</Badge>
                       ) : makeable <= 0 ? (
                         <Badge tone="danger" dot>Out of stock</Badge>
@@ -261,7 +323,9 @@ export default function Products() {
                   </tr>
                 );
               })}
-              {visible.length === 0 && <EmptyRow colSpan={6}>No products match these filters.</EmptyRow>}
+              {productsQuery.isSuccess && visible.length === 0 && (
+                <EmptyRow colSpan={6}>No products match these filters.</EmptyRow>
+              )}
             </tbody>
           </Table>
         </Card>
@@ -277,8 +341,9 @@ export default function Products() {
               </tr>
             </thead>
             <tbody>
-              {db.categories.map((c) => {
-                const products = db.products.filter((p) => p.category_id === c.category_id);
+              {categoriesQuery.isPending && <LoadingRow colSpan={4} label="Loading categories…" />}
+              {categories.map((c) => {
+                const inCategory = products.filter((p) => p.category_id === c.category_id);
                 return (
                   <tr key={c.category_id} className="hover:bg-(--mgr-canvas)/50">
                     <Td>
@@ -293,8 +358,8 @@ export default function Products() {
                         <span className="font-medium">{c.category_name}</span>
                       </div>
                     </Td>
-                    <Td className="text-right tabular-nums">{products.length}</Td>
-                    <Td className="text-right text-(--mgr-muted) tabular-nums">{products.filter((p) => p.is_available).length}</Td>
+                    <Td className="text-right tabular-nums">{inCategory.length}</Td>
+                    <Td className="text-right text-(--mgr-muted) tabular-nums">{inCategory.filter((p) => p.is_available).length}</Td>
                     <Td>
                       <div className="flex justify-end gap-1">
                         <RowAction icon={FiEdit2} label={`Edit ${c.category_name}`} onClick={() => setEditingCategory(c)} />
@@ -309,7 +374,9 @@ export default function Products() {
                   </tr>
                 );
               })}
-              {db.categories.length === 0 && <EmptyRow colSpan={4}>No categories yet. Add one to start building the menu.</EmptyRow>}
+              {categoriesQuery.isSuccess && categories.length === 0 && (
+                <EmptyRow colSpan={4}>No categories yet. Add one to start building the menu.</EmptyRow>
+              )}
             </tbody>
           </Table>
         </Card>
@@ -318,30 +385,31 @@ export default function Products() {
       <ProductModal
         key={`product-${editing === null ? "closed" : editing === "new" ? "new" : editing.product_id}`}
         product={editing}
-        onClose={() => setEditing(null)}
-        onSave={saveProduct}
+        products={products}
+        categories={categories}
+        ingredients={ingredientsQuery.data ?? []}
+        saving={saveProduct.isPending}
+        serverError={saveProduct.error ? errorMessage(saveProduct.error) : null}
+        onClose={closeEditor}
+        onSave={submitProduct}
       />
 
       <Modal
         open={deleting !== null}
-        onClose={() => setDeleting(null)}
+        onClose={closeDelete}
         size="sm"
-        title={deletingOrders ? `Can't delete ${deleting?.product_name}` : `Delete ${deleting?.product_name ?? ""}?`}
-        description={
-          deletingOrders
-            ? `It appears in ${formatNumber(deletingOrders)} past order lines, which must keep pointing at it. Mark it unavailable to take it off the POS instead.`
-            : "It's removed from the menu along with its recipe. This can't be undone."
-        }
+        title={deleteBlocked ? `Can't delete ${deleting?.product_name}` : `Delete ${deleting?.product_name ?? ""}?`}
+        description={deleteBlocked ?? "It's removed from the menu along with its recipe. This can't be undone."}
         footer={
-          deletingOrders ? (
+          deleteBlocked ? (
             <>
-              <Button onClick={() => setDeleting(null)}>Close</Button>
+              <Button onClick={closeDelete}>Close</Button>
               {deleting?.is_available && (
                 <Button
                   variant="primary"
                   onClick={() => {
                     setAvailable(deleting, false);
-                    setDeleting(null);
+                    closeDelete();
                   }}
                 >
                   Mark unavailable
@@ -350,9 +418,9 @@ export default function Products() {
             </>
           ) : (
             <>
-              <Button onClick={() => setDeleting(null)}>Cancel</Button>
-              <Button variant="danger" onClick={confirmDelete}>
-                Delete product
+              <Button onClick={closeDelete}>Cancel</Button>
+              <Button variant="danger" onClick={confirmDelete} disabled={deleteProduct.isPending}>
+                {deleteProduct.isPending ? "Deleting…" : "Delete product"}
               </Button>
             </>
           )
@@ -362,8 +430,11 @@ export default function Products() {
       <CategoryModal
         key={`category-${editingCategory === null ? "closed" : editingCategory === "new" ? "new" : editingCategory.category_id}`}
         category={editingCategory}
-        onClose={() => setEditingCategory(null)}
-        onSave={saveCategory}
+        categories={categories}
+        saving={saveCategory.isPending}
+        serverError={saveCategory.error ? errorMessage(saveCategory.error) : null}
+        onClose={closeCategoryEditor}
+        onSave={submitCategory}
       />
 
       <Modal
@@ -382,8 +453,8 @@ export default function Products() {
           ) : (
             <>
               <Button onClick={() => setDeletingCategory(null)}>Cancel</Button>
-              <Button variant="danger" onClick={confirmDeleteCategory}>
-                Delete category
+              <Button variant="danger" onClick={confirmDeleteCategory} disabled={deleteCategory.isPending}>
+                {deleteCategory.isPending ? "Deleting…" : "Delete category"}
               </Button>
             </>
           )
@@ -395,61 +466,21 @@ export default function Products() {
 
 interface ProductModalProps {
   product: Product | "new" | null;
+  products: readonly Product[];
+  categories: readonly Category[];
+  ingredients: readonly Ingredient[];
+  saving: boolean;
+  serverError: string | null;
   onClose: () => void;
-  onSave: (form: ProductForm, recipe: RecipeLine[]) => void;
+  onSave: (fields: ProductFields, image: ImageChange, recipe: RecipeLine[]) => void;
 }
 
-interface DraftLine {
-  key: number;
-  ingredient_id: string;
-  quantity: string;
-}
-
-function ProductModal({ product, onClose, onSave }: ProductModalProps) {
-  const { db } = useManagerData();
+/** Loads the product's recipe first, so the form starts from what's saved. */
+function ProductModal(props: ProductModalProps) {
+  const { product, saving, onClose } = props;
   const existing = product === "new" ? null : product;
-  const [form, setForm] = useState<ProductForm>(() => ({
-    category_id: existing?.category_id ?? db.categories[0]?.category_id ?? 0,
-    product_name: existing?.product_name ?? "",
-    description: existing?.description ?? "",
-    image_url: existing?.image_url ?? null,
-    price: existing?.price ?? 0,
-    is_available: existing?.is_available ?? true,
-    has_sizes: existing?.has_sizes ?? true,
-  }));
-  const [lines, setLines] = useState<DraftLine[]>(() =>
-    db.product_ingredients
-      .filter((r) => existing && r.product_id === existing.product_id)
-      .map((r, i) => ({ key: i, ingredient_id: String(r.ingredient_id), quantity: String(r.quantity_required) })),
-  );
-  const [nextKey, setNextKey] = useState(lines.length);
-  const [error, setError] = useState<string | null>(null);
-
-  const set = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const activeIngredients = db.ingredients.filter((i) => i.is_active);
-  const unitOf = (id: string) => db.ingredients.find((i) => String(i.ingredient_id) === id)?.unit_of_measure ?? "";
-
-  const submit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const name = form.product_name.trim();
-    const taken = db.products.some(
-      (p) => p.product_name.toLowerCase() === name.toLowerCase() && p.product_id !== existing?.product_id,
-    );
-    if (taken) return setError(`There's already a product called ${name}.`);
-    const filled = lines.filter((l) => l.ingredient_id);
-    if (new Set(filled.map((l) => l.ingredient_id)).size !== filled.length) {
-      return setError("Each ingredient can only appear once in the recipe.");
-    }
-    if (filled.some((l) => !(Number(l.quantity) > 0))) return setError("Recipe quantities must be more than zero.");
-    onSave(
-      {
-        ...form,
-        product_name: name,
-        description: form.description?.trim() || null,
-      },
-      filled.map((l) => ({ ingredient_id: Number(l.ingredient_id), quantity_required: Number(l.quantity) })),
-    );
-  };
+  const recipe = useRecipe(existing?.product_id ?? null);
+  const ready = existing === null || recipe.isSuccess;
 
   return (
     <Modal
@@ -460,139 +491,211 @@ function ProductModal({ product, onClose, onSave }: ProductModalProps) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" form="product-form">
-            {existing ? "Save changes" : "Add product"}
+          <Button variant="primary" type="submit" form="product-form" disabled={!ready || saving}>
+            {saving ? "Saving…" : existing ? "Save changes" : "Add product"}
           </Button>
         </>
       }
     >
-      <form id="product-form" onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Name" className="sm:col-span-2">
-          <Input
-            required
-            maxLength={100}
-            value={form.product_name}
-            onChange={(e) => set("product_name", e.target.value)}
-            autoComplete="off"
-          />
-        </Field>
-        <Field label="Category">
-          <Select value={form.category_id} onChange={(e) => set("category_id", Number(e.target.value))}>
-            {db.categories.map((c) => (
-              <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label={form.has_sizes ? "Price, tall (₱)" : "Price (₱)"}>
-          <Input
-            type="number"
-            required
-            min={0}
-            step="0.01"
-            value={form.price}
-            onChange={(e) => set("price", Number(e.target.value))}
-          />
-        </Field>
-        <Field label="Description" className="sm:col-span-2">
-          <TextArea rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} />
-        </Field>
-        <ImageField label="Image" value={form.image_url} onChange={(url) => set("image_url", url)} className="sm:col-span-2" />
-        <div className="space-y-4 sm:col-span-2">
-          <Toggle
-            checked={form.has_sizes}
-            onChange={(v) => set("has_sizes", v)}
-            label="Sold in sizes"
-            description={`The price above is for tall. ${SIZE_HINT}.`}
-          />
-          <Toggle
-            checked={form.is_available}
-            onChange={(v) => set("is_available", v)}
-            label="Available on the POS"
-            description="Switch off when it's sold out or seasonal."
-          />
-        </div>
-
-        <fieldset className="sm:col-span-2">
-          <legend className="text-xs font-medium">Recipe</legend>
-          <p className="mt-0.5 text-xs text-(--mgr-muted)">
-            What one {form.has_sizes ? "tall " : ""}serving uses. Completed orders deduct this from inventory.
-          </p>
-          <ul className="mt-3 space-y-2">
-            {lines.map((l) => (
-              <li key={l.key} className="flex items-center gap-2">
-                <select
-                  aria-label="Ingredient"
-                  value={l.ingredient_id}
-                  onChange={(e) =>
-                    setLines(lines.map((x) => (x.key === l.key ? { ...x, ingredient_id: e.target.value } : x)))
-                  }
-                  className={`${INPUT_BASE} min-w-0 flex-1`}
-                >
-                  <option value="">Choose an ingredient</option>
-                  {activeIngredients.map((i) => (
-                    <option key={i.ingredient_id} value={i.ingredient_id}>{i.ingredient_name}</option>
-                  ))}
-                </select>
-                <input
-                  aria-label="Quantity"
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  value={l.quantity}
-                  onChange={(e) => setLines(lines.map((x) => (x.key === l.key ? { ...x, quantity: e.target.value } : x)))}
-                  className={`${INPUT_BASE} w-24 shrink-0`}
-                />
-                <span className="w-10 text-xs text-(--mgr-muted)">{unitOf(l.ingredient_id)}</span>
-                <RowAction icon={FiX} label="Remove ingredient" onClick={() => setLines(lines.filter((x) => x.key !== l.key))} />
-              </li>
-            ))}
-          </ul>
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={FiPlus}
-            className="mt-2"
-            onClick={() => {
-              setLines([...lines, { key: nextKey, ingredient_id: "", quantity: "" }]);
-              setNextKey(nextKey + 1);
-            }}
-          >
-            Add ingredient
-          </Button>
-        </fieldset>
-
-        {error && (
-          <p role="alert" className="text-sm text-red-700 sm:col-span-2">
-            {error}
-          </p>
-        )}
-      </form>
+      {ready ? (
+        <ProductForm {...props} existing={existing} recipe={recipe.data ?? []} />
+      ) : recipe.error ? (
+        <ErrorNotice title="Couldn't load the recipe" error={recipe.error} onRetry={() => void recipe.refetch()} />
+      ) : (
+        <Loading label="Loading recipe…" />
+      )}
     </Modal>
+  );
+}
+
+interface DraftLine {
+  key: number;
+  ingredient_id: string;
+  quantity: string;
+}
+
+function ProductForm({
+  existing,
+  recipe,
+  products,
+  categories,
+  ingredients,
+  serverError,
+  onSave,
+}: ProductModalProps & { existing: Product | null; recipe: readonly ProductIngredient[] }) {
+  const [form, setForm] = useState<ProductFields>(() => ({
+    category_id: existing?.category_id ?? categories[0]?.category_id ?? 0,
+    product_name: existing?.product_name ?? "",
+    description: existing?.description ?? "",
+    price: existing?.price ?? 0,
+    is_available: existing?.is_available ?? true,
+    has_sizes: existing?.has_sizes ?? true,
+  }));
+  const image = useImageDraft(existing?.image_url ?? null);
+  const [lines, setLines] = useState<DraftLine[]>(() =>
+    recipe.map((r, i) => ({ key: i, ingredient_id: String(r.ingredient_id), quantity: String(r.quantity_required) })),
+  );
+  const [nextKey, setNextKey] = useState(lines.length);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = <K extends keyof ProductFields>(key: K, value: ProductFields[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const activeIngredients = ingredients.filter((i) => i.is_active);
+  const unitOf = (id: string) => ingredients.find((i) => String(i.ingredient_id) === id)?.unit_of_measure ?? "";
+
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const name = form.product_name.trim();
+    const taken = products.some(
+      (p) => p.product_name.toLowerCase() === name.toLowerCase() && p.product_id !== existing?.product_id,
+    );
+    if (taken) return setError(`There's already a product called ${name}.`);
+    const filled = lines.filter((l) => l.ingredient_id);
+    if (new Set(filled.map((l) => l.ingredient_id)).size !== filled.length) {
+      return setError("Each ingredient can only appear once in the recipe.");
+    }
+    if (filled.some((l) => !(Number(l.quantity) > 0))) return setError("Recipe quantities must be more than zero.");
+    setError(null);
+    onSave(
+      { ...form, product_name: name, description: form.description?.trim() || null },
+      image.change,
+      filled.map((l) => ({ ingredient_id: Number(l.ingredient_id), quantity_required: Number(l.quantity) })),
+    );
+  };
+
+  const shownError = error ?? serverError;
+
+  return (
+    <form id="product-form" onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <Field label="Name" className="sm:col-span-2">
+        <Input
+          required
+          maxLength={100}
+          value={form.product_name}
+          onChange={(e) => set("product_name", e.target.value)}
+          autoComplete="off"
+        />
+      </Field>
+      <Field label="Category">
+        <Select value={form.category_id} onChange={(e) => set("category_id", Number(e.target.value))}>
+          {categories.map((c) => (
+            <option key={c.category_id} value={c.category_id}>{c.category_name}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={form.has_sizes ? "Price, tall (₱)" : "Price (₱)"}>
+        <Input
+          type="number"
+          required
+          min={0}
+          step="0.01"
+          value={form.price}
+          onChange={(e) => set("price", Number(e.target.value))}
+        />
+      </Field>
+      <Field label="Description" className="sm:col-span-2">
+        <TextArea rows={2} value={form.description ?? ""} onChange={(e) => set("description", e.target.value)} />
+      </Field>
+      <ImageField label="Image" value={image.preview} onChange={image.onChange} className="sm:col-span-2" />
+      <div className="space-y-4 sm:col-span-2">
+        <Toggle
+          checked={form.has_sizes}
+          onChange={(v) => set("has_sizes", v)}
+          label="Sold in sizes"
+          description={`The price above is for tall. ${SIZE_HINT}.`}
+        />
+        <Toggle
+          checked={form.is_available}
+          onChange={(v) => set("is_available", v)}
+          label="Available on the POS"
+          description="Switch off when it's sold out or seasonal."
+        />
+      </div>
+
+      <fieldset className="sm:col-span-2">
+        <legend className="text-xs font-medium">Recipe</legend>
+        <p className="mt-0.5 text-xs text-(--mgr-muted)">
+          What one {form.has_sizes ? "tall " : ""}serving uses. The POS uses it to tell how many can still be made.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {lines.map((l) => (
+            <li key={l.key} className="flex items-center gap-2">
+              <select
+                aria-label="Ingredient"
+                value={l.ingredient_id}
+                onChange={(e) =>
+                  setLines(lines.map((x) => (x.key === l.key ? { ...x, ingredient_id: e.target.value } : x)))
+                }
+                className={`${INPUT_BASE} min-w-0 flex-1`}
+              >
+                <option value="">Choose an ingredient</option>
+                {activeIngredients.map((i) => (
+                  <option key={i.ingredient_id} value={i.ingredient_id}>{i.ingredient_name}</option>
+                ))}
+              </select>
+              <input
+                aria-label="Quantity"
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={l.quantity}
+                onChange={(e) => setLines(lines.map((x) => (x.key === l.key ? { ...x, quantity: e.target.value } : x)))}
+                className={`${INPUT_BASE} w-24 shrink-0`}
+              />
+              <span className="w-10 text-xs text-(--mgr-muted)">{unitOf(l.ingredient_id)}</span>
+              <RowAction icon={FiX} label="Remove ingredient" onClick={() => setLines(lines.filter((x) => x.key !== l.key))} />
+            </li>
+          ))}
+        </ul>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={FiPlus}
+          className="mt-2"
+          onClick={() => {
+            setLines([...lines, { key: nextKey, ingredient_id: "", quantity: "" }]);
+            setNextKey(nextKey + 1);
+          }}
+        >
+          Add ingredient
+        </Button>
+      </fieldset>
+
+      {shownError && (
+        <p role="alert" className="text-sm text-red-700 sm:col-span-2">
+          {shownError}
+        </p>
+      )}
+    </form>
   );
 }
 
 interface CategoryModalProps {
   category: Category | "new" | null;
+  categories: readonly Category[];
+  saving: boolean;
+  serverError: string | null;
   onClose: () => void;
-  onSave: (form: Omit<Category, "category_id">) => void;
+  onSave: (categoryName: string, image: ImageChange) => void;
 }
 
-function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
-  const { db } = useManagerData();
+function CategoryModal({ category, categories, saving, serverError, onClose, onSave }: CategoryModalProps) {
   const existing = category === "new" ? null : category;
   const [error, setError] = useState<string | null>(null);
-  const [image, setImage] = useState(existing?.image_url ?? null);
+  const image = useImageDraft(existing?.image_url ?? null);
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const name = String(form.get("category_name")).trim();
-    const taken = db.categories.some(
+    const taken = categories.some(
       (c) => c.category_name.toLowerCase() === name.toLowerCase() && c.category_id !== existing?.category_id,
     );
     if (taken) return setError(`There's already a ${name} category.`);
-    onSave({ category_name: name, image_url: image });
+    setError(null);
+    onSave(name, image.change);
   };
+
+  const shownError = error ?? serverError;
 
   return (
     <Modal
@@ -603,8 +706,8 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" form="category-form">
-            {existing ? "Save changes" : "Add category"}
+          <Button variant="primary" type="submit" form="category-form" disabled={saving}>
+            {saving ? "Saving…" : existing ? "Save changes" : "Add category"}
           </Button>
         </>
       }
@@ -613,10 +716,10 @@ function CategoryModal({ category, onClose, onSave }: CategoryModalProps) {
         <Field label="Name">
           <Input name="category_name" required maxLength={50} defaultValue={existing?.category_name} autoComplete="off" />
         </Field>
-        <ImageField label="Image" value={image} onChange={setImage} />
-        {error && (
+        <ImageField label="Image" value={image.preview} onChange={image.onChange} />
+        {shownError && (
           <p role="alert" className="text-sm text-red-700">
-            {error}
+            {shownError}
           </p>
         )}
       </form>

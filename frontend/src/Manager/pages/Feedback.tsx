@@ -1,43 +1,41 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { FiCheck, FiInbox, FiMessageSquare, FiRotateCcw, FiSmile, FiStar } from "react-icons/fi";
+import { useFeedback, useSetFeedbackStatus } from "../api/feedback";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import OrderDetailsModal from "../components/OrderDetailsModal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, Loading } from "../components/QueryState";
 import SearchInput from "../components/SearchInput";
 import Stars from "../components/Stars";
 import StatCard from "../components/StatCard";
 import { FEEDBACK_STATUS } from "../components/status";
 import { FOCUS_RING } from "../components/styles";
 import Tabs from "../components/Tabs";
-import { useToast } from "../components/toastContext";
-import { useManagerData } from "../data/dataContext";
-import { lookups } from "../data/selectors";
+import { useNotifyError, useToast } from "../components/toastContext";
 import type { Feedback as FeedbackRow, FeedbackStatus } from "../types";
-import { formatDateTime, fullName } from "../utils/format";
+import { formatDateTime } from "../utils/format";
 
 type StatusFilter = FeedbackStatus | "all";
 const RATINGS = [5, 4, 3, 2, 1] as const;
 
 export default function Feedback() {
-  const { db, update } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [status, setStatus] = useState<StatusFilter>("new");
   const [rating, setRating] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [viewingOrder, setViewingOrder] = useState<number | null>(null);
 
-  const { customers } = useMemo(() => lookups(db), [db]);
-  const all = db.feedback;
+  const feedback = useFeedback();
+  const setFeedbackStatus = useSetFeedbackStatus();
+  const all = feedback.data ?? [];
   const average = all.length ? all.reduce((sum, f) => sum + f.rating, 0) / all.length : 0;
   const positive = all.filter((f) => f.rating >= 4).length;
   const count = (s: FeedbackStatus) => all.filter((f) => f.status === s).length;
 
-  const customerName = (f: FeedbackRow) => {
-    const c = f.customer_id === null ? undefined : customers.get(f.customer_id);
-    return c ? fullName(c) : "Anonymous";
-  };
+  const customerName = (f: FeedbackRow) => f.customer_name ?? "Anonymous";
 
   const visible = all
     .filter((f) => {
@@ -50,13 +48,15 @@ export default function Feedback() {
     })
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
-  const setFeedbackStatus = (ids: number[], next: FeedbackStatus) =>
-    update("feedback", (rows) => rows.map((f) => (ids.includes(f.feedback_id) ? { ...f, status: next } : f)));
+  const mark = (ids: number[], next: FeedbackStatus, done?: string) =>
+    setFeedbackStatus.mutate(
+      { ids, status: next },
+      { onSuccess: () => done && notify(done), onError: notifyError },
+    );
 
   const markAllReviewed = () => {
     const ids = visible.filter((f) => f.status === "new").map((f) => f.feedback_id);
-    setFeedbackStatus(ids, "reviewed");
-    notify(`${ids.length} ${ids.length === 1 ? "review" : "reviews"} marked as reviewed.`);
+    mark(ids, "reviewed", `${ids.length} ${ids.length === 1 ? "review" : "reviews"} marked as reviewed.`);
   };
 
   const unreviewedShown = visible.some((f) => f.status === "new");
@@ -67,6 +67,10 @@ export default function Feedback() {
         title="Customer feedback"
         description="Ratings and comments customers leave after an order. Mark them reviewed once you've read or acted on them."
       />
+
+      {feedback.error && (
+        <ErrorNotice className="mb-6" title="Couldn't load feedback" error={feedback.error} onRetry={() => void feedback.refetch()} />
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -179,25 +183,23 @@ export default function Feedback() {
                     </p>
                   </div>
                   {f.status === "new" ? (
-                    <Button
-                      size="sm"
-                      icon={FiCheck}
-                      onClick={() => {
-                        setFeedbackStatus([f.feedback_id], "reviewed");
-                        notify("Marked as reviewed.");
-                      }}
-                    >
+                    <Button size="sm" icon={FiCheck} onClick={() => mark([f.feedback_id], "reviewed", "Marked as reviewed.")}>
                       Mark reviewed
                     </Button>
                   ) : (
-                    <Button size="sm" variant="ghost" icon={FiRotateCcw} onClick={() => setFeedbackStatus([f.feedback_id], "new")}>
+                    <Button size="sm" variant="ghost" icon={FiRotateCcw} onClick={() => mark([f.feedback_id], "new")}>
                       Mark as new
                     </Button>
                   )}
                 </li>
               );
             })}
-            {visible.length === 0 && (
+            {feedback.isPending && (
+              <li>
+                <Loading label="Loading feedback…" />
+              </li>
+            )}
+            {feedback.isSuccess && visible.length === 0 && (
               <li className="px-5 py-10 text-center text-sm text-(--mgr-muted)">
                 {status === "new" && rating === null && !query ? "You're all caught up." : "No feedback matches these filters."}
               </li>

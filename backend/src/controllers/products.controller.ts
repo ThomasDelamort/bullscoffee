@@ -121,11 +121,18 @@ export const createProductHandler = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { category_id, product_name, description, price, is_available } =
-      req.body ?? {};
+    const {
+      category_id,
+      product_name,
+      description,
+      price,
+      is_available,
+      has_sizes,
+    } = req.body ?? {};
     const category = toNumber(category_id);
     const amount = toNumber(price);
     const available = is_available === undefined ? true : toBoolean(is_available);
+    const sized = has_sizes === undefined ? false : toBoolean(has_sizes);
 
     if (
       category === undefined ||
@@ -135,7 +142,8 @@ export const createProductHandler = async (
       !isOptionalText(description) ||
       amount === undefined ||
       amount < 0 ||
-      available === undefined
+      available === undefined ||
+      sized === undefined
     ) {
       res.status(StatusCodes.BAD_REQUEST).json({
         error:
@@ -151,6 +159,7 @@ export const createProductHandler = async (
       image_url: resolveImageUrl(req, res) ?? null,
       price: amount,
       is_available: available,
+      has_sizes: sized,
     });
     res
       .status(StatusCodes.CREATED)
@@ -185,8 +194,14 @@ export const updateProductHandler = async (
       return;
     }
 
-    const { category_id, product_name, description, price, is_available } =
-      req.body ?? {};
+    const {
+      category_id,
+      product_name,
+      description,
+      price,
+      is_available,
+      has_sizes,
+    } = req.body ?? {};
     const changes: ProductChanges = {};
     const invalid: string[] = [];
 
@@ -214,6 +229,11 @@ export const updateProductHandler = async (
       const value = toBoolean(is_available);
       if (value !== undefined) changes.is_available = value;
       else invalid.push("is_available");
+    }
+    if (has_sizes !== undefined) {
+      const value = toBoolean(has_sizes);
+      if (value !== undefined) changes.has_sizes = value;
+      else invalid.push("has_sizes");
     }
     const image_url = resolveImageUrl(req, res);
     if (image_url !== undefined) changes.image_url = image_url;

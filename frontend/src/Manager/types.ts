@@ -1,7 +1,7 @@
 /**
- * Row shapes for the manager screens. Each interface mirrors a table in
- * RESET.mmd / backend/init.sql column-for-column, so swapping the mock store
- * for API calls needs no reshaping. Anything not in the schema is marked.
+ * Row shapes the manager screens get from the API. Each mirrors a table in
+ * backend/init.sql, plus the joined display columns the backend's providers
+ * add (e.g. employee_name on attendance). Timestamps arrive as ISO strings.
  */
 
 export type EmployeeStatus = "active" | "inactive";
@@ -30,6 +30,7 @@ export interface AttendanceLog {
   employee_id: number;
   time_in: string;
   time_out: string | null;
+  employee_name: string;
 }
 
 export interface Customer {
@@ -44,6 +45,7 @@ export interface Customer {
   created_at: string;
 }
 
+/** A row of GET /orders. */
 export interface Order {
   order_id: number;
   customer_id: number | null;
@@ -52,6 +54,8 @@ export interface Order {
   discount_amount: number;
   total_amount: number;
   order_status: OrderStatus;
+  customer_name: string | null;
+  employee_name: string;
 }
 
 export interface OrderItem {
@@ -62,6 +66,7 @@ export interface OrderItem {
   size: ItemSize | null;
   selling_price: number;
   special_instructions: string | null;
+  product_name: string;
 }
 
 export interface Payment {
@@ -70,6 +75,12 @@ export interface Payment {
   amount_paid: number;
   payment_method: PaymentMethod;
   paid_at: string;
+}
+
+/** GET /orders/:id: the order with its lines and payments. */
+export interface OrderDetails extends Order {
+  items: OrderItem[];
+  payments: Payment[];
 }
 
 export interface Category {
@@ -84,17 +95,21 @@ export interface Product {
   product_name: string;
   description: string | null;
   image_url: string | null;
+  /** The tall price when has_sizes is set. */
   price: number;
   is_available: boolean;
-  created_at: string;
-  /** Not in the schema yet: whether the POS asks for a size (tall / grande / venti). */
+  /** Whether the POS asks for a size (tall / grande / venti). */
   has_sizes: boolean;
+  created_at: string;
 }
 
+/** One line of a product's recipe (GET /products/:id/ingredients). */
 export interface ProductIngredient {
   product_id: number;
   ingredient_id: number;
   quantity_required: number;
+  ingredient_name: string;
+  unit_of_measure: string;
 }
 
 export interface Ingredient {
@@ -114,6 +129,9 @@ export interface StockMovement {
   quantity_change: number;
   reason: StockMovementReason;
   moved_at: string;
+  ingredient_name: string;
+  unit_of_measure: string;
+  employee_name: string;
 }
 
 export interface Supplier {
@@ -128,17 +146,25 @@ export interface Supplier {
   created_at: string;
 }
 
+/** One line of a supplier's price list (GET /suppliers/:id/ingredients). */
 export interface SupplierIngredient {
   supplier_id: number;
   ingredient_id: number;
   unit_price: number;
+  ingredient_name: string;
+  unit_of_measure: string;
 }
 
+/** A row of GET /deliveries. */
 export interface Delivery {
   delivery_id: number;
   supplier_id: number;
   employee_id: number;
   delivery_date: string;
+  supplier_name: string;
+  employee_name: string;
+  item_count: number;
+  total_cost: number;
 }
 
 export interface DeliveryItem {
@@ -146,9 +172,41 @@ export interface DeliveryItem {
   ingredient_id: number;
   quantity_received: number;
   unit_cost: number;
+  ingredient_name: string;
+  unit_of_measure: string;
 }
 
-/* ---- Not in the schema yet: no feedback or discount tables exist. ---- */
+export interface DeliveryDetails extends Delivery {
+  items: DeliveryItem[];
+}
+
+export type ReportPeriod = "daily" | "monthly";
+
+/** GET /reports/sales. Only completed orders count. */
+export interface SalesReport {
+  period: ReportPeriod;
+  /** First day covered, YYYY-MM-DD. */
+  start: string;
+  summary: {
+    order_count: number;
+    gross_sales: number;
+    discounts: number;
+    net_sales: number;
+  };
+  /** Net sales per hour ("07:00") for daily, per day of the month ("07") for monthly. */
+  series: SeriesPoint[];
+  /** Best sellers, at most five. */
+  top_products: {
+    product_id: number;
+    product_name: string;
+    units_sold: number;
+    revenue: number;
+  }[];
+  payment_methods: { payment_method: PaymentMethod; amount: number }[];
+}
+
+/* ---- The feedback and discounts tables exist, but their routes don't yet.
+        These follow the planned contract in frontend/ManagerRoutes.md. ---- */
 
 export type FeedbackStatus = "new" | "reviewed";
 
@@ -160,6 +218,8 @@ export interface Feedback {
   comment: string;
   status: FeedbackStatus;
   created_at: string;
+  /** Joined for display, like customer_name on orders. */
+  customer_name?: string | null;
 }
 
 export type DiscountKind = "percent" | "fixed";
@@ -178,25 +238,4 @@ export interface Discount {
 export interface SeriesPoint {
   label: string;
   value: number;
-}
-
-/** One array per table, as the manager store holds them. */
-export interface ManagerDb {
-  employees: Employee[];
-  attendance_logs: AttendanceLog[];
-  customers: Customer[];
-  orders: Order[];
-  order_items: OrderItem[];
-  payments: Payment[];
-  categories: Category[];
-  products: Product[];
-  product_ingredients: ProductIngredient[];
-  ingredients: Ingredient[];
-  stock_movements: StockMovement[];
-  suppliers: Supplier[];
-  supplier_ingredients: SupplierIngredient[];
-  deliveries: Delivery[];
-  delivery_items: DeliveryItem[];
-  feedback: Feedback[];
-  discounts: Discount[];
 }

@@ -16,8 +16,3 @@ export function indexBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, 
 export function sumBy<T>(items: readonly T[], value: (item: T) => number): number {
   return items.reduce((sum, item) => sum + value(item), 0);
 }
-
-/** Next id for a table, as GENERATED ... AS IDENTITY would hand out. */
-export function nextId<T>(rows: readonly T[], id: (row: T) => number): number {
-  return rows.reduce((max, row) => Math.max(max, id(row)), 0) + 1;
-}

@@ -1,5 +1,21 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { FiEdit2, FiEye, FiList, FiPlus, FiRotateCcw, FiTruck, FiX, FiXCircle } from "react-icons/fi";
+import { errorMessage } from "../../lib/api";
+import type { ImageChange } from "../api/forms";
+import { useIngredients } from "../api/inventory";
+import {
+  useDeliveries,
+  useDelivery,
+  usePriceList,
+  usePriceLists,
+  useRecordDelivery,
+  useSavePriceList,
+  useSaveSupplier,
+  useSetSupplierActive,
+  useSuppliers,
+  type DeliveryInput,
+  type SupplierFields,
+} from "../api/suppliers";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -7,27 +23,27 @@ import { Field, Input, Select } from "../components/Field";
 import ImageField from "../components/ImageField";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, Loading, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import SearchInput from "../components/SearchInput";
 import { INPUT_BASE } from "../components/styles";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
-import { useToast } from "../components/toastContext";
-import { useManagerData, type DeliveryDraft } from "../data/dataContext";
-import type { Delivery, Supplier, SupplierIngredient } from "../types";
-import { groupBy, indexBy, nextId, sumBy } from "../utils/collections";
+import { useNotifyError, useToast } from "../components/toastContext";
+import type { Delivery, Ingredient, Supplier, SupplierIngredient } from "../types";
+import { indexBy, sumBy } from "../utils/collections";
 import { dayKey } from "../utils/dates";
-import { formatDate, formatNumber, formatPeso, fullName, round2 } from "../utils/format";
+import { formatDate, formatNumber, formatPeso, round2 } from "../utils/format";
+import { useImageDraft } from "../utils/useImageDraft";
 
 type View = "suppliers" | "deliveries";
 type StatusFilter = "active" | "inactive" | "all";
-type SupplierForm = Omit<Supplier, "supplier_id" | "is_active" | "created_at">;
 
 const PAGE_SIZE = 25;
 
 export default function Suppliers() {
-  const { db, update, recordDelivery } = useManagerData();
   const notify = useToast();
+  const notifyError = useNotifyError();
   const [view, setView] = useState<View>("suppliers");
   const [status, setStatus] = useState<StatusFilter>("active");
   const [query, setQuery] = useState("");
@@ -39,56 +55,97 @@ export default function Suppliers() {
   const [viewing, setViewing] = useState<Delivery | null>(null);
   const [deactivating, setDeactivating] = useState<Supplier | null>(null);
 
-  const ingredients = useMemo(() => indexBy(db.ingredients, (i) => i.ingredient_id), [db.ingredients]);
-  const employees = useMemo(() => indexBy(db.employees, (e) => e.employee_id), [db.employees]);
-  const suppliers = useMemo(() => indexBy(db.suppliers, (s) => s.supplier_id), [db.suppliers]);
-  const priceLists = useMemo(() => groupBy(db.supplier_ingredients, (si) => si.supplier_id), [db.supplier_ingredients]);
-  const itemsByDelivery = useMemo(() => groupBy(db.delivery_items, (i) => i.delivery_id), [db.delivery_items]);
+  const suppliersQuery = useSuppliers();
+  const deliveriesQuery = useDeliveries();
+  const ingredientsQuery = useIngredients();
+  const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  const supplierIds = useMemo(() => suppliers.map((s) => s.supplier_id), [suppliers]);
+  const { prices } = usePriceLists(supplierIds);
+
+  const saveSupplier = useSaveSupplier();
+  const setSupplierActive = useSetSupplierActive();
+  const savePriceList = useSavePriceList();
+  const recordDelivery = useRecordDelivery();
+
+  const allDeliveries = useMemo(() => deliveriesQuery.data ?? [], [deliveriesQuery.data]);
   const lastDelivery = useMemo(() => {
     const last = new Map<number, string>();
-    for (const d of db.deliveries) {
+    for (const d of allDeliveries) {
       if ((last.get(d.supplier_id) ?? "") < d.delivery_date) last.set(d.supplier_id, d.delivery_date);
     }
     return last;
-  }, [db.deliveries]);
+  }, [allDeliveries]);
 
-  const count = (s: Exclude<StatusFilter, "all">) => db.suppliers.filter((x) => x.is_active === (s === "active")).length;
+  const count = (s: Exclude<StatusFilter, "all">) => suppliers.filter((x) => x.is_active === (s === "active")).length;
   const q = query.trim().toLowerCase();
-  const visibleSuppliers = db.suppliers.filter(
+  const visibleSuppliers = suppliers.filter(
     (s) =>
       (status === "all" || s.is_active === (status === "active")) &&
       (!q || s.supplier_name.toLowerCase().includes(q) || (s.contact_person ?? "").toLowerCase().includes(q)),
   );
-  const deliveries = db.deliveries
-    .filter((d) => supplierFilter === "all" || String(d.supplier_id) === supplierFilter)
-    .sort((a, b) => b.delivery_date.localeCompare(a.delivery_date) || b.delivery_id - a.delivery_id);
-  const costOf = (deliveryId: number) =>
-    round2(sumBy(itemsByDelivery.get(deliveryId) ?? [], (i) => i.quantity_received * i.unit_cost));
+  // The API returns deliveries newest first.
+  const deliveries = allDeliveries.filter((d) => supplierFilter === "all" || String(d.supplier_id) === supplierFilter);
 
-  const saveSupplier = (form: SupplierForm) => {
-    if (editing === "new") {
-      update("suppliers", (rows) => [
-        ...rows,
-        { ...form, supplier_id: nextId(rows, (s) => s.supplier_id), is_active: true, created_at: new Date().toISOString() },
-      ]);
-      notify(`${form.supplier_name} added. Set up their price list next.`);
-    } else if (editing) {
-      update("suppliers", (rows) => rows.map((s) => (s.supplier_id === editing.supplier_id ? { ...s, ...form } : s)));
-      notify(`${form.supplier_name} updated.`);
-    }
+  const closeEditor = () => {
     setEditing(null);
+    saveSupplier.reset();
   };
 
-  const setActive = (s: Supplier, is_active: boolean) => {
-    update("suppliers", (rows) => rows.map((x) => (x.supplier_id === s.supplier_id ? { ...x, is_active } : x)));
-    notify(is_active ? `${s.supplier_name} is active again.` : `${s.supplier_name} was deactivated.`);
+  const submitSupplier = (fields: SupplierFields, image: ImageChange) => {
+    const supplierId = editing === "new" || editing === null ? null : editing.supplier_id;
+    saveSupplier.mutate(
+      { supplierId, fields, image },
+      {
+        onSuccess: () => {
+          notify(
+            supplierId === null
+              ? `${fields.supplier_name} added. Set up their price list next.`
+              : `${fields.supplier_name} updated.`,
+          );
+          closeEditor();
+        },
+      },
+    );
   };
 
-  const savePrices = (supplier: Supplier, rows: SupplierIngredient[]) => {
-    update("supplier_ingredients", (all) => [...all.filter((si) => si.supplier_id !== supplier.supplier_id), ...rows]);
-    notify(`${supplier.supplier_name}'s price list saved.`);
-    setPricing(null);
+  const setActive = (s: Supplier, is_active: boolean) =>
+    setSupplierActive.mutate(
+      { supplierId: s.supplier_id, is_active },
+      {
+        onSuccess: () => {
+          notify(is_active ? `${s.supplier_name} is active again.` : `${s.supplier_name} was deactivated.`);
+          setDeactivating(null);
+        },
+        onError: notifyError,
+      },
+    );
+
+  const submitPrices = (supplier: Supplier, rows: Pick<SupplierIngredient, "ingredient_id" | "unit_price">[]) =>
+    savePriceList.mutate(
+      { supplierId: supplier.supplier_id, prices: rows },
+      {
+        onSuccess: () => {
+          notify(`${supplier.supplier_name}'s price list saved.`);
+          setPricing(null);
+        },
+        onError: notifyError,
+      },
+    );
+
+  const submitDelivery = (draft: DeliveryInput) => {
+    const name = suppliers.find((s) => s.supplier_id === draft.supplier_id)?.supplier_name;
+    recordDelivery.mutate(draft, {
+      onSuccess: () => {
+        notify(
+          `Delivery from ${name} recorded. Stock updated for ${draft.items.length} ${draft.items.length === 1 ? "ingredient" : "ingredients"}.`,
+        );
+        setReceiving(null);
+      },
+      onError: notifyError,
+    });
   };
+
+  const failed = suppliersQuery.error ?? (view === "deliveries" ? deliveriesQuery.error : null);
 
   return (
     <>
@@ -107,6 +164,15 @@ export default function Suppliers() {
         }
       />
 
+      {failed && (
+        <ErrorNotice
+          className="mb-4"
+          title="Couldn't load suppliers"
+          error={failed}
+          onRetry={() => void Promise.all([suppliersQuery.refetch(), deliveriesQuery.refetch()])}
+        />
+      )}
+
       <div className="mb-4">
         <Tabs
           label="Section"
@@ -116,8 +182,8 @@ export default function Suppliers() {
             setLimit(PAGE_SIZE);
           }}
           options={[
-            { value: "suppliers", label: "Suppliers", count: db.suppliers.length },
-            { value: "deliveries", label: "Deliveries", count: db.deliveries.length },
+            { value: "suppliers", label: "Suppliers", count: suppliers.length },
+            { value: "deliveries", label: "Deliveries", count: allDeliveries.length },
           ]}
         />
       </div>
@@ -132,7 +198,7 @@ export default function Suppliers() {
               options={[
                 { value: "active", label: "Active", count: count("active") },
                 { value: "inactive", label: "Inactive", count: count("inactive") },
-                { value: "all", label: "All", count: db.suppliers.length },
+                { value: "all", label: "All", count: suppliers.length },
               ]}
             />
             <SearchInput value={query} onChange={setQuery} placeholder="Search suppliers" className="lg:w-64" />
@@ -150,8 +216,10 @@ export default function Suppliers() {
               </tr>
             </thead>
             <tbody>
+              {suppliersQuery.isPending && <LoadingRow colSpan={6} label="Loading suppliers…" />}
               {visibleSuppliers.map((s) => {
-                const items = (priceLists.get(s.supplier_id) ?? []).map((si) => ingredients.get(si.ingredient_id)?.ingredient_name);
+                const list = prices.get(s.supplier_id);
+                const items = (list ?? []).map((si) => si.ingredient_name);
                 const last = lastDelivery.get(s.supplier_id);
                 return (
                   <tr key={s.supplier_id} className="hover:bg-(--mgr-canvas)/50">
@@ -167,7 +235,11 @@ export default function Suppliers() {
                       </p>
                     </Td>
                     <Td className="max-w-60 truncate text-(--mgr-muted)">
-                      {items.length ? `${items.slice(0, 3).join(", ")}${items.length > 3 ? ` +${items.length - 3}` : ""}` : "No price list yet"}
+                      {!list
+                        ? "…"
+                        : items.length
+                          ? `${items.slice(0, 3).join(", ")}${items.length > 3 ? ` +${items.length - 3}` : ""}`
+                          : "No price list yet"}
                     </Td>
                     <Td className="text-(--mgr-muted)">{last ? formatDate(last) : "Never"}</Td>
                     <Td>
@@ -190,14 +262,19 @@ export default function Suppliers() {
                             <RowAction icon={FiXCircle} label={`Deactivate ${s.supplier_name}`} danger onClick={() => setDeactivating(s)} />
                           </>
                         ) : (
-                          <RowAction icon={FiRotateCcw} label={`Reactivate ${s.supplier_name}`} onClick={() => setActive(s, true)} />
+                          <RowAction
+                            icon={FiRotateCcw}
+                            label={`Reactivate ${s.supplier_name}`}
+                            disabled={setSupplierActive.isPending}
+                            onClick={() => setActive(s, true)}
+                          />
                         )}
                       </div>
                     </Td>
                   </tr>
                 );
               })}
-              {visibleSuppliers.length === 0 && <EmptyRow colSpan={6}>No suppliers match.</EmptyRow>}
+              {suppliersQuery.isSuccess && visibleSuppliers.length === 0 && <EmptyRow colSpan={6}>No suppliers match.</EmptyRow>}
             </tbody>
           </Table>
         </Card>
@@ -214,7 +291,7 @@ export default function Suppliers() {
               className="sm:w-60"
             >
               <option value="all">All suppliers</option>
-              {db.suppliers.map((s) => (
+              {suppliers.map((s) => (
                 <option key={s.supplier_id} value={s.supplier_id}>{s.supplier_name}</option>
               ))}
             </Select>
@@ -224,32 +301,27 @@ export default function Suppliers() {
               <tr>
                 <Th>Date</Th>
                 <Th>Supplier</Th>
-                <Th>Items</Th>
+                <Th className="text-right">Items</Th>
                 <Th>Received by</Th>
                 <Th className="text-right">Cost</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {deliveries.slice(0, limit).map((d) => {
-                const items = itemsByDelivery.get(d.delivery_id) ?? [];
-                const receiver = employees.get(d.employee_id);
-                return (
-                  <tr key={d.delivery_id} className="hover:bg-(--mgr-canvas)/50">
-                    <Td>{formatDate(d.delivery_date)}</Td>
-                    <Td className="font-medium">{suppliers.get(d.supplier_id)?.supplier_name}</Td>
-                    <Td className="max-w-72 truncate text-(--mgr-muted)">
-                      {items.map((i) => ingredients.get(i.ingredient_id)?.ingredient_name).join(", ")}
-                    </Td>
-                    <Td className="text-(--mgr-muted)">{receiver ? fullName(receiver) : "—"}</Td>
-                    <Td className="text-right tabular-nums">{formatPeso(costOf(d.delivery_id))}</Td>
-                    <Td className="text-right">
-                      <RowAction icon={FiEye} label={`View delivery #${d.delivery_id}`} onClick={() => setViewing(d)} />
-                    </Td>
-                  </tr>
-                );
-              })}
-              {deliveries.length === 0 && <EmptyRow colSpan={6}>No deliveries recorded.</EmptyRow>}
+              {deliveriesQuery.isPending && <LoadingRow colSpan={6} label="Loading deliveries…" />}
+              {deliveries.slice(0, limit).map((d) => (
+                <tr key={d.delivery_id} className="hover:bg-(--mgr-canvas)/50">
+                  <Td>{formatDate(d.delivery_date)}</Td>
+                  <Td className="font-medium">{d.supplier_name}</Td>
+                  <Td className="text-right text-(--mgr-muted) tabular-nums">{d.item_count}</Td>
+                  <Td className="text-(--mgr-muted)">{d.employee_name}</Td>
+                  <Td className="text-right tabular-nums">{formatPeso(d.total_cost)}</Td>
+                  <Td className="text-right">
+                    <RowAction icon={FiEye} label={`View delivery #${d.delivery_id}`} onClick={() => setViewing(d)} />
+                  </Td>
+                </tr>
+              ))}
+              {deliveriesQuery.isSuccess && deliveries.length === 0 && <EmptyRow colSpan={6}>No deliveries recorded.</EmptyRow>}
             </tbody>
           </Table>
           {deliveries.length > limit && (
@@ -268,67 +340,34 @@ export default function Suppliers() {
       <SupplierModal
         key={`supplier-${editing === null ? "closed" : editing === "new" ? "new" : editing.supplier_id}`}
         supplier={editing}
-        onClose={() => setEditing(null)}
-        onSave={saveSupplier}
+        suppliers={suppliers}
+        saving={saveSupplier.isPending}
+        serverError={saveSupplier.error ? errorMessage(saveSupplier.error) : null}
+        onClose={closeEditor}
+        onSave={submitSupplier}
       />
 
-      <PriceListModal key={`prices-${pricing?.supplier_id ?? "closed"}`} supplier={pricing} onClose={() => setPricing(null)} onSave={savePrices} />
+      <PriceListModal
+        key={`prices-${pricing?.supplier_id ?? "closed"}`}
+        supplier={pricing}
+        ingredients={ingredientsQuery.data ?? []}
+        saving={savePriceList.isPending}
+        onClose={() => setPricing(null)}
+        onSave={submitPrices}
+      />
 
       <DeliveryModal
         key={`delivery-${receiving ?? "closed"}`}
         initialSupplier={receiving}
+        suppliers={suppliers}
+        prices={prices}
+        ingredients={ingredientsQuery.data ?? []}
+        saving={recordDelivery.isPending}
         onClose={() => setReceiving(null)}
-        onSave={(draft) => {
-          recordDelivery(draft);
-          notify(`Delivery from ${suppliers.get(draft.supplier_id)?.supplier_name} recorded. Stock updated for ${draft.items.length} ${draft.items.length === 1 ? "ingredient" : "ingredients"}.`);
-          setReceiving(null);
-        }}
+        onSave={submitDelivery}
       />
 
-      <Modal
-        open={viewing !== null}
-        onClose={() => setViewing(null)}
-        title={viewing ? `Delivery from ${suppliers.get(viewing.supplier_id)?.supplier_name}` : ""}
-        description={
-          viewing
-            ? `${formatDate(viewing.delivery_date)} · received by ${fullName(employees.get(viewing.employee_id) ?? { first_name: "?", last_name: "" })}`
-            : undefined
-        }
-      >
-        {viewing && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-(--mgr-line) text-left text-xs text-(--mgr-muted)">
-                <th scope="col" className="pb-2 font-medium">Ingredient</th>
-                <th scope="col" className="pb-2 text-right font-medium">Received</th>
-                <th scope="col" className="pb-2 text-right font-medium">Unit cost</th>
-                <th scope="col" className="pb-2 text-right font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(itemsByDelivery.get(viewing.delivery_id) ?? []).map((i) => {
-                const ing = ingredients.get(i.ingredient_id);
-                return (
-                  <tr key={i.ingredient_id} className="border-b border-(--mgr-line)">
-                    <td className="py-2">{ing?.ingredient_name}</td>
-                    <td className="py-2 text-right tabular-nums">
-                      {formatNumber(i.quantity_received)} {ing?.unit_of_measure}
-                    </td>
-                    <td className="py-2 text-right tabular-nums">{formatPeso(i.unit_cost)}</td>
-                    <td className="py-2 text-right tabular-nums">{formatPeso(i.quantity_received * i.unit_cost)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row" colSpan={3} className="pt-2 text-right font-semibold">Total</th>
-                <td className="pt-2 text-right font-semibold tabular-nums">{formatPeso(costOf(viewing.delivery_id))}</td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-      </Modal>
+      <DeliveryDetailsModal delivery={viewing} onClose={() => setViewing(null)} />
 
       <Modal
         open={deactivating !== null}
@@ -341,12 +380,10 @@ export default function Suppliers() {
             <Button onClick={() => setDeactivating(null)}>Cancel</Button>
             <Button
               variant="danger"
-              onClick={() => {
-                if (deactivating) setActive(deactivating, false);
-                setDeactivating(null);
-              }}
+              disabled={setSupplierActive.isPending}
+              onClick={() => deactivating && setActive(deactivating, false)}
             >
-              Deactivate
+              {setSupplierActive.isPending ? "Deactivating…" : "Deactivate"}
             </Button>
           </>
         }
@@ -355,36 +392,90 @@ export default function Suppliers() {
   );
 }
 
-interface SupplierModalProps {
-  supplier: Supplier | "new" | null;
-  onClose: () => void;
-  onSave: (form: SupplierForm) => void;
+function DeliveryDetailsModal({ delivery, onClose }: { delivery: Delivery | null; onClose: () => void }) {
+  const details = useDelivery(delivery?.delivery_id ?? null);
+  return (
+    <Modal
+      open={delivery !== null}
+      onClose={onClose}
+      title={delivery ? `Delivery from ${delivery.supplier_name}` : ""}
+      description={delivery ? `${formatDate(delivery.delivery_date)} · received by ${delivery.employee_name}` : undefined}
+    >
+      {details.data ? (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-(--mgr-line) text-left text-xs text-(--mgr-muted)">
+              <th scope="col" className="pb-2 font-medium">Ingredient</th>
+              <th scope="col" className="pb-2 text-right font-medium">Received</th>
+              <th scope="col" className="pb-2 text-right font-medium">Unit cost</th>
+              <th scope="col" className="pb-2 text-right font-medium">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {details.data.items.map((i) => (
+              <tr key={i.ingredient_id} className="border-b border-(--mgr-line)">
+                <td className="py-2">{i.ingredient_name}</td>
+                <td className="py-2 text-right tabular-nums">
+                  {formatNumber(i.quantity_received)} {i.unit_of_measure}
+                </td>
+                <td className="py-2 text-right tabular-nums">{formatPeso(i.unit_cost)}</td>
+                <td className="py-2 text-right tabular-nums">{formatPeso(i.quantity_received * i.unit_cost)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row" colSpan={3} className="pt-2 text-right font-semibold">Total</th>
+              <td className="pt-2 text-right font-semibold tabular-nums">{formatPeso(details.data.total_cost)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      ) : details.error ? (
+        <ErrorNotice title="Couldn't load this delivery" error={details.error} onRetry={() => void details.refetch()} />
+      ) : (
+        <Loading />
+      )}
+    </Modal>
+  );
 }
 
-function SupplierModal({ supplier, onClose, onSave }: SupplierModalProps) {
-  const { db } = useManagerData();
+interface SupplierModalProps {
+  supplier: Supplier | "new" | null;
+  suppliers: readonly Supplier[];
+  saving: boolean;
+  serverError: string | null;
+  onClose: () => void;
+  onSave: (fields: SupplierFields, image: ImageChange) => void;
+}
+
+function SupplierModal({ supplier, suppliers, saving, serverError, onClose, onSave }: SupplierModalProps) {
   const existing = supplier === "new" ? null : supplier;
   const [error, setError] = useState<string | null>(null);
-  const [image, setImage] = useState(existing?.image_url ?? null);
+  const image = useImageDraft(existing?.image_url ?? null);
   const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim() || null;
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const name = String(form.get("supplier_name")).trim();
-    const taken = db.suppliers.some(
+    const taken = suppliers.some(
       (s) => s.supplier_name.toLowerCase() === name.toLowerCase() && s.supplier_id !== existing?.supplier_id,
     );
     if (taken) return setError(`${name} is already on file.`);
-    onSave({
-      supplier_name: name,
-      contact_person: text(form, "contact_person"),
-      supplier_email: String(form.get("supplier_email")).trim(),
-      contact_number: text(form, "contact_number"),
-      supplier_address: text(form, "supplier_address"),
-      image_url: image,
-    });
+    setError(null);
+    onSave(
+      {
+        supplier_name: name,
+        contact_person: text(form, "contact_person"),
+        supplier_email: String(form.get("supplier_email")).trim(),
+        contact_number: text(form, "contact_number"),
+        supplier_address: text(form, "supplier_address"),
+      },
+      image.change,
+    );
   };
+
+  const shownError = error ?? serverError;
 
   return (
     <Modal
@@ -394,8 +485,8 @@ function SupplierModal({ supplier, onClose, onSave }: SupplierModalProps) {
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" type="submit" form="supplier-form">
-            {existing ? "Save changes" : "Add supplier"}
+          <Button variant="primary" type="submit" form="supplier-form" disabled={saving}>
+            {saving ? "Saving…" : existing ? "Save changes" : "Add supplier"}
           </Button>
         </>
       }
@@ -416,10 +507,10 @@ function SupplierModal({ supplier, onClose, onSave }: SupplierModalProps) {
         <Field label="Address" hint="Optional" className="sm:col-span-2">
           <Input name="supplier_address" maxLength={150} defaultValue={existing?.supplier_address ?? ""} autoComplete="off" />
         </Field>
-        <ImageField label="Logo" value={image} onChange={setImage} className="sm:col-span-2" />
-        {error && (
+        <ImageField label="Logo" value={image.preview} onChange={image.onChange} className="sm:col-span-2" />
+        {shownError && (
           <p role="alert" className="text-sm text-red-700 sm:col-span-2">
-            {error}
+            {shownError}
           </p>
         )}
       </form>
@@ -429,22 +520,16 @@ function SupplierModal({ supplier, onClose, onSave }: SupplierModalProps) {
 
 interface PriceListModalProps {
   supplier: Supplier | null;
+  ingredients: readonly Ingredient[];
+  saving: boolean;
   onClose: () => void;
-  onSave: (supplier: Supplier, rows: SupplierIngredient[]) => void;
+  onSave: (supplier: Supplier, rows: Pick<SupplierIngredient, "ingredient_id" | "unit_price">[]) => void;
 }
 
-function PriceListModal({ supplier, onClose, onSave }: PriceListModalProps) {
-  const { db } = useManagerData();
-  const [rows, setRows] = useState(() =>
-    db.supplier_ingredients
-      .filter((si) => si.supplier_id === supplier?.supplier_id)
-      .map((si) => ({ ingredient_id: si.ingredient_id, price: String(si.unit_price) })),
-  );
-  const [adding, setAdding] = useState("");
-  const listed = new Set(rows.map((r) => r.ingredient_id));
-  const choices = db.ingredients.filter((i) => i.is_active && !listed.has(i.ingredient_id));
-  const invalid = rows.some((r) => r.price === "" || Number(r.price) < 0);
-  const unit = (id: number) => db.ingredients.find((i) => i.ingredient_id === id);
+/** Waits for the saved price list, so editing starts from what's on file. */
+function PriceListModal(props: PriceListModalProps) {
+  const { supplier, onClose } = props;
+  const list = usePriceList(supplier?.supplier_id ?? null);
 
   return (
     <Modal
@@ -453,47 +538,59 @@ function PriceListModal({ supplier, onClose, onSave }: PriceListModalProps) {
       size="lg"
       title={`${supplier?.supplier_name ?? ""} price list`}
       description="What they supply and the agreed price per unit. Deliveries start from these prices."
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            disabled={invalid}
-            onClick={() =>
-              supplier &&
-              onSave(
-                supplier,
-                rows.map((r) => ({ supplier_id: supplier.supplier_id, ingredient_id: r.ingredient_id, unit_price: round2(Number(r.price)) })),
-              )
-            }
-          >
-            Save price list
-          </Button>
-        </>
-      }
     >
+      {list.data && supplier ? (
+        <PriceListEditor {...props} supplier={supplier} saved={list.data} />
+      ) : list.error ? (
+        <ErrorNotice title="Couldn't load the price list" error={list.error} onRetry={() => void list.refetch()} />
+      ) : (
+        <Loading />
+      )}
+    </Modal>
+  );
+}
+
+function PriceListEditor({
+  supplier,
+  saved,
+  ingredients,
+  saving,
+  onClose,
+  onSave,
+}: PriceListModalProps & { supplier: Supplier; saved: readonly SupplierIngredient[] }) {
+  const [rows, setRows] = useState(() => saved.map((si) => ({ ingredient_id: si.ingredient_id, price: String(si.unit_price) })));
+  const [adding, setAdding] = useState("");
+  const byId = indexBy(ingredients, (i) => i.ingredient_id);
+  const savedById = indexBy(saved, (si) => si.ingredient_id);
+  const listed = new Set(rows.map((r) => r.ingredient_id));
+  const choices = ingredients.filter((i) => i.is_active && !listed.has(i.ingredient_id));
+  const invalid = rows.some((r) => r.price === "" || Number(r.price) < 0);
+
+  return (
+    <>
       <ul className="divide-y divide-(--mgr-line)">
         {rows.map((r) => {
-          const ing = unit(r.ingredient_id);
+          const name = byId.get(r.ingredient_id)?.ingredient_name ?? savedById.get(r.ingredient_id)?.ingredient_name;
+          const unit = byId.get(r.ingredient_id)?.unit_of_measure ?? savedById.get(r.ingredient_id)?.unit_of_measure;
           return (
             <li key={r.ingredient_id} className="flex items-center gap-3 py-2">
-              <span className="flex-1 text-sm font-medium">{ing?.ingredient_name}</span>
+              <span className="flex-1 text-sm font-medium">{name}</span>
               <label className="flex items-center gap-2 text-sm text-(--mgr-muted)">
                 ₱
                 <input
                   type="number"
                   min={0}
                   step="0.01"
-                  aria-label={`Price per ${ing?.unit_of_measure} of ${ing?.ingredient_name}`}
+                  aria-label={`Price per ${unit} of ${name}`}
                   value={r.price}
                   onChange={(e) => setRows(rows.map((x) => (x.ingredient_id === r.ingredient_id ? { ...x, price: e.target.value } : x)))}
                   className={`${INPUT_BASE} w-28`}
                 />
-                per {ing?.unit_of_measure}
+                per {unit}
               </label>
               <RowAction
                 icon={FiX}
-                label={`Remove ${ing?.ingredient_name}`}
+                label={`Remove ${name}`}
                 onClick={() => setRows(rows.filter((x) => x.ingredient_id !== r.ingredient_id))}
               />
             </li>
@@ -521,28 +618,47 @@ function PriceListModal({ supplier, onClose, onSave }: PriceListModalProps) {
           </Button>
         </div>
       )}
-    </Modal>
+      <div className="mt-6 flex justify-end gap-2 border-t border-(--mgr-line) pt-4">
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          disabled={invalid || saving}
+          onClick={() =>
+            onSave(
+              supplier,
+              rows.map((r) => ({ ingredient_id: r.ingredient_id, unit_price: round2(Number(r.price)) })),
+            )
+          }
+        >
+          {saving ? "Saving…" : "Save price list"}
+        </Button>
+      </div>
+    </>
   );
 }
 
 interface DeliveryModalProps {
   /** A supplier to start with, or "pick" to choose one. */
   initialSupplier: number | "pick" | null;
+  suppliers: readonly Supplier[];
+  prices: ReadonlyMap<number, SupplierIngredient[]>;
+  ingredients: readonly Ingredient[];
+  saving: boolean;
   onClose: () => void;
-  onSave: (draft: DeliveryDraft) => void;
+  onSave: (draft: DeliveryInput) => void;
 }
 
-function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps) {
-  const { db } = useManagerData();
-  const active = db.suppliers.filter((s) => s.is_active && db.supplier_ingredients.some((si) => si.supplier_id === s.supplier_id));
+function DeliveryModal({ initialSupplier, suppliers, prices, ingredients, saving, onClose, onSave }: DeliveryModalProps) {
+  const active = suppliers.filter((s) => s.is_active && (prices.get(s.supplier_id)?.length ?? 0) > 0);
   const today = dayKey(new Date());
   const [supplierId, setSupplierId] = useState(
     typeof initialSupplier === "number" ? initialSupplier : (active[0]?.supplier_id ?? 0),
   );
   const [date, setDate] = useState(today);
   const [lines, setLines] = useState<Record<number, { qty: string; cost: string }>>({});
+  const onHand = indexBy(ingredients, (i) => i.ingredient_id);
 
-  const priceList = db.supplier_ingredients.filter((si) => si.supplier_id === supplierId);
+  const priceList = prices.get(supplierId) ?? [];
   const line = (si: SupplierIngredient) => lines[si.ingredient_id] ?? { qty: "", cost: String(si.unit_price) };
   const filled = priceList.filter((si) => Number(line(si).qty) > 0);
   const invalid = filled.length === 0 || filled.some((si) => !(Number(line(si).cost) >= 0) || line(si).cost === "");
@@ -563,7 +679,7 @@ function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps)
           <Button onClick={onClose}>Cancel</Button>
           <Button
             variant="primary"
-            disabled={invalid}
+            disabled={invalid || saving}
             onClick={() =>
               onSave({
                 supplier_id: supplierId,
@@ -576,7 +692,7 @@ function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps)
               })
             }
           >
-            Add to stock
+            {saving ? "Recording…" : "Add to stock"}
           </Button>
         </>
       }
@@ -610,15 +726,14 @@ function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps)
         </thead>
         <tbody>
           {priceList.map((si) => {
-            const ing = db.ingredients.find((i) => i.ingredient_id === si.ingredient_id);
             const l = line(si);
             const set = (patch: Partial<typeof l>) => setLines({ ...lines, [si.ingredient_id]: { ...l, ...patch } });
             return (
               <tr key={si.ingredient_id} className="border-b border-(--mgr-line)">
                 <td className="py-2 pr-3">
-                  <p className="font-medium">{ing?.ingredient_name}</p>
+                  <p className="font-medium">{si.ingredient_name}</p>
                   <p className="text-xs text-(--mgr-muted)">
-                    On hand {formatNumber(ing?.current_quantity ?? 0)} {ing?.unit_of_measure}
+                    On hand {formatNumber(onHand.get(si.ingredient_id)?.current_quantity ?? 0)} {si.unit_of_measure}
                   </p>
                 </td>
                 <td className="py-2 pr-3">
@@ -627,12 +742,12 @@ function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps)
                       type="number"
                       min={0}
                       step="0.01"
-                      aria-label={`${ing?.ingredient_name} received`}
+                      aria-label={`${si.ingredient_name} received`}
                       value={l.qty}
                       onChange={(e) => set({ qty: e.target.value })}
                       className={`${INPUT_BASE} w-28`}
                     />
-                    <span className="text-xs text-(--mgr-muted)">{ing?.unit_of_measure}</span>
+                    <span className="text-xs text-(--mgr-muted)">{si.unit_of_measure}</span>
                   </div>
                 </td>
                 <td className="py-2">
@@ -640,7 +755,7 @@ function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps)
                     type="number"
                     min={0}
                     step="0.01"
-                    aria-label={`${ing?.ingredient_name} unit cost`}
+                    aria-label={`${si.ingredient_name} unit cost`}
                     value={l.cost}
                     onChange={(e) => set({ cost: e.target.value })}
                     className={`${INPUT_BASE} w-28`}
@@ -652,7 +767,7 @@ function DeliveryModal({ initialSupplier, onClose, onSave }: DeliveryModalProps)
           {priceList.length === 0 && (
             <tr>
               <td colSpan={3} className="py-6 text-center text-(--mgr-muted)">
-                This supplier has no price list yet.
+                {active.length === 0 ? "No active supplier has a price list yet." : "This supplier has no price list yet."}
               </td>
             </tr>
           )}
