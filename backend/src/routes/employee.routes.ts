@@ -11,13 +11,7 @@ import { uploadFile } from "../middleware/upload.middleware.ts";
 const router = Router();
 
 router.get("/employees", protectRoute, requireManager, getEmployeesHandler);
-router.get(
-  "/employees/:id",
-  //protectRoute,
-  requireManager,
-  getEmployeeByIdHandler,
-);
-// router.post("/employees", protectRoute, requireManager, createEmployeeHandler);
+router.get("/employees/:id", protectRoute, requireManager, getEmployeeByIdHandler);
 router.post("/employees", protectRoute, requireManager, createEmployeeHandler);
 router.put(
   "/employees/:id",

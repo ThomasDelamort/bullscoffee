@@ -4,7 +4,8 @@ import Button from "../components/Button";
 import Card from "../components/Card";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/toastContext";
-import { DEFAULT_PERMISSIONS, PERMISSIONS, ROLE_LABELS, ROLES, USERS } from "../data/mock";
+import { DEFAULT_PERMISSIONS, PERMISSIONS, USERS } from "../data/mock";
+import { ROLE_LABELS, ROLES } from "../labels";
 import type { Permission, PermissionMatrix, Role } from "../types";
 
 /** Admin always keeps every permission so nobody can lock themselves out. */

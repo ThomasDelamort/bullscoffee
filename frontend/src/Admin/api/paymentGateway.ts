@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { paymentKeys, type PaymongoMethod } from "../../checkout/api";
 import { useApi } from "../../lib/apiContext";
+import { adminKeys } from "./keys";
 
 /**
  * GET /payments/gateway. Says whether each PayMongo key is set in
@@ -23,12 +24,10 @@ export interface GatewayTest {
   webhooks: { url: string; status: string }[];
 }
 
-const gatewayKey = ["admin", "payment-gateway"] as const;
-
 export function useGateway() {
   const api = useApi();
   return useQuery({
-    queryKey: gatewayKey,
+    queryKey: adminKeys.gateway,
     queryFn: () => api.get<GatewayStatus>("/payments/gateway"),
   });
 }
@@ -39,7 +38,7 @@ export function useSaveGateway() {
   return useMutation({
     mutationFn: (settings: GatewaySettings) => api.put<GatewayStatus>("/payments/gateway", settings),
     onSuccess: (status) => {
-      queryClient.setQueryData(gatewayKey, status);
+      queryClient.setQueryData(adminKeys.gateway, status);
       // What the kiosk and register offer follows these settings.
       void queryClient.invalidateQueries({ queryKey: paymentKeys.options });
     },

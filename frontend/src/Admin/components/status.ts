@@ -2,7 +2,6 @@
 import type {
   AccountStatus,
   Backup,
-  BranchStatus,
   ExportJob,
   ServiceState,
   Severity,
@@ -50,12 +49,6 @@ export const BACKUP_STATUS: StatusMap<Backup["status"]> = {
   completed: { tone: "success", label: "Completed" },
   failed: { tone: "danger", label: "Failed" },
   "in-progress": { tone: "info", label: "In progress" },
-};
-
-export const BRANCH_STATUS: StatusMap<BranchStatus> = {
-  open: { tone: "success", label: "Open" },
-  closed: { tone: "warning", label: "Closed today" },
-  inactive: { tone: "neutral", label: "Inactive" },
 };
 
 export const EXPORT_STATUS: StatusMap<ExportJob["status"]> = {

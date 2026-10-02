@@ -5,43 +5,29 @@
 import type {
   AdminUser,
   Backup,
-  Branch,
   ExportJob,
   LogEntry,
   NotificationTemplate,
   Permission,
   PermissionMatrix,
-  Role,
   SeriesPoint,
   ServiceStatus,
   Ticket,
 } from "../types";
 
-export const ROLES: readonly Role[] = ["admin", "manager", "cashier", "supplier", "customer"];
-
-export const ROLE_LABELS: Record<Role, string> = {
-  admin: "Admin",
-  manager: "Manager",
-  cashier: "Cashier / Barista",
-  supplier: "Supplier",
-  customer: "Customer",
-};
-
-export const BRANCH_NAMES = ["Main Campus", "Engineering Hall", "Downtown Kiosk"] as const;
-
 export const USERS: AdminUser[] = [
-  { id: 1, first_name: "Chris", last_name: "Paredes", email: "chris.paredes@bullscoffee.ph", role: "admin", status: "active", branch: null, last_active: "2026-09-29T09:12:00+08:00" },
-  { id: 2, first_name: "Andrea", last_name: "Villanueva", email: "andrea.v@bullscoffee.ph", role: "manager", status: "active", branch: "Main Campus", last_active: "2026-09-29T08:47:00+08:00" },
-  { id: 3, first_name: "Marco", last_name: "Dela Cruz", email: "marco.dc@bullscoffee.ph", role: "manager", status: "active", branch: "Engineering Hall", last_active: "2026-09-28T18:05:00+08:00" },
-  { id: 4, first_name: "Jessa", last_name: "Ramos", email: "jessa.ramos@bullscoffee.ph", role: "cashier", status: "active", branch: "Main Campus", last_active: "2026-09-29T09:02:00+08:00" },
-  { id: 5, first_name: "Paolo", last_name: "Santos", email: "paolo.santos@bullscoffee.ph", role: "cashier", status: "locked", branch: "Main Campus", last_active: "2026-09-29T07:31:00+08:00" },
-  { id: 6, first_name: "Bea", last_name: "Mendoza", email: "bea.mendoza@bullscoffee.ph", role: "cashier", status: "active", branch: "Engineering Hall", last_active: "2026-09-28T16:22:00+08:00" },
-  { id: 7, first_name: "Kevin", last_name: "Lim", email: "kevin.lim@bullscoffee.ph", role: "cashier", status: "deactivated", branch: "Downtown Kiosk", last_active: "2026-08-14T12:00:00+08:00" },
-  { id: 8, first_name: "Rosa", last_name: "Aquino", email: "orders@highlandbeans.ph", role: "supplier", status: "active", branch: null, last_active: "2026-09-27T10:40:00+08:00" },
-  { id: 9, first_name: "Dennis", last_name: "Tan", email: "dennis@dairyfresh.ph", role: "supplier", status: "active", branch: null, last_active: "2026-09-25T14:10:00+08:00" },
-  { id: 10, first_name: "Mika", last_name: "Reyes", email: "mika.reyes@student.edu.ph", role: "customer", status: "active", branch: null, last_active: "2026-09-29T08:15:00+08:00" },
-  { id: 11, first_name: "Joshua", last_name: "Garcia", email: "joshua.garcia@student.edu.ph", role: "customer", status: "active", branch: null, last_active: "2026-09-28T20:44:00+08:00" },
-  { id: 12, first_name: "Trisha", last_name: "Bautista", email: "trisha.b@student.edu.ph", role: "customer", status: "locked", branch: null, last_active: "2026-09-26T11:09:00+08:00" },
+  { id: 1, first_name: "Chris", last_name: "Paredes", email: "chris.paredes@bullscoffee.ph", role: "admin", status: "active", last_active: "2026-09-29T09:12:00+08:00" },
+  { id: 2, first_name: "Andrea", last_name: "Villanueva", email: "andrea.v@bullscoffee.ph", role: "manager", status: "active", last_active: "2026-09-29T08:47:00+08:00" },
+  { id: 3, first_name: "Marco", last_name: "Dela Cruz", email: "marco.dc@bullscoffee.ph", role: "manager", status: "active", last_active: "2026-09-28T18:05:00+08:00" },
+  { id: 4, first_name: "Jessa", last_name: "Ramos", email: "jessa.ramos@bullscoffee.ph", role: "cashier", status: "active", last_active: "2026-09-29T09:02:00+08:00" },
+  { id: 5, first_name: "Paolo", last_name: "Santos", email: "paolo.santos@bullscoffee.ph", role: "cashier", status: "locked", last_active: "2026-09-29T07:31:00+08:00" },
+  { id: 6, first_name: "Bea", last_name: "Mendoza", email: "bea.mendoza@bullscoffee.ph", role: "cashier", status: "active", last_active: "2026-09-28T16:22:00+08:00" },
+  { id: 7, first_name: "Kevin", last_name: "Lim", email: "kevin.lim@bullscoffee.ph", role: "cashier", status: "deactivated", last_active: "2026-08-14T12:00:00+08:00" },
+  { id: 8, first_name: "Rosa", last_name: "Aquino", email: "orders@highlandbeans.ph", role: "supplier", status: "active", last_active: "2026-09-27T10:40:00+08:00" },
+  { id: 9, first_name: "Dennis", last_name: "Tan", email: "dennis@dairyfresh.ph", role: "supplier", status: "active", last_active: "2026-09-25T14:10:00+08:00" },
+  { id: 10, first_name: "Mika", last_name: "Reyes", email: "mika.reyes@student.edu.ph", role: "customer", status: "active", last_active: "2026-09-29T08:15:00+08:00" },
+  { id: 11, first_name: "Joshua", last_name: "Garcia", email: "joshua.garcia@student.edu.ph", role: "customer", status: "active", last_active: "2026-09-28T20:44:00+08:00" },
+  { id: 12, first_name: "Trisha", last_name: "Bautista", email: "trisha.b@student.edu.ph", role: "customer", status: "locked", last_active: "2026-09-26T11:09:00+08:00" },
 ];
 
 export const PERMISSIONS: Permission[] = [
@@ -181,12 +167,6 @@ export const BACKUPS: Backup[] = [
   { id: "bk-0927", created_at: "2026-09-27T03:00:03+08:00", size: "—", kind: "automatic", status: "failed" },
   { id: "bk-0926", created_at: "2026-09-26T03:00:01+08:00", size: "1.81 GB", kind: "automatic", status: "completed" },
   { id: "bk-0925", created_at: "2026-09-25T03:00:05+08:00", size: "1.80 GB", kind: "automatic", status: "completed" },
-];
-
-export const BRANCHES: Branch[] = [
-  { id: 1, name: "Main Campus", address: "Ground floor, Student Center, University Ave.", manager: "Andrea Villanueva", phone: "+63 917 555 0101", hours: "7:00 AM – 9:00 PM", staff_count: 9, status: "open" },
-  { id: 2, name: "Engineering Hall", address: "2F Lobby, Engineering Hall, Science Rd.", manager: "Marco Dela Cruz", phone: "+63 917 555 0102", hours: "7:30 AM – 7:00 PM", staff_count: 5, status: "open" },
-  { id: 3, name: "Downtown Kiosk", address: "Stall 14, Rizal Street Market", manager: "Unassigned", phone: "+63 917 555 0103", hours: "8:00 AM – 6:00 PM", staff_count: 0, status: "inactive" },
 ];
 
 export const TEMPLATE_VARIABLES = [

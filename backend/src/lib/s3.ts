@@ -62,6 +62,8 @@ const image = (folder: string): MediaRule => ({
 // Bucket layout, all under bulls-coffee/:
 //   products/  categories/  ingredients/  suppliers/  employees/  (images)
 //   pdfs/  (public)   logs/  (private CSVs - manager/admin via the API)
+//   backups/  exports/  health/  (private, written by the API itself; see
+//   storePrivateObject)
 export const MEDIA = {
   product: image("products"),
   category: image("categories"),
@@ -179,6 +181,29 @@ export async function storeFile(
       ? null
       : `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`,
   };
+}
+
+// Files the API writes itself (backups, exports) rather than receives as an
+// upload. Always private, like logs/: KMS-encrypted, so S3 refuses them to
+// anonymous requests and only the API can read them back. Returns the key.
+export async function storePrivateObject(
+  folder: "backups" | "exports" | "health",
+  fileName: string,
+  body: Uint8Array | string,
+  contentType: string,
+): Promise<string> {
+  const key = `${ROOT_FOLDER}/${folder}/${fileName}`;
+  await getS3().send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      ContentDisposition: `attachment; filename="${fileName}"`,
+      ServerSideEncryption: "aws:kms",
+    }),
+  );
+  return key;
 }
 
 export async function readFile(key: string): Promise<Uint8Array> {

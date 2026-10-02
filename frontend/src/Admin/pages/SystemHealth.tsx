@@ -115,7 +115,7 @@ export default function SystemHealth() {
         <StatCard label="Uptime (30 days)" value={`${avgUptime.toFixed(2)}%`} hint="Average across services" icon={FiClock} />
         <StatCard label="Avg response" value={ms(Math.round(RESPONSE_TIME_24H.reduce((s, p) => s + p.value, 0) / RESPONSE_TIME_24H.length))} hint="Last 24 hours" icon={FiActivity} />
         <StatCard label="Error rate" value="0.42%" hint="5xx responses, last hour" icon={FiAlertTriangle} />
-        <StatCard label="Active sessions" value="186" hint="Across all branches" icon={FiCpu} />
+        <StatCard label="Active sessions" value="186" hint="Signed in, last 15 min" icon={FiCpu} />
       </div>
 
       {issues.length > 0 && (

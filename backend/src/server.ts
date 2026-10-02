@@ -4,6 +4,7 @@ import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import type { Request, Response } from "express";
 import { runInitSql } from "./lib/init.ts";
+import { startScheduler } from "./lib/scheduler.ts";
 import responseFormatter from "./middleware/responseFormatter.ts";
 import { StatusCodes } from "http-status-codes";
 
@@ -29,6 +30,11 @@ import { paymongoWebhookHandler } from "./controllers/payment.controller.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
+
+// Render puts one proxy in front of the app. Trusting it makes req.ip the
+// client's address (from X-Forwarded-For) instead of the proxy's, for the
+// activity log and the per-IP rate limits.
+app.set("trust proxy", 1);
 
 app.use(cors());
 // PayMongo signs the exact bytes it sends, so its webhook takes the raw body
@@ -79,6 +85,7 @@ app.use("/api", paymentRoutes);
 async function startServer() {
   try {
     await runInitSql();
+    startScheduler();
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err: any) {
     console.error("Failed to start server:", err);

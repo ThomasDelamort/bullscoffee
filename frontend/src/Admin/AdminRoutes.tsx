@@ -1,8 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import AdminGate from "./layout/AdminGate";
 import MainLayout from "./layout/MainLayout";
 import ActivityLogs from "./pages/ActivityLogs";
 import Backups from "./pages/Backups";
-import Branches from "./pages/Branches";
 import Dashboard from "./pages/Dashboard";
 import DataArchive from "./pages/DataArchive";
 import NotificationTemplates from "./pages/NotificationTemplates";
@@ -18,14 +18,19 @@ import { ADMIN_BASE_PATH } from "./routes";
 export default function AdminRoutes() {
   return (
     <Routes>
-      <Route element={<MainLayout />}>
+      <Route
+        element={
+          <AdminGate>
+            <MainLayout />
+          </AdminGate>
+        }
+      >
         <Route index element={<Dashboard />} />
         <Route path="users" element={<Users />} />
         <Route path="roles" element={<RolesPermissions />} />
         <Route path="health" element={<SystemHealth />} />
         <Route path="logs" element={<ActivityLogs />} />
         <Route path="tickets" element={<SupportTickets />} />
-        <Route path="branches" element={<Branches />} />
         <Route path="payments" element={<PaymentGateway />} />
         <Route path="notifications" element={<NotificationTemplates />} />
         <Route path="backups" element={<Backups />} />

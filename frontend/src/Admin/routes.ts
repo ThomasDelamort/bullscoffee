@@ -8,7 +8,6 @@ export const ADMIN_PAGES = [
   "health",
   "logs",
   "tickets",
-  "branches",
   "payments",
   "notifications",
   "backups",

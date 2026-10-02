@@ -8,7 +8,6 @@ import {
   FiFileText,
   FiGrid,
   FiLifeBuoy,
-  FiMapPin,
   FiSettings,
   FiShield,
   FiUsers,
@@ -49,7 +48,6 @@ export const ADMIN_NAV: NavGroup[] = [
   {
     label: "Operations",
     items: [
-      { page: "branches", label: "Branches", icon: FiMapPin },
       { page: "payments", label: "Payment Gateway", icon: FiCreditCard },
       { page: "notifications", label: "Notifications", icon: FiBell },
     ],

@@ -13,15 +13,13 @@ import { FOCUS_RING, INPUT_CLASS } from "../components/styles";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
 import { useToast } from "../components/toastContext";
-import { BRANCH_NAMES, ROLE_LABELS, ROLES, USERS } from "../data/mock";
+import { USERS } from "../data/mock";
+import { ROLE_LABELS, ROLES } from "../labels";
 import type { AccountStatus, AdminUser, Role } from "../types";
 import { formatDateTime, fullName, initials } from "../utils/format";
 
 type StatusFilter = AccountStatus | "all";
 type PendingAction = { kind: "reset" | "deactivate"; user: AdminUser };
-
-/** Roles that work at a branch and so need one assigned. */
-const STAFF_ROLES: readonly Role[] = ["manager", "cashier"];
 
 export default function Users() {
   const notify = useToast();
@@ -48,7 +46,7 @@ export default function Users() {
     setUsers((current) => current.map((u) => (u.id === id ? { ...u, ...patch } : u)));
 
   const changeRole = (user: AdminUser, role: Role) => {
-    update(user.id, { role, branch: STAFF_ROLES.includes(role) ? user.branch ?? BRANCH_NAMES[0] : null });
+    update(user.id, { role });
     notify(`${fullName(user)} is now ${ROLE_LABELS[role]}.`);
   };
 
@@ -126,7 +124,6 @@ export default function Users() {
             <tr>
               <Th>User</Th>
               <Th>Role</Th>
-              <Th>Branch</Th>
               <Th>Status</Th>
               <Th>Last active</Th>
               <Th className="text-right">Actions</Th>
@@ -162,7 +159,6 @@ export default function Users() {
                       ))}
                     </select>
                   </Td>
-                  <Td className="text-(--admin-muted)">{user.branch ?? "—"}</Td>
                   <Td>
                     <Badge tone={status.tone} dot>{status.label}</Badge>
                   </Td>
@@ -203,7 +199,7 @@ export default function Users() {
                 </tr>
               );
             })}
-            {visible.length === 0 && <EmptyRow colSpan={6}>No users match these filters.</EmptyRow>}
+            {visible.length === 0 && <EmptyRow colSpan={5}>No users match these filters.</EmptyRow>}
           </tbody>
         </Table>
       </Card>
@@ -267,7 +263,6 @@ interface CreateUserModalProps {
 
 function CreateUserModal({ open, onClose, onCreate }: CreateUserModalProps) {
   const [role, setRole] = useState<Role>("cashier");
-  const needsBranch = STAFF_ROLES.includes(role);
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -277,7 +272,6 @@ function CreateUserModal({ open, onClose, onCreate }: CreateUserModalProps) {
       last_name: String(form.get("last_name")).trim(),
       email: String(form.get("email")).trim(),
       role,
-      branch: needsBranch ? String(form.get("branch")) : null,
     });
     e.currentTarget.reset();
     setRole("cashier");
@@ -312,13 +306,6 @@ function CreateUserModal({ open, onClose, onCreate }: CreateUserModalProps) {
           <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => (
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Branch" hint={needsBranch ? undefined : "Only staff are assigned to a branch."}>
-          <Select name="branch" disabled={!needsBranch}>
-            {BRANCH_NAMES.map((b) => (
-              <option key={b} value={b}>{b}</option>
             ))}
           </Select>
         </Field>

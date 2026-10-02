@@ -5,6 +5,7 @@ import {
   getSalesReport,
 } from "../providers/report.provider.ts";
 import type { ReportPeriod } from "../types/report.types.ts";
+import { toCsv } from "../lib/csv.ts";
 
 const isDate = (value: string): boolean => {
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -43,16 +44,6 @@ const CSV_COLUMNS = [
   "payment_methods",
 ] as const;
 
-// Quotes what needs quoting. Customer names come from user-editable Clerk
-// profiles, so cells that a spreadsheet would run as a formula get a leading
-// apostrophe.
-const csvCell = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  let text = value instanceof Date ? value.toISOString() : String(value);
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-};
-
 export const getSalesReportHandler = async (
   req: Request,
   res: Response,
@@ -89,19 +80,14 @@ export const exportSalesReportHandler = async (
     }
 
     const rows = await getSalesExportRows(query.period, query.date);
-    const lines = [
-      CSV_COLUMNS.join(","),
-      ...rows.map((row) =>
-        CSV_COLUMNS.map((column) => csvCell(row[column])).join(","),
-      ),
-    ];
 
     const day = query.date ?? new Date().toLocaleDateString("en-CA");
     const label = query.period === "monthly" ? day.slice(0, 7) : day;
     // res.attachment also sets the text/csv content type from the extension.
     res.attachment(`sales-${query.period}-${label}.csv`);
-    // The BOM makes Excel read the file as UTF-8.
-    res.status(StatusCodes.OK).send(`﻿${lines.join("\r\n")}\r\n`);
+    res
+      .status(StatusCodes.OK)
+      .send(toCsv(CSV_COLUMNS, rows as unknown as Record<string, unknown>[]));
   } catch (error: any) {
     console.error("exportSalesReportHandler failed:", error);
     res

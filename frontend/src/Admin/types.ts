@@ -4,6 +4,19 @@
  */
 
 export type Role = "admin" | "manager" | "cashier" | "supplier" | "customer";
+export type StaffRole = "admin" | "manager" | "cashier";
+
+/** GET /manager/me: the signed-in user's employee row. */
+export interface Employee {
+  employee_id: number;
+  clerk_id: string;
+  first_name: string;
+  last_name: string;
+  employee_email: string;
+  employee_role: StaffRole;
+  employee_status: "active" | "inactive";
+  work_schedule: string;
+}
 export type AccountStatus = "active" | "deactivated" | "locked";
 
 export interface AdminUser {
@@ -13,7 +26,6 @@ export interface AdminUser {
   email: string;
   role: Role;
   status: AccountStatus;
-  branch: string | null;
   last_active: string;
 }
 
@@ -26,6 +38,13 @@ export interface Permission {
 export type PermissionMatrix = Record<Role, string[]>;
 
 export type Severity = "info" | "warning" | "critical";
+
+export interface ActivityFilters {
+  view?: "all" | "audit";
+  severity?: Severity;
+  module?: string;
+  search?: string;
+}
 
 export interface LogEntry {
   id: number;
@@ -81,19 +100,6 @@ export interface Backup {
   size: string;
   kind: "automatic" | "manual";
   status: "completed" | "failed" | "in-progress";
-}
-
-export type BranchStatus = "open" | "closed" | "inactive";
-
-export interface Branch {
-  id: number;
-  name: string;
-  address: string;
-  manager: string;
-  phone: string;
-  hours: string;
-  staff_count: number;
-  status: BranchStatus;
 }
 
 export type NotificationChannel = "email" | "sms" | "push";
