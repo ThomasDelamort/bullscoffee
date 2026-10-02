@@ -1,7 +1,7 @@
 import { pool } from "../lib/db.ts";
-import type { Order, Order_Items } from "../types/order.types.ts";
+import type { OrderRow } from "../types/order.types.ts";
 
-export const getOrders = async (): Promise<Order[] | void> => {
+export const getOrders = async (): Promise<OrderRow[] | void> => {
     const result = await pool.query(`
         SELECT * FROM orders
     `);

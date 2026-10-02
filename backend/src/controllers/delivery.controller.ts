@@ -5,7 +5,7 @@ import {
   getDeliveries,
   getDeliveryById,
 } from "../providers/delivery.provider.ts";
-import type { NewDeliveryItem } from "../providers/delivery.provider.ts";
+import type { NewDeliveryItem } from "../types/delivery.types.ts";
 import { getEmployeeByClerkId } from "../providers/employee.provider.ts";
 
 const isDate = (value: unknown): value is string => {
