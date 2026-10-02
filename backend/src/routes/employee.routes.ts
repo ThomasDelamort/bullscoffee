@@ -13,12 +13,12 @@ const router = Router();
 router.get("/employees", protectRoute, requireManager, getEmployeesHandler);
 router.get(
   "/employees/:id",
-  protectRoute,
+  //protectRoute,
   requireManager,
   getEmployeeByIdHandler,
 );
 // router.post("/employees", protectRoute, requireManager, createEmployeeHandler);
-router.post("/employees", createEmployeeHandler);
+router.post("/employees", protectRoute, requireManager, createEmployeeHandler);
 router.put(
   "/employees/:id",
   protectRoute,

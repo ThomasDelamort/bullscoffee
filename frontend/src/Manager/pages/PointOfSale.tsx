@@ -209,6 +209,7 @@ export default function PointOfSale() {
     placeOrder.mutate(
       {
         customer_id: customer?.customer_id ?? null,
+        discount_id: discount?.discount_id ?? null,
         discount_amount: discountAmount,
         items: lines.map((l) => ({
           product_id: l.product.product_id,

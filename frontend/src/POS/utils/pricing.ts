@@ -49,3 +49,8 @@ export function cashSuggestions(total: number): number[] {
   const above = steps.filter((n) => n > total);
   return [total, ...new Set(above)].slice(0, 4);
 }
+
+/** Why the payment can't go through yet, or null when it can. `tendered` is the cash received, as typed. */
+export function paymentProblem(total: number, method: PaymentMethod, tendered: string): string | null {
+  return method === "cash" && total > 0 && (Number(tendered) || 0) < total ? "Enter the cash received." : null;
+}

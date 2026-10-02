@@ -11,12 +11,23 @@ const ORDER_ROW_SQL = `
   SELECT o.*,
          (c.first_name || ' ' || c.last_name) AS customer_name,
          (e.first_name || ' ' || e.last_name) AS employee_name,
+         d.discount_name,
          GREATEST(o.total_amount - COALESCE(
            (SELECT SUM(pay.amount_paid) FROM payments pay WHERE pay.order_id = o.order_id), 0
-         ), 0) AS balance_due
+         ), 0) AS balance_due,
+         COALESCE((
+           SELECT json_agg(
+             json_build_object('product_name', p.product_name, 'quantity', oi.quantity)
+             ORDER BY oi.order_item_id
+           )
+           FROM order_items oi
+           JOIN products p ON p.product_id = oi.product_id
+           WHERE oi.order_id = o.order_id
+         ), '[]'::json) AS item_summary
   FROM orders o
   LEFT JOIN customers c ON c.customer_id = o.customer_id
   LEFT JOIN employees e ON e.employee_id = o.employee_id
+  LEFT JOIN discounts d ON d.discount_id = o.discount_id
 `;
 
 export const getOrders = async (
@@ -113,11 +124,19 @@ export const createOrder = async (
   return withTransaction(async (client) => {
     const created = await client.query(
       `
-        INSERT INTO orders (customer_id, employee_id, discount_amount, total_amount, order_status)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO orders (customer_id, employee_id, order_source, discount_id, discount_amount, total_amount, order_status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING order_id
       `,
-      [order.customer_id, order.employee_id, discount, total, status],
+      [
+        order.customer_id,
+        order.employee_id,
+        order.order_source,
+        order.discount_id,
+        discount,
+        total,
+        status,
+      ],
     );
     const order_id: number = created.rows[0].order_id;
 

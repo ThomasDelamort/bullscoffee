@@ -1,5 +1,8 @@
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
+import { discountFor, round2 } from "../lib/pricing.ts";
+import { getCustomerById } from "../providers/customer.provider.ts";
+import { getDiscountById } from "../providers/discount.provider.ts";
 import { getEmployeeByClerkId } from "../providers/employee.provider.ts";
 import {
   cancelOrder,
@@ -78,6 +81,49 @@ const parseItems = (items: unknown): NewOrderItem[] | undefined => {
     });
   }
   return parsed;
+};
+
+const isOptionalId = (value: unknown): value is number | null | undefined =>
+  value === undefined ||
+  value === null ||
+  (Number.isInteger(value) && (value as number) > 0);
+
+type ResolvedDiscount =
+  | { amount: number | undefined }
+  | { error: string; status: number };
+
+// A preset discount is priced here from the discounts table, so the amount
+// can't disagree with it; amount is undefined when there's no preset and the
+// cashier's own (custom) discount_amount applies. The ID check for senior and
+// PWD discounts happens at the counter, so only the student one is checked.
+const resolveDiscount = async (
+  discount_id: number | null,
+  customer_id: number | null,
+  items: NewOrderItem[],
+): Promise<ResolvedDiscount> => {
+  if (discount_id === null) return { amount: undefined };
+
+  const discount = await getDiscountById(discount_id);
+  if (!discount?.is_active) {
+    return {
+      status: StatusCodes.CONFLICT,
+      error: "That discount is no longer available. Pick another one.",
+    };
+  }
+  if (discount.eligibility === "university_id") {
+    const customer = customer_id ? await getCustomerById(customer_id) : undefined;
+    if (!customer?.university_id) {
+      return {
+        status: StatusCodes.BAD_REQUEST,
+        error: `${discount.discount_name} needs a customer with a university ID.`,
+      };
+    }
+  }
+
+  const subtotal = round2(
+    items.reduce((sum, item) => sum + item.quantity * item.selling_price, 0),
+  );
+  return { amount: discountFor(discount, subtotal) };
 };
 
 export const getOrdersHandler = async (
@@ -177,18 +223,21 @@ export const createOrderHandler = async (
       return;
     }
 
-    const { customer_id, discount_amount, items, payment, order_status } =
-      req.body ?? {};
+    const {
+      customer_id,
+      discount_id,
+      discount_amount,
+      items,
+      payment,
+      order_status,
+    } = req.body ?? {};
     const parsedItems = parseItems(items);
     const hasPayment = payment !== undefined && payment !== null;
 
     if (
       !parsedItems ||
-      !(
-        customer_id === undefined ||
-        customer_id === null ||
-        (Number.isInteger(customer_id) && customer_id > 0)
-      ) ||
+      !isOptionalId(customer_id) ||
+      !isOptionalId(discount_id) ||
       !(
         discount_amount === undefined ||
         (typeof discount_amount === "number" &&
@@ -208,15 +257,27 @@ export const createOrderHandler = async (
     ) {
       res.status(StatusCodes.BAD_REQUEST).json({
         error:
-          "items (product_id, quantity, selling_price) are required, and customer_id, discount_amount, payment and order_status must be valid",
+          "items (product_id, quantity, selling_price) are required, and customer_id, discount_id, discount_amount, payment and order_status must be valid",
       });
+      return;
+    }
+
+    const discount = await resolveDiscount(
+      discount_id ?? null,
+      customer_id ?? null,
+      parsedItems,
+    );
+    if ("error" in discount) {
+      res.status(discount.status).json({ error: discount.error });
       return;
     }
 
     const newOrder: NewOrder = {
       customer_id: customer_id ?? null,
       employee_id: employee.employee_id,
-      discount_amount: discount_amount ?? 0,
+      order_source: "counter",
+      discount_id: discount_id ?? null,
+      discount_amount: discount.amount ?? discount_amount ?? 0,
       items: parsedItems,
       payment: hasPayment
         ? {
@@ -233,11 +294,11 @@ export const createOrderHandler = async (
       .json({ message: "Successfully placed order", data: order });
   } catch (error: any) {
     console.error("createOrderHandler failed:", error);
-    // Foreign key violation: the product or customer doesn't exist
+    // Foreign key violation: the product, customer or discount doesn't exist
     if (error?.code === "23503") {
       res
         .status(StatusCodes.BAD_REQUEST)
-        .json({ error: "Unknown product or customer" });
+        .json({ error: "Unknown product, customer or discount" });
       return;
     }
     res

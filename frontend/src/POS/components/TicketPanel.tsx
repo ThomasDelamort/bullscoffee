@@ -2,19 +2,23 @@ import { useState, type Ref } from "react";
 import type { IconType } from "react-icons";
 import { FiCheckCircle, FiEdit3, FiMinus, FiPlus, FiShoppingBag, FiTrash2 } from "react-icons/fi";
 import { LuPanelRightClose, LuPanelRightOpen } from "react-icons/lu";
-import { usePosData } from "../data/posContext";
+import { errorMessage } from "../../lib/api";
+import { useDiscounts } from "../api/catalog";
+import { usePlaceOrder } from "../api/orders";
 import type { Ticket } from "../data/useTicket";
-import type { Discount, PaymentMethod } from "../types";
-import { formatPeso, fullName, round2 } from "../utils/format";
+import type { Customer, Discount, PaymentMethod } from "../types";
+import { formatPeso, round2 } from "../utils/format";
 import {
-  cashSuggestions,
   describeDiscount,
   discountFor,
   PAYMENT_METHOD_LABELS,
+  paymentProblem,
   SIZES,
   subtotalOf,
 } from "../utils/pricing";
+import CustomerPicker from "./CustomerPicker";
 import Modal from "./Modal";
+import PaymentFields from "./PaymentFields";
 import { buttonClass, FOCUS_RING, INPUT_CLASS, segmentClass } from "./styles";
 import { useToast } from "./toastContext";
 
@@ -27,7 +31,6 @@ interface Receipt {
   tendered: number;
 }
 
-const PAYMENT_METHODS: readonly PaymentMethod[] = ["cash", "card", "e_wallet"];
 const LABEL = "mb-1 block text-xs text-(--pos-muted)";
 
 interface TicketPanelProps {
@@ -40,10 +43,11 @@ interface TicketPanelProps {
 
 /** The walk-in order being rung up: line items, discount, payment and the charge button. */
 export default function TicketPanel({ ticket, ref, collapsed, onToggleCollapsed }: TicketPanelProps) {
-  const { db, placeOrder } = usePosData();
+  const discounts = useDiscounts();
+  const placeOrder = usePlaceOrder();
   const notify = useToast();
 
-  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [discountChoice, setDiscountChoice] = useState<DiscountChoice>("none");
   const [customDiscount, setCustomDiscount] = useState("");
   const [idChecked, setIdChecked] = useState(false);
@@ -54,10 +58,10 @@ export default function TicketPanel({ ticket, ref, collapsed, onToggleCollapsed 
 
   const { lines } = ticket;
   const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
-  const customer = db.customers.find((c) => c.customer_id === customerId);
 
   const subtotal = subtotalOf(lines.map((l) => ({ quantity: l.quantity, selling_price: l.price })));
-  const discount = typeof discountChoice === "number" ? db.discounts.find((d) => d.discount_id === discountChoice) : undefined;
+  const discount =
+    typeof discountChoice === "number" ? discounts.data?.find((d) => d.discount_id === discountChoice) : undefined;
   const discountAmount =
     discountChoice === "custom"
       ? discountFor({ kind: "fixed", value: Number(customDiscount) || 0 }, subtotal)
@@ -65,25 +69,23 @@ export default function TicketPanel({ ticket, ref, collapsed, onToggleCollapsed 
         ? discountFor(discount, subtotal)
         : 0;
   const total = round2(subtotal - discountAmount);
-  const cash = Number(tendered) || 0;
-  const change = round2(cash - total);
 
   const eligible = (d: Discount) => d.eligibility !== "university_id" || Boolean(customer?.university_id);
   const needsIdCheck = discount?.eligibility === "government_id";
   const problem =
     lines.length === 0
       ? "Add items to start an order."
-      : discount && !eligible(discount)
-        ? "The student discount needs a customer with a university ID."
-        : needsIdCheck && !idChecked
-          ? "Confirm you've checked the senior citizen or PWD ID."
-          : method === "cash" && total > 0 && cash < total
-            ? "Enter the cash received."
-            : null;
+      : typeof discountChoice === "number" && !discount
+        ? "That discount was switched off. Pick another one."
+        : discount && !eligible(discount)
+          ? `${discount.discount_name} needs a customer with a university ID.`
+          : needsIdCheck && !idChecked
+            ? "Confirm you've checked the senior citizen or PWD ID."
+            : paymentProblem(total, method, tendered);
 
   const reset = () => {
     ticket.clear();
-    setCustomerId(null);
+    setCustomer(null);
     setDiscountChoice("none");
     setCustomDiscount("");
     setIdChecked(false);
@@ -93,28 +95,44 @@ export default function TicketPanel({ ticket, ref, collapsed, onToggleCollapsed 
   };
 
   const charge = () => {
-    if (problem) return;
-    const orderId = placeOrder({
-      customer_id: customerId,
-      discount_id: discount?.discount_id ?? null,
-      discount_amount: discountAmount,
-      payment_method: method,
-      items: lines.map((l) => ({
-        product_id: l.product.product_id,
-        quantity: l.quantity,
-        size: l.size,
-        selling_price: l.price,
-        special_instructions: l.note.trim() || null,
-      })),
-    });
-    setReceipt({ orderId, total, method, tendered: method === "cash" ? cash : total });
-    reset();
-    notify(`Order #${orderId} sent to the bar.`);
+    if (problem || placeOrder.isPending) return;
+    const paidBy = method;
+    const cash = Number(tendered) || 0;
+    placeOrder.mutate(
+      {
+        customer_id: customer?.customer_id ?? null,
+        discount_id: discount?.discount_id ?? null,
+        discount_amount: discountAmount,
+        // Paid now, then pending until it's handed over.
+        order_status: "pending",
+        payment: total > 0 ? { amount_paid: total, payment_method: paidBy } : undefined,
+        items: lines.map((l) => ({
+          product_id: l.product.product_id,
+          quantity: l.quantity,
+          size: l.size,
+          selling_price: l.price,
+          special_instructions: l.note.trim() || null,
+        })),
+      },
+      {
+        onSuccess: (order) => {
+          // The backend prices preset discounts itself, so its total is the one to show.
+          setReceipt({
+            orderId: order.order_id,
+            total: order.total_amount,
+            method: paidBy,
+            tendered: paidBy === "cash" ? cash : order.total_amount,
+          });
+          reset();
+          notify(`Order #${order.order_id} sent to the bar.`);
+        },
+        onError: (error) => notify(errorMessage(error), "error"),
+      },
+    );
   };
 
-  const changeCustomer = (id: number | null) => {
-    setCustomerId(id);
-    const next = db.customers.find((c) => c.customer_id === id);
+  const changeCustomer = (next: Customer | null) => {
+    setCustomer(next);
     if (discount?.eligibility === "university_id" && !next?.university_id) setDiscountChoice("none");
   };
 
@@ -253,47 +271,33 @@ export default function TicketPanel({ ticket, ref, collapsed, onToggleCollapsed 
       </div>
 
       <div className={`space-y-3 border-t border-(--pos-line) px-5 py-4 ${hideWhenCollapsed}`}>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="min-w-0">
-            <span className={LABEL}>Customer</span>
-            <select
-              value={customerId ?? ""}
-              onChange={(e) => changeCustomer(e.target.value ? Number(e.target.value) : null)}
-              className={`${INPUT_CLASS} truncate`}
-            >
-              <option value="">Guest</option>
-              {db.customers.map((c) => (
-                <option key={c.customer_id} value={c.customer_id}>
-                  {fullName(c)}
-                  {c.university_id ? " · student" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="min-w-0">
-            <span className={LABEL}>Discount</span>
-            <select
-              value={String(discountChoice)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setDiscountChoice(v === "none" || v === "custom" ? v : Number(v));
-                setIdChecked(false);
-              }}
-              className={`${INPUT_CLASS} truncate`}
-            >
-              <option value="none">None</option>
-              {db.discounts
-                .filter((d) => d.is_active)
-                .map((d) => (
-                  <option key={d.discount_id} value={d.discount_id} disabled={!eligible(d)}>
-                    {d.discount_name} · {describeDiscount(d)}
-                    {eligible(d) ? "" : " (needs a student)"}
-                  </option>
-                ))}
-              <option value="custom">Custom amount</option>
-            </select>
-          </label>
-        </div>
+        <CustomerPicker value={customer} onChange={changeCustomer} labelClassName={LABEL} />
+        <label className="block">
+          <span className={LABEL}>Discount</span>
+          <select
+            value={String(discountChoice)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setDiscountChoice(v === "none" || v === "custom" ? v : Number(v));
+              setIdChecked(false);
+            }}
+            className={`${INPUT_CLASS} truncate`}
+          >
+            <option value="none">None</option>
+            {discounts.data?.map((d) => (
+              <option key={d.discount_id} value={d.discount_id} disabled={!eligible(d)}>
+                {d.discount_name} · {describeDiscount(d)}
+                {eligible(d) ? "" : " (needs a student)"}
+              </option>
+            ))}
+            {discounts.isError && (
+              <option disabled value="error">
+                Couldn't load discounts
+              </option>
+            )}
+            <option value="custom">Custom amount</option>
+          </select>
+        </label>
 
         {discountChoice === "custom" && (
           <label className="block">
@@ -339,58 +343,22 @@ export default function TicketPanel({ ticket, ref, collapsed, onToggleCollapsed 
           </div>
         </dl>
 
-        <div role="radiogroup" aria-label="Payment method" className="grid grid-cols-3 gap-1 rounded-lg bg-white/[0.04] p-1">
-          {PAYMENT_METHODS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={method === m}
-              onClick={() => setMethod(m)}
-              className={`${segmentClass(method === m)} py-1.5 text-sm`}
-            >
-              {PAYMENT_METHOD_LABELS[m]}
-            </button>
-          ))}
-        </div>
+        <PaymentFields
+          total={total}
+          method={method}
+          onMethodChange={setMethod}
+          tendered={tendered}
+          onTenderedChange={setTendered}
+          labelClassName={LABEL}
+        />
 
-        {method === "cash" && total > 0 && (
-          <div className="space-y-2">
-            <label className="block">
-              <span className={LABEL}>Cash received (₱)</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step="0.01"
-                value={tendered}
-                onChange={(e) => setTendered(e.target.value)}
-                className={INPUT_CLASS}
-              />
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {cashSuggestions(total).map((amount, i) => (
-                <button
-                  key={amount}
-                  type="button"
-                  onClick={() => setTendered(String(amount))}
-                  className={`${buttonClass("ghost", "sm")} bg-white/[0.03] px-1 font-medium tabular-nums`}
-                >
-                  {i === 0 ? "Exact" : `₱${amount.toLocaleString("en-PH")}`}
-                </button>
-              ))}
-            </div>
-            {cash >= total && (
-              <p className="flex justify-between text-sm">
-                <span className="text-(--pos-muted)">Change</span>
-                <span className="font-semibold tabular-nums">{formatPeso(change)}</span>
-              </p>
-            )}
-          </div>
-        )}
-
-        <button type="button" disabled={problem !== null} onClick={charge} className={`${buttonClass("primary", "lg")} w-full`}>
-          {total > 0 ? `Charge ${formatPeso(total)}` : "Place order"}
+        <button
+          type="button"
+          disabled={problem !== null || placeOrder.isPending}
+          onClick={charge}
+          className={`${buttonClass("primary", "lg")} w-full`}
+        >
+          {placeOrder.isPending ? "Sending…" : total > 0 ? `Charge ${formatPeso(total)}` : "Place order"}
         </button>
         {problem && lines.length > 0 && <p className="text-xs text-(--pos-muted)">{problem}</p>}
       </div>

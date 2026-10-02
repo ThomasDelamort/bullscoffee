@@ -23,6 +23,7 @@ import stockMovementsRoute from "./routes/stock-movement.route.ts";
 import attendanceRoutes from "./routes/attendance.route.ts";
 import documentRoutes from "./routes/document.route.ts";
 import kioskRoutes from "./routes/kiosk.route.ts";
+import discountRoutes from "./routes/discount.route.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
@@ -63,6 +64,7 @@ app.use("/api", stockMovementsRoute);
 app.use("/api", attendanceRoutes);
 app.use("/api", documentRoutes);
 app.use("/api", kioskRoutes);
+app.use("/api", discountRoutes);
 
 async function startServer() {
   try {

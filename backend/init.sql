@@ -38,6 +38,10 @@ DO $$ BEGIN CREATE TYPE document_kind AS ENUM ('pdf', 'log');
 EXCEPTION
 WHEN duplicate_object THEN null;
 END $$;
+DO $$ BEGIN CREATE TYPE order_source AS ENUM ('counter', 'kiosk');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
 
 -- ============================ STAFF ============================
 
@@ -162,6 +166,9 @@ CREATE TABLE IF NOT EXISTS orders (
 -- the column was NOT NULL.
 ALTER TABLE orders ALTER COLUMN employee_id DROP NOT NULL;
 
+-- Rows that predate this column can't be told apart, so they read as counter.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_source order_source NOT NULL DEFAULT 'counter';
+
 CREATE TABLE IF NOT EXISTS order_items (
     order_item_id SERIAL PRIMARY KEY,
     order_id INT NOT NULL REFERENCES orders(order_id) ON DELETE CASCADE,
@@ -172,6 +179,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     special_instructions TEXT
 );
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS size item_size;
+CREATE INDEX IF NOT EXISTS order_items_order_id_idx ON order_items (order_id);
 
 CREATE TABLE IF NOT EXISTS payments (
     payment_id SERIAL PRIMARY KEY,
@@ -246,6 +254,12 @@ CREATE TABLE IF NOT EXISTS discounts (
     eligibility discount_eligibility NOT NULL DEFAULT 'none',
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- Which preset produced orders.discount_amount; NULL for none or a custom
+-- amount. Declared here because discounts is created after orders. No ON
+-- DELETE: a discount that's been used is switched off, not deleted, so past
+-- orders keep its name.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_id INT REFERENCES discounts(discount_id);
 
 -- =========================== DOCUMENTS ===========================
 

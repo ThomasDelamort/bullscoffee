@@ -1,7 +1,8 @@
 /**
- * Row shapes for the cashier POS. Each interface mirrors a table in
- * backend/init.sql column-for-column, so swapping the mock store for API
- * calls needs no reshaping. Anything not in the schema is marked.
+ * Row shapes the register gets from the API. Each mirrors a table in
+ * backend/init.sql, plus the display columns the backend's providers join on
+ * (e.g. customer_name on orders). Timestamps arrive as ISO strings; DECIMAL
+ * columns arrive as strings and are converted to numbers in POS/api.
  */
 
 export type OrderStatus = "pending" | "completed" | "cancelled";
@@ -10,8 +11,18 @@ export type ItemSize = "tall" | "grade" | "venti";
 export type DiscountKind = "percent" | "fixed";
 /** What the cashier must check before the discount can be applied. */
 export type DiscountEligibility = "none" | "university_id" | "government_id";
-/** Not in the schema yet: walk-ins are rung up at the counter, online orders come from the storefront. */
-export type OrderType = "walk_in" | "online";
+/** Rung up at this register, or placed by a customer at the kiosk and paid here. */
+export type OrderSource = "counter" | "kiosk";
+export type EmployeeRole = "cashier" | "manager" | "admin";
+
+export interface Employee {
+  employee_id: number;
+  first_name: string;
+  last_name: string;
+  employee_role: EmployeeRole;
+  employee_status: "active" | "inactive";
+  profile_picture: string | null;
+}
 
 export interface Customer {
   customer_id: number;
@@ -48,18 +59,25 @@ export interface Discount {
   is_active: boolean;
 }
 
+/** A row of GET /orders. */
 export interface Order {
   order_id: number;
   customer_id: number | null;
-  employee_id: number;
+  /** null for a kiosk order nobody at the counter has charged or closed yet. */
+  employee_id: number | null;
   ordered_at: string;
   discount_amount: number;
   total_amount: number;
   order_status: OrderStatus;
-  /** Not in the schema yet. */
-  order_type: OrderType;
-  /** Not in the schema yet: which discount produced discount_amount, for the shift breakdown. */
+  order_source: OrderSource;
+  /** The preset behind discount_amount; null for none or a custom amount. */
   discount_id: number | null;
+  customer_name: string | null;
+  employee_name: string | null;
+  discount_name: string | null;
+  /** The total less payments so far. Above 0 only for a kiosk order not yet paid at the counter. */
+  balance_due: number;
+  item_summary: { product_name: string; quantity: number }[];
 }
 
 export interface OrderItem {
@@ -80,13 +98,8 @@ export interface Payment {
   paid_at: string;
 }
 
-/** One array per table, as the POS store holds them. */
-export interface PosDb {
-  customers: Customer[];
-  categories: Category[];
-  products: Product[];
-  discounts: Discount[];
-  orders: Order[];
-  order_items: OrderItem[];
+/** GET /orders/:id: the row plus its lines and payments. */
+export interface OrderDetails extends Order {
+  items: (OrderItem & { product_name: string })[];
   payments: Payment[];
 }

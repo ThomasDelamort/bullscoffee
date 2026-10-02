@@ -43,6 +43,8 @@ export function useOrder(orderId: number | null) {
 
 export interface NewOrderInput {
   customer_id: number | null;
+  /** A preset is priced by the backend; discount_amount only counts for a custom amount. */
+  discount_id: number | null;
   discount_amount: number;
   items: {
     product_id: number;

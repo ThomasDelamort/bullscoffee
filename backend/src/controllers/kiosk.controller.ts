@@ -138,6 +138,8 @@ export const createKioskOrderHandler = async (
     const order = await createOrder({
       customer_id: await signedInCustomerId(req),
       employee_id: null,
+      order_source: "kiosk",
+      discount_id: null,
       discount_amount: 0,
       items: priced,
       order_status: "pending",

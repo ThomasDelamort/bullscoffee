@@ -1,8 +1,3 @@
-/**
- * The discounts table exists but its routes don't yet. These hooks follow the
- * planned contract in frontend/ManagerRoutes.md (GET/POST /api/discounts,
- * PATCH/DELETE /api/discounts/:id).
- */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "../../lib/apiContext";
 import type { Discount } from "../types";

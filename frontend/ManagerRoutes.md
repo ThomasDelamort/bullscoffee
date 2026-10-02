@@ -5,9 +5,9 @@ TanStack Query hooks in `src/Manager/api/` (one file per resource; query keys
 in `api/keys.ts`). Grouped by resource, matching the tables in
 `backend/init.sql`.
 
-Everything below is wired up except **Discounts** and **Feedback**: their
-tables exist but their routes don't yet. The UI already calls the contract
-listed for them and shows a "not supported yet" notice until they land.
+Everything below is wired up except **Feedback**: its table exists but its
+routes don't yet. The UI already calls the contract listed for it and shows a
+"not supported yet" notice until they land.
 
 Where this list says `PATCH /:id` for products, categories, ingredients,
 suppliers and employees, the backend implements it as `PUT /:id` (still a
@@ -72,12 +72,16 @@ that hasn't been paid at the counter yet; those show as "Awaiting payment"
 with a Take payment action in place of Complete.
 - `GET /api/customers?search=` (for POS customer picker)
 
-## Discounts (not built yet)
+## Discounts
 
-- `GET /api/discounts`
+- `GET /api/discounts` (any active employee: the registers read it)
 - `POST /api/discounts`
 - `PATCH /api/discounts/:id`
-- `DELETE /api/discounts/:id`
+- `DELETE /api/discounts/:id` (409 once orders have used it; switch it off instead)
+
+`POST /api/orders` takes an optional `discount_id`. For a preset, the backend
+prices the discount itself and checks the student discount's customer has a
+university ID; `discount_amount` only counts for a custom amount.
 
 ## Sales Reports
 
