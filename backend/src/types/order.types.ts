@@ -5,7 +5,8 @@ export type ItemSize = "tall" | "grade" | "venti";
 export interface OrderRow {
   order_id: number;
   customer_id: number | null;
-  employee_id: number;
+  /** null for a kiosk order nobody at the counter has handled yet. */
+  employee_id: number | null;
   ordered_at: Date;
   discount_amount: number;
   total_amount: number;
@@ -53,7 +54,8 @@ export interface NewOrderItem {
 
 export interface NewOrder {
   customer_id: number | null;
-  employee_id: number;
+  /** null for a kiosk order. */
+  employee_id: number | null;
   discount_amount: number;
   items: NewOrderItem[];
   /** Omit to leave the order pending and unpaid. */
@@ -64,7 +66,9 @@ export interface NewOrder {
 
 export interface OrderListRow extends OrderRow {
   customer_name: string | null;
-  employee_name: string;
+  employee_name: string | null;
+  /** The total less payments so far. Above 0 only for an order placed unpaid, i.e. from the kiosk. */
+  balance_due: number;
 }
 
 export interface OrderDetails extends OrderListRow {

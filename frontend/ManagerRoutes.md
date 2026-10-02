@@ -18,10 +18,24 @@ partial update), and that's what the UI calls.
 Products, categories, ingredients and suppliers each have an image. The UI
 sends a file, not a URL, so their `POST` and `PATCH` endpoints must accept
 `multipart/form-data` with a single `image` file field (JPEG, PNG, WebP or
-GIF, max 5 MB), using `uploadSingle` + `uploadToS3` from
-`backend/src/middleware/upload.middleware.ts`. The handler saves the resulting
-`res.locals.fileUrl` into `image_url`. To remove an image, send an empty
-`image_url` field with no file.
+GIF, max 5 MB), using `uploadFile("<kind>")` from
+`backend/src/middleware/upload.middleware.ts`, which stores each kind in its
+own S3 folder (`bulls-coffee/products/`, `categories/`, ...). The handler
+saves the resulting `res.locals.fileUrl` into `image_url`. To remove an
+image, send an empty `image_url` field with no file. `PUT /employees/:id`
+takes the same `image` field for `profile_picture`.
+
+## Logs and PDFs (manager or admin)
+
+Upload with `multipart/form-data` and a single `file` field (max 10 MB).
+
+- `GET /api/logs` — CSV logs, newest first (`uploaded_by_name` included)
+- `POST /api/logs` — upload a `.csv`
+- `GET /api/logs/:id/download` — the CSV itself. Logs are private: S3 won't
+  serve them, so this is the only way to read one (use `api.download`)
+- `GET /api/pdfs` — PDFs, newest first; each row's `file_url` opens it
+- `POST /api/pdfs` — upload a PDF
+- `DELETE /api/pdfs/:id`
 
 ## Auth / session
 
@@ -49,8 +63,13 @@ GIF, max 5 MB), using `uploadSingle` + `uploadToS3` from
 - `GET /api/orders` (filters: status, date range, employee, customer, search)
 - `GET /api/orders/:id` (with items + payments)
 - `POST /api/orders` (place order + items + payment, atomically)
-- `PATCH /api/orders/:id/complete`
+- `POST /api/orders/:id/payments` (take payment for a kiosk order: `{ payment_method }`, charges the whole `balance_due`; the order stays pending)
+- `PATCH /api/orders/:id/complete` (409 while `balance_due` > 0)
 - `PATCH /api/orders/:id/cancel`
+
+Every order row carries `balance_due`. It's above 0 only for a kiosk order
+that hasn't been paid at the counter yet; those show as "Awaiting payment"
+with a Take payment action in place of Complete.
 - `GET /api/customers?search=` (for POS customer picker)
 
 ## Discounts (not built yet)

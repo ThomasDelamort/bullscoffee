@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { useOrder } from "../api/orders";
+import { needsPayment } from "../data/selectors";
 import type { OrderDetails } from "../types";
 import { formatDateTime, formatPeso } from "../utils/format";
 import { SIZE_LABELS, subtotalOf } from "../utils/pricing";
 import Badge from "./Badge";
 import Modal from "./Modal";
 import { ErrorNotice, Loading } from "./QueryState";
-import { ORDER_STATUS, PAYMENT_METHOD_LABELS } from "./status";
+import { AWAITING_PAYMENT, ORDER_STATUS, PAYMENT_METHOD_LABELS } from "./status";
 
 interface OrderDetailsModalProps {
   orderId: number | null;
@@ -39,7 +40,8 @@ export default function OrderDetailsModal({ orderId, onClose, footer }: OrderDet
 }
 
 function OrderBody({ order }: { order: OrderDetails }) {
-  const status = ORDER_STATUS[order.order_status];
+  const unpaid = needsPayment(order);
+  const status = unpaid ? AWAITING_PAYMENT : ORDER_STATUS[order.order_status];
   return (
     <>
       <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
@@ -55,7 +57,7 @@ function OrderBody({ order }: { order: OrderDetails }) {
         </div>
         <div>
           <dt className="text-xs text-(--mgr-muted)">Handled by</dt>
-          <dd className="mt-1 font-medium">{order.employee_name}</dd>
+          <dd className="mt-1 font-medium">{order.employee_name ?? "Kiosk"}</dd>
         </div>
       </dl>
 
@@ -91,6 +93,7 @@ function OrderBody({ order }: { order: OrderDetails }) {
         <Row label="Subtotal" value={formatPeso(subtotalOf(order.items))} />
         {order.discount_amount > 0 && <Row label="Discount" value={`− ${formatPeso(order.discount_amount)}`} />}
         <Row label="Total" value={formatPeso(order.total_amount)} strong />
+        {unpaid && <Row label="Balance due" value={formatPeso(order.balance_due)} />}
       </dl>
 
       <h3 className="mt-5 text-xs font-medium text-(--mgr-muted)">Payments</h3>

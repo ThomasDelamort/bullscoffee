@@ -2,7 +2,7 @@ import HeroImage from "../../Home/Hero/HeroImage";
 import { CREAM, ESPRESSO } from "../../Home/theme";
 import CategoryIcon from "../../POS/components/CategoryIcon";
 import type { Product } from "../../POS/types";
-import { categoryLook, categoryOf, cupFor } from "../data/menu";
+import { categoryLook, cupFor, useCategoryOf } from "../data/menu";
 
 const ICON_SIZES = {
   thumb: "size-7",
@@ -31,6 +31,8 @@ interface ProductArtProps {
  * category's color for everything else.
  */
 export default function ProductArt({ product, variant = "card", className = "" }: ProductArtProps) {
+  const category = useCategoryOf(product);
+
   if (product.image_url) {
     return <img src={product.image_url} alt="" draggable={false} className={`object-cover ${className}`} />;
   }
@@ -44,7 +46,6 @@ export default function ProductArt({ product, variant = "card", className = "" }
     );
   }
 
-  const category = categoryOf(product);
   const { color } = categoryLook(category);
   return (
     <span

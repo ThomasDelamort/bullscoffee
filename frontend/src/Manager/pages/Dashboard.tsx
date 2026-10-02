@@ -4,6 +4,7 @@ import {
   FiArrowRight,
   FiCheck,
   FiClipboard,
+  FiCreditCard,
   FiPackage,
   FiTrendingUp,
   FiUsers,
@@ -25,10 +26,11 @@ import PageHeader from "../components/PageHeader";
 import { ErrorNotice, Loading } from "../components/QueryState";
 import Stars from "../components/Stars";
 import StatCard from "../components/StatCard";
+import TakePaymentModal from "../components/TakePaymentModal";
 import { STOCK_STATE } from "../components/status";
 import { buttonClass, FOCUS_RING } from "../components/styles";
 import { useNotifyError, useToast } from "../components/toastContext";
-import { describeItems, isSale, salesTotals, STORE_HOURS, stockState } from "../data/selectors";
+import { describeItems, isSale, needsPayment, salesTotals, STORE_HOURS, stockState } from "../data/selectors";
 import { managerPath } from "../routes";
 import type { Order, SeriesPoint } from "../types";
 import { groupBy, indexBy } from "../utils/collections";
@@ -52,6 +54,7 @@ export default function Dashboard() {
   const notify = useToast();
   const notifyError = useNotifyError();
   const [openOrder, setOpenOrder] = useState<Order | null>(null);
+  const [paying, setPaying] = useState<Order | null>(null);
 
   const now = new Date();
   const today = dayKey(now);
@@ -78,6 +81,8 @@ export default function Dashboard() {
   const pending = (queue.data ?? [])
     .filter((o) => o.order_status === "pending")
     .sort((a, b) => a.ordered_at.localeCompare(b.ordered_at));
+  // The open order's live queue row (it drops out once completed), for the details footer.
+  const openQueued = openOrder && pending.find((o) => o.order_id === openOrder.order_id);
 
   const alerts = ingredients
     .filter((i) => i.is_active && stockState(i) !== "in")
@@ -229,9 +234,15 @@ export default function Dashboard() {
                   <span className="hidden text-xs whitespace-nowrap text-(--mgr-muted) sm:block">
                     {formatRelative(order.ordered_at)}
                   </span>
-                  <Button size="sm" icon={FiCheck} onClick={() => complete(order.order_id)}>
-                    Complete
-                  </Button>
+                  {needsPayment(order) ? (
+                    <Button size="sm" icon={FiCreditCard} onClick={() => setPaying(order)}>
+                      Take payment
+                    </Button>
+                  ) : (
+                    <Button size="sm" icon={FiCheck} onClick={() => complete(order.order_id)}>
+                      Complete
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -330,18 +341,29 @@ export default function Dashboard() {
         orderId={openOrder?.order_id ?? null}
         onClose={() => setOpenOrder(null)}
         footer={
-          openOrder !== null &&
-          pending.some((o) => o.order_id === openOrder.order_id) && (
+          openQueued &&
+          (needsPayment(openQueued) ? (
+            <Button variant="primary" icon={FiCreditCard} onClick={() => setPaying(openQueued)}>
+              Take payment
+            </Button>
+          ) : (
             <Button
               variant="primary"
               icon={FiCheck}
               disabled={completeOrder.isPending}
-              onClick={() => complete(openOrder.order_id, () => setOpenOrder(null))}
+              onClick={() => complete(openQueued.order_id, () => setOpenOrder(null))}
             >
               Mark completed
             </Button>
-          )
+          ))
         }
+      />
+
+      <TakePaymentModal
+        key={`pay-${paying?.order_id ?? "closed"}`}
+        order={paying}
+        onClose={() => setPaying(null)}
+        onPaid={() => setOpenOrder(null)}
       />
     </>
   );

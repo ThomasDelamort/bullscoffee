@@ -192,7 +192,12 @@ export const updateEmployeeHandler = async (
         changes.contact_number = contact_number?.trim() || null;
       } else invalid.push("contact_number");
     }
-    if (profile_picture !== undefined) {
+    // A multipart "image" file wins over the text field: uploadFile leaves
+    // its URL on res.locals.fileUrl.
+    const fileUrl = res.locals["fileUrl"];
+    if (typeof fileUrl === "string") {
+      changes.profile_picture = fileUrl;
+    } else if (profile_picture !== undefined) {
       if (isOptionalText(profile_picture)) {
         changes.profile_picture = profile_picture?.trim() || null;
       } else invalid.push("profile_picture");

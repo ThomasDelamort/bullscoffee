@@ -34,6 +34,10 @@ DO $$ BEGIN CREATE TYPE discount_eligibility AS ENUM ('none', 'university_id', '
 EXCEPTION
 WHEN duplicate_object THEN null;
 END $$;
+DO $$ BEGIN CREATE TYPE document_kind AS ENUM ('pdf', 'log');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
 
 -- ============================ STAFF ============================
 
@@ -145,12 +149,18 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 CREATE TABLE IF NOT EXISTS orders (
     order_id SERIAL PRIMARY KEY,
     customer_id INT REFERENCES customers(customer_id),
-    employee_id INT NOT NULL REFERENCES employees(employee_id),
+    employee_id INT REFERENCES employees(employee_id),
     ordered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     discount_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (discount_amount >= 0),
     total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),
     order_status order_status NOT NULL DEFAULT 'pending'
 );
+
+-- Kiosk orders are placed by customers with no cashier involved, so
+-- employee_id stays NULL until someone at the counter completes or cancels
+-- the order (see transitionPendingOrder). Self-heals databases created when
+-- the column was NOT NULL.
+ALTER TABLE orders ALTER COLUMN employee_id DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS order_items (
     order_item_id SERIAL PRIMARY KEY,
@@ -170,6 +180,9 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_method payment_method NOT NULL,
     paid_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Every order row sums its payments to work out the balance due.
+CREATE INDEX IF NOT EXISTS payments_order_id_idx ON payments (order_id);
 
 -- =========================== SUPPLY ============================
 
@@ -232,4 +245,22 @@ CREATE TABLE IF NOT EXISTS discounts (
     value DECIMAL(10, 2) NOT NULL CHECK (value > 0),
     eligibility discount_eligibility NOT NULL DEFAULT 'none',
     is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- =========================== DOCUMENTS ===========================
+
+-- PDFs and CSV logs stored in S3 (bulls-coffee/pdfs/, bulls-coffee/logs/).
+-- Images don't need this - their row's image_url points at them - but these
+-- belong to no other row, and the app's AWS user can't list the bucket, so
+-- this table is the index of what's stored. file_url is NULL for logs: they
+-- are private and only downloadable through the API.
+CREATE TABLE IF NOT EXISTS documents (
+    document_id SERIAL PRIMARY KEY,
+    kind document_kind NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    s3_key VARCHAR(512) NOT NULL UNIQUE,
+    file_url VARCHAR(512),
+    size_bytes INT NOT NULL CHECK (size_bytes >= 0),
+    uploaded_by INT REFERENCES employees(employee_id) ON DELETE SET NULL,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

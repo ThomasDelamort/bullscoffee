@@ -1,35 +1,63 @@
-import type { OrderItem } from "../../POS/types";
-import { subtotalOf } from "../../POS/utils/pricing";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ApiError, isClientError } from "../../lib/api";
+import { useApi } from "../../lib/apiContext";
+import type { ItemSize, OrderItem } from "../../POS/types";
+import { kioskKeys } from "./menu";
 
-/** Shaped like the body of POST /api/orders, minus the payment: kiosk orders are paid at the counter. */
+/**
+ * The body of POST /api/kiosk/orders. No prices, customer or payment: the
+ * backend prices each line from the menu, links the order to the signed-in
+ * customer (if any) from their session, and leaves it pending for the counter.
+ */
 export interface KioskOrderDraft {
-  /** The signed-in customer, or null for a guest. */
-  customer_id: number | null;
-  items: Omit<OrderItem, "order_item_id" | "order_id">[];
+  items: Pick<OrderItem, "product_id" | "quantity" | "size" | "special_instructions">[];
+}
+
+export interface PlacedItem {
+  order_item_id: number;
+  product_name: string;
+  quantity: number;
+  size: ItemSize | null;
+  /** Per unit, as the backend priced it. */
+  selling_price: number;
+  special_instructions: string | null;
 }
 
 export interface PlacedOrder {
   order_id: number;
   ordered_at: string;
   total_amount: number;
+  items: PlacedItem[];
 }
 
-let lastOrderId = 0;
+// pg sends DECIMAL columns as strings ("120.00").
+const toPlacedOrder = (o: PlacedOrder): PlacedOrder => ({
+  ...o,
+  total_amount: Number(o.total_amount),
+  items: o.items.map((i) => ({ ...i, selling_price: Number(i.selling_price) })),
+});
 
 /**
- * Places a kiosk order as pending and unpaid; the cashier finds it by its
- * number and takes payment at the counter.
- *
- * Mock for now. The real call is POST /api/orders with this draft and no
- * payment (the backend then leaves it pending), but that route only accepts
- * a signed-in employee and orders.employee_id is NOT NULL, so the backend
- * needs a kiosk path before guests can order for real.
+ * Places the order as pending and unpaid; the cashier finds it by its number
+ * and takes payment at the counter.
  */
-export function placeKioskOrder(draft: KioskOrderDraft): Promise<PlacedOrder> {
-  lastOrderId += 1;
-  return Promise.resolve({
-    order_id: lastOrderId,
-    ordered_at: new Date().toISOString(),
-    total_amount: subtotalOf(draft.items),
+export function usePlaceKioskOrder() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (draft: KioskOrderDraft) => toPlacedOrder(await api.post<PlacedOrder>("/kiosk/orders", draft)),
+    onError: (error) => {
+      // 409: something sold out or changed since the menu loaded. Refresh it so the tiles show why.
+      if (error instanceof ApiError && error.status === 409) {
+        void queryClient.invalidateQueries({ queryKey: kioskKeys.menu });
+      }
+    },
   });
+}
+
+/** The backend's own words when it turned the order down; a generic line when it couldn't be reached. */
+export function placeOrderError(error: unknown): string {
+  return isClientError(error) && error instanceof Error
+    ? error.message
+    : "We couldn't send your order. Please try again, or order at the counter.";
 }

@@ -10,12 +10,11 @@ import CategoryBanner from "../components/CategoryBanner";
 import CategoryTabs from "../components/CategoryTabs";
 import ProductCard from "../components/ProductCard";
 import ProductSheet from "../components/ProductSheet";
-import { MENU_CATEGORIES, MENU_PRODUCTS } from "../data/menu";
-import { placeKioskOrder } from "../data/orders";
+import { useMenu } from "../data/menu";
+import { placeOrderError, usePlaceKioskOrder } from "../data/orders";
 import { useCart, type CartChoice } from "../data/useCart";
+import { PRIMARY_BUTTON } from "../styles";
 import Confirmation, { type Receipt } from "./Confirmation";
-
-const FIRST_CATEGORY = MENU_CATEGORIES[0]?.category_id ?? 0;
 
 /**
  * Self-order: browse one category at a time, tap a product to choose its size
@@ -23,21 +22,46 @@ const FIRST_CATEGORY = MENU_CATEGORIES[0]?.category_id ?? 0;
  * bottom. Signing in is optional; guests order the same way.
  */
 export default function Kiosk() {
+  const menu = useMenu();
   const cart = useCart();
+  const placeOrder = usePlaceKioskOrder();
   const { state } = useCustomer();
   const customer = state.status === "registered" ? state.customer : null;
 
-  const [categoryId, setCategoryId] = useState(FIRST_CATEGORY);
+  // null until a tab is tapped: the first category.
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [picked, setPicked] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
-  const [placing, setPlacing] = useState(false);
-  const [placeError, setPlaceError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   // Read out by screen readers, since the cart bar changes out of view of the focus.
   const [announcement, setAnnouncement] = useState("");
 
-  const category = MENU_CATEGORIES.find((c) => c.category_id === categoryId);
-  const products = MENU_PRODUCTS.filter((p) => p.category_id === categoryId);
+  const startOver = useCallback(() => {
+    setReceipt(null);
+    setCategoryId(null);
+    setAnnouncement("");
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  if (receipt) return <Confirmation receipt={receipt} onDone={startOver} />;
+
+  if (menu.status === "loading") return <MenuStatus title="Loading the menu" />;
+  if (menu.status === "error") {
+    return (
+      <MenuStatus
+        title="Menu unavailable"
+        detail="We couldn't load the menu. Please try again, or order at the counter."
+        onRetry={menu.retry}
+      />
+    );
+  }
+  if (menu.categories.length === 0) {
+    return <MenuStatus title="Nothing on the menu yet" detail="Please order at the counter." />;
+  }
+
+  // The tapped category, or the first one (also once the tapped one has emptied out).
+  const category = menu.categories.find((c) => c.category_id === categoryId) ?? menu.categories[0]!;
+  const products = menu.products.filter((p) => p.category_id === category.category_id);
 
   const changeCategory = (id: number) => {
     setCategoryId(id);
@@ -50,38 +74,24 @@ export default function Kiosk() {
     setAnnouncement(`Added ${choice.quantity} ${product.product_name} to your order.`);
   };
 
-  const placeOrder = async () => {
-    setPlacing(true);
-    setPlaceError(null);
-    try {
-      const order = await placeKioskOrder({
-        customer_id: customer?.customer_id ?? null,
-        items: cart.lines.map((l) => ({
-          product_id: l.product.product_id,
-          quantity: l.quantity,
-          size: l.size,
-          selling_price: l.price,
-          special_instructions: l.note || null,
-        })),
-      });
-      setReceipt({ ...order, lines: cart.lines, firstName: customer?.first_name ?? null });
-      cart.clear();
-      setCartOpen(false);
-    } catch {
-      setPlaceError("We couldn't send your order. Please try again, or order at the counter.");
-    } finally {
-      setPlacing(false);
-    }
+  const submitOrder = () => {
+    const items = cart.lines.map((l) => ({
+      product_id: l.product.product_id,
+      quantity: l.quantity,
+      size: l.size,
+      special_instructions: l.note || null,
+    }));
+    placeOrder.mutate(
+      { items },
+      {
+        onSuccess: (order) => {
+          setReceipt({ ...order, firstName: customer?.first_name ?? null });
+          cart.clear();
+          setCartOpen(false);
+        },
+      },
+    );
   };
-
-  const startOver = useCallback(() => {
-    setReceipt(null);
-    setCategoryId(FIRST_CATEGORY);
-    setAnnouncement("");
-    window.scrollTo({ top: 0 });
-  }, []);
-
-  if (receipt) return <Confirmation receipt={receipt} onDone={startOver} />;
 
   return (
     <>
@@ -95,12 +105,12 @@ export default function Kiosk() {
           <div className="ml-auto">{customer ? <Greeting customer={customer} /> : <PayAtCounter />}</div>
         </div>
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <CategoryTabs categories={MENU_CATEGORIES} active={categoryId} onChange={changeCategory} />
+          <CategoryTabs categories={menu.categories} active={category.category_id} onChange={changeCategory} />
         </div>
       </header>
 
       <main className={`mx-auto max-w-7xl px-4 pt-3 sm:px-6 ${cart.count > 0 ? "pb-36" : "pb-12"}`}>
-        {category && <CategoryBanner category={category} products={products} />}
+        <CategoryBanner category={category} products={products} />
         <ul className="mt-5 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-5 md:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
             <li key={p.product_id}>
@@ -119,9 +129,9 @@ export default function Kiosk() {
         onClose={() => setCartOpen(false)}
         cart={cart}
         customerName={customer ? `${customer.first_name} ${customer.last_name}` : null}
-        placing={placing}
-        error={placeError}
-        onPlaceOrder={() => void placeOrder()}
+        placing={placeOrder.isPending}
+        error={placeOrder.isError ? placeOrderError(placeOrder.error) : null}
+        onPlaceOrder={submitOrder}
       />
 
       <p aria-live="polite" className="sr-only">
@@ -143,6 +153,33 @@ function Greeting({ customer }: { customer: Customer }) {
       )}
       Hi, {customer.first_name}
     </span>
+  );
+}
+
+interface MenuStatusProps {
+  title: string;
+  detail?: string;
+  onRetry?: () => void;
+}
+
+/** Stands in for the whole menu while it loads, when it can't, or when there's nothing on it. */
+function MenuStatus({ title, detail, onRetry }: MenuStatusProps) {
+  return (
+    <main aria-live="polite" className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
+      <HeroImage
+        file={LOGO_MARK}
+        alt=""
+        placeholderShape="circle"
+        className={`size-16 object-contain ${detail ? "" : "motion-safe:animate-pulse"}`}
+      />
+      <h1 className="hero-display mt-6 text-4xl uppercase sm:text-5xl">{title}</h1>
+      {detail && <p className="mt-3 max-w-sm text-base text-(--k-muted)">{detail}</p>}
+      {onRetry && (
+        <button type="button" onClick={onRetry} className={`${PRIMARY_BUTTON} mt-8 px-10`}>
+          Try again
+        </button>
+      )}
+    </main>
   );
 }
 

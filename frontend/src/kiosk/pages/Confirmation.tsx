@@ -4,14 +4,13 @@ import { LOGO_MARK } from "../../Home/Hero/hero.config";
 import { formatPeso, formatTime } from "../../POS/utils/format";
 import { SIZE_LABELS } from "../../POS/utils/pricing";
 import type { PlacedOrder } from "../data/orders";
-import type { CartLine } from "../data/useCart";
 import { PRIMARY_BUTTON } from "../styles";
 
 /** The kiosk goes back to the menu on its own, so the next customer isn't left looking at this. */
 const RESET_AFTER_SECONDS = 45;
 
+/** The order as the backend saved and priced it, so it matches what the cashier sees. */
 export interface Receipt extends PlacedOrder {
-  lines: CartLine[];
   /** Signed-in customer's first name, null for a guest. */
   firstName: string | null;
 }
@@ -60,13 +59,13 @@ export default function Confirmation({ receipt, onDone }: ConfirmationProps) {
             <span className="tabular-nums">{formatTime(receipt.ordered_at)}</span>
           </p>
           <ul className="mt-3 space-y-2">
-            {receipt.lines.map((l) => (
-              <li key={l.key} className="flex justify-between gap-3 text-base">
+            {receipt.items.map((i) => (
+              <li key={i.order_item_id} className="flex justify-between gap-3 text-base">
                 <span className="min-w-0">
-                  <span className="font-extrabold tabular-nums">{l.quantity}×</span> {l.product.product_name}
-                  {l.size && <span className="text-(--k-muted)"> · {SIZE_LABELS[l.size]}</span>}
+                  <span className="font-extrabold tabular-nums">{i.quantity}×</span> {i.product_name}
+                  {i.size && <span className="text-(--k-muted)"> · {SIZE_LABELS[i.size]}</span>}
                 </span>
-                <span className="font-semibold tabular-nums">{formatPeso(l.price * l.quantity)}</span>
+                <span className="font-semibold tabular-nums">{formatPeso(i.selling_price * i.quantity)}</span>
               </li>
             ))}
           </ul>

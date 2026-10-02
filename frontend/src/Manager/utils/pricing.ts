@@ -1,4 +1,4 @@
-import type { Discount, ItemSize, OrderItem, Product } from "../types";
+import type { Discount, ItemSize, OrderItem, PaymentMethod, Product } from "../types";
 import { round2 } from "./format";
 
 interface SizeOption {
@@ -33,6 +33,11 @@ export function subtotalOf(items: Pick<OrderItem, "quantity" | "selling_price">[
 export function discountFor(discount: Pick<Discount, "kind" | "value">, subtotal: number): number {
   const raw = discount.kind === "percent" ? (subtotal * discount.value) / 100 : discount.value;
   return round2(Math.min(Math.max(raw, 0), subtotal));
+}
+
+/** Card and e-wallet are charged the exact total; cash has to at least cover it. */
+export function paymentCovers(method: PaymentMethod, cashReceived: number, total: number): boolean {
+  return method !== "cash" || total <= 0 || cashReceived >= total;
 }
 
 export function describeDiscount(discount: Pick<Discount, "kind" | "value">): string {

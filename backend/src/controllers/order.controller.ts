@@ -7,6 +7,7 @@ import {
   createOrder,
   getOrderById,
   getOrders,
+  payOrder,
 } from "../providers/order.provider.ts";
 import type {
   ItemSize,
@@ -247,10 +248,11 @@ export const createOrderHandler = async (
 
 // Only a pending order can move on. The provider answers undefined for both
 // "no such order" and "not pending", so look the order up to tell them apart.
+// requireEmployee has already put the signed-in employee on res.locals.
 const changeOrderStatus = async (
   req: Request,
   res: Response,
-  transition: (order_id: number) => Promise<OrderDetails | void>,
+  transition: (order_id: number, employee_id: number) => Promise<OrderDetails | void>,
   status: "completed" | "cancelled",
 ): Promise<void> => {
   try {
@@ -260,7 +262,7 @@ const changeOrderStatus = async (
       return;
     }
 
-    const order = await transition(order_id);
+    const order = await transition(order_id, res.locals["employee"].employee_id);
     if (order) {
       res
         .status(StatusCodes.OK)
@@ -271,6 +273,12 @@ const changeOrderStatus = async (
     const existing = await getOrderById(order_id);
     if (!existing) {
       res.status(StatusCodes.NOT_FOUND).json({ error: "Order not found" });
+      return;
+    }
+    if (existing.order_status === "pending") {
+      res.status(StatusCodes.CONFLICT).json({
+        error: `Order #${order_id} hasn't been paid yet. Take payment before completing it.`,
+      });
       return;
     }
     res
@@ -293,3 +301,52 @@ export const cancelOrderHandler = (
   req: Request,
   res: Response,
 ): Promise<void> => changeOrderStatus(req, res, cancelOrder, "cancelled");
+
+// Payment at the counter for an order placed unpaid (from the kiosk). The
+// whole balance is charged, so only the method is sent; cash change is the
+// cashier's to work out.
+export const payOrderHandler = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const order_id = Number(req.params["id"]);
+    if (!Number.isInteger(order_id)) {
+      res.status(StatusCodes.BAD_REQUEST).json({ error: "Invalid order ID" });
+      return;
+    }
+    const { payment_method } = req.body ?? {};
+    if (!isPaymentMethod(payment_method)) {
+      res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "payment_method must be cash, card or e_wallet" });
+      return;
+    }
+
+    const result = await payOrder(
+      order_id,
+      payment_method,
+      res.locals["employee"].employee_id,
+    );
+    if (result.status === "paid") {
+      res
+        .status(StatusCodes.CREATED)
+        .json({ message: "Payment recorded", data: result.order });
+    } else if (result.status === "not_found") {
+      res.status(StatusCodes.NOT_FOUND).json({ error: "Order not found" });
+    } else if (result.status === "not_pending") {
+      res
+        .status(StatusCodes.CONFLICT)
+        .json({ error: "Only pending orders can be paid" });
+    } else {
+      res
+        .status(StatusCodes.CONFLICT)
+        .json({ error: `Order #${order_id} is already paid` });
+    }
+  } catch (error: any) {
+    console.error("payOrderHandler failed:", error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Failed to record payment" });
+  }
+};

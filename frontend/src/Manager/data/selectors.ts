@@ -28,6 +28,10 @@ export function makeableCount(
 /** Only completed orders count as sales, matching the backend's sales report. */
 export const isSale = (o: Pick<Order, "order_status">): boolean => o.order_status === "completed";
 
+/** A kiosk order the customer hasn't paid for at the counter yet; the backend won't complete it until they have. */
+export const needsPayment = (o: Pick<Order, "order_status" | "balance_due">): boolean =>
+  o.order_status === "pending" && o.balance_due > 0;
+
 export interface SalesTotals {
   orders: number;
   /** Before discounts. */
