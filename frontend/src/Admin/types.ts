@@ -3,8 +3,8 @@
  * but for now everything is fed from ./data/mock.ts.
  */
 
-export type Role = "admin" | "manager" | "cashier" | "supplier" | "customer";
 export type StaffRole = "admin" | "manager" | "cashier";
+export type Role = StaffRole | "customer";
 
 /** GET /manager/me: the signed-in user's employee row. */
 export interface Employee {
@@ -17,17 +17,35 @@ export interface Employee {
   employee_status: "active" | "inactive";
   work_schedule: string;
 }
-export type AccountStatus = "active" | "deactivated" | "locked";
+/** invited: added, but they haven't signed in with the invited address yet. */
+export type AccountStatus = "active" | "invited" | "locked" | "deactivated";
 
+/** GET /admin/users: an employee or a customer, with its Clerk account state. */
 export interface AdminUser {
+  clerk_id: string;
+  kind: "employee" | "customer";
+  /** employee_id or customer_id, by kind. */
   id: number;
   first_name: string;
   last_name: string;
   email: string;
   role: Role;
   status: AccountStatus;
-  last_active: string;
+  /** From Clerk; null when they've never signed in. */
+  last_active: string | null;
+  /** Employees only. */
+  work_schedule: string | null;
 }
+
+export interface NewStaff {
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: StaffRole;
+  work_schedule: string;
+}
+
+export type AccountAction = "lock" | "unlock" | "deactivate" | "reactivate" | "sign-out";
 
 export interface Permission {
   id: string;

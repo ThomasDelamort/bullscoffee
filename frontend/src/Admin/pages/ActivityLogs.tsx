@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { FiCheck, FiDownload, FiFlag } from "react-icons/fi";
+import { FiCheck, FiDownload, FiFlag, FiLock } from "react-icons/fi";
 import { useSearchParams } from "react-router-dom";
 import { errorMessage } from "../../lib/api";
 import { useActivity, useActivityModules, useReviewActivity } from "../api/activity";
+import { useAccountAction, useCurrentEmployee } from "../api/users";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -40,6 +41,8 @@ export default function ActivityLogs() {
   const activity = useActivity(filters);
   const modules = useActivityModules();
   const review = useReviewActivity();
+  const accountAction = useAccountAction();
+  const me = useCurrentEmployee();
 
   const logs = activity.data?.pages.flatMap((page) => page.entries) ?? [];
   const unreviewed = activity.data?.pages[0]?.unreviewed;
@@ -52,6 +55,19 @@ export default function ActivityLogs() {
       onSuccess: () => notify("Marked as reviewed."),
       onError: (error) => notify(errorMessage(error), "error"),
     });
+
+  // Locks the actor's Clerk account from the flagged row; they're shown as
+  // Locked on the Users page, where they can be unlocked again.
+  const lockActor = (log: LogEntry) => {
+    if (!log.actor_clerk_id) return;
+    accountAction.mutate(
+      { clerkId: log.actor_clerk_id, action: "lock" },
+      {
+        onSuccess: () => notify(`${log.actor}'s account is locked pending review.`),
+        onError: (error) => notify(errorMessage(error), "error"),
+      },
+    );
+  };
 
   const exportCsv = () => {
     downloadCsv(
@@ -166,15 +182,28 @@ export default function ActivityLogs() {
                           <Badge tone="success">Reviewed</Badge>
                         </span>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          icon={FiCheck}
-                          disabled={review.isPending && review.variables === log.id}
-                          onClick={() => markReviewed(log)}
-                        >
-                          Mark reviewed
-                        </Button>
+                        <>
+                          {log.actor_clerk_id && log.actor_clerk_id !== me.data?.clerk_id && (
+                            <Button
+                              size="sm"
+                              icon={FiLock}
+                              aria-label={`Lock ${log.actor}'s account`}
+                              disabled={accountAction.isPending}
+                              onClick={() => lockActor(log)}
+                            >
+                              Lock
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            icon={FiCheck}
+                            disabled={review.isPending && review.variables === log.id}
+                            onClick={() => markReviewed(log)}
+                          >
+                            Mark reviewed
+                          </Button>
+                        </>
                       )}
                     </div>
                   </Td>

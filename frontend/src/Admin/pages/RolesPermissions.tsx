@@ -4,7 +4,8 @@ import Button from "../components/Button";
 import Card from "../components/Card";
 import PageHeader from "../components/PageHeader";
 import { useToast } from "../components/toastContext";
-import { DEFAULT_PERMISSIONS, PERMISSIONS, USERS } from "../data/mock";
+import { useAdminUsers } from "../api/users";
+import { DEFAULT_PERMISSIONS, PERMISSIONS } from "../data/mock";
 import { ROLE_LABELS, ROLES } from "../labels";
 import type { Permission, PermissionMatrix, Role } from "../types";
 
@@ -13,6 +14,7 @@ const LOCKED_ROLE: Role = "admin";
 
 export default function RolesPermissions() {
   const notify = useToast();
+  const users = useAdminUsers();
   const [saved, setSaved] = useState<PermissionMatrix>(DEFAULT_PERMISSIONS);
   const [draft, setDraft] = useState<PermissionMatrix>(DEFAULT_PERMISSIONS);
 
@@ -68,7 +70,7 @@ export default function RolesPermissions() {
             </p>
             <p className="mt-2 text-xs text-(--admin-muted)">
               <span className="font-medium text-(--admin-ink) tabular-nums">
-                {USERS.filter((u) => u.role === role).length}
+                {users.data ? users.data.filter((u) => u.role === role).length : "–"}
               </span>{" "}
               users ·{" "}
               <span className="font-medium text-(--admin-ink) tabular-nums">{draft[role].length}</span> of{" "}

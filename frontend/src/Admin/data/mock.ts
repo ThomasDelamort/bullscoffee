@@ -3,10 +3,8 @@
  * the matching backend route exists; the shapes live in ../types.ts.
  */
 import type {
-  AdminUser,
   Backup,
   ExportJob,
-  LogEntry,
   NotificationTemplate,
   Permission,
   PermissionMatrix,
@@ -14,21 +12,6 @@ import type {
   ServiceStatus,
   Ticket,
 } from "../types";
-
-export const USERS: AdminUser[] = [
-  { id: 1, first_name: "Chris", last_name: "Paredes", email: "chris.paredes@bullscoffee.ph", role: "admin", status: "active", last_active: "2026-09-29T09:12:00+08:00" },
-  { id: 2, first_name: "Andrea", last_name: "Villanueva", email: "andrea.v@bullscoffee.ph", role: "manager", status: "active", last_active: "2026-09-29T08:47:00+08:00" },
-  { id: 3, first_name: "Marco", last_name: "Dela Cruz", email: "marco.dc@bullscoffee.ph", role: "manager", status: "active", last_active: "2026-09-28T18:05:00+08:00" },
-  { id: 4, first_name: "Jessa", last_name: "Ramos", email: "jessa.ramos@bullscoffee.ph", role: "cashier", status: "active", last_active: "2026-09-29T09:02:00+08:00" },
-  { id: 5, first_name: "Paolo", last_name: "Santos", email: "paolo.santos@bullscoffee.ph", role: "cashier", status: "locked", last_active: "2026-09-29T07:31:00+08:00" },
-  { id: 6, first_name: "Bea", last_name: "Mendoza", email: "bea.mendoza@bullscoffee.ph", role: "cashier", status: "active", last_active: "2026-09-28T16:22:00+08:00" },
-  { id: 7, first_name: "Kevin", last_name: "Lim", email: "kevin.lim@bullscoffee.ph", role: "cashier", status: "deactivated", last_active: "2026-08-14T12:00:00+08:00" },
-  { id: 8, first_name: "Rosa", last_name: "Aquino", email: "orders@highlandbeans.ph", role: "supplier", status: "active", last_active: "2026-09-27T10:40:00+08:00" },
-  { id: 9, first_name: "Dennis", last_name: "Tan", email: "dennis@dairyfresh.ph", role: "supplier", status: "active", last_active: "2026-09-25T14:10:00+08:00" },
-  { id: 10, first_name: "Mika", last_name: "Reyes", email: "mika.reyes@student.edu.ph", role: "customer", status: "active", last_active: "2026-09-29T08:15:00+08:00" },
-  { id: 11, first_name: "Joshua", last_name: "Garcia", email: "joshua.garcia@student.edu.ph", role: "customer", status: "active", last_active: "2026-09-28T20:44:00+08:00" },
-  { id: 12, first_name: "Trisha", last_name: "Bautista", email: "trisha.b@student.edu.ph", role: "customer", status: "locked", last_active: "2026-09-26T11:09:00+08:00" },
-];
 
 export const PERMISSIONS: Permission[] = [
   { id: "orders.view", label: "View orders", module: "Orders" },
@@ -62,26 +45,8 @@ export const DEFAULT_PERMISSIONS: PermissionMatrix = {
     "staff.schedule", "staff.attendance", "reports.view", "reports.export", "system.logs",
   ],
   cashier: ["orders.view", "orders.process", "orders.void", "inventory.view", "inventory.manage"],
-  supplier: ["supply.fulfil"],
   customer: [],
 };
-
-export const LOGS: LogEntry[] = [
-  { id: 1, timestamp: "2026-09-29T09:14:22+08:00", actor: "Chris Paredes", actor_clerk_id: null, role: "admin", action: "Updated role for Bea Mendoza (cashier)", module: "Users", ip: "10.0.4.12", severity: "info", flag: null },
-  { id: 2, timestamp: "2026-09-29T09:02:10+08:00", actor: "Jessa Ramos", actor_clerk_id: null, role: "cashier", action: "Opened shift & cash drawer", module: "POS", ip: "10.0.2.31", severity: "info", flag: null },
-  { id: 3, timestamp: "2026-09-29T07:31:48+08:00", actor: "Paolo Santos", actor_clerk_id: null, role: "cashier", action: "Account locked after 5 failed sign-in attempts", module: "Auth", ip: "112.198.74.20", severity: "critical", flag: { reason: "Repeated failed sign-ins from an unrecognized IP", reviewed_at: null, reviewed_by: null } },
-  { id: 4, timestamp: "2026-09-29T03:00:04+08:00", actor: "System", actor_clerk_id: null, role: "system", action: "Automatic database backup completed (1.84 GB)", module: "Backups", ip: "—", severity: "info", flag: null },
-  { id: 5, timestamp: "2026-09-28T22:47:15+08:00", actor: "Marco Dela Cruz", actor_clerk_id: null, role: "manager", action: "Exported 12,480 customer records to CSV", module: "Reports", ip: "180.190.33.7", severity: "warning", flag: { reason: "Bulk data export outside business hours", reviewed_at: null, reviewed_by: null } },
-  { id: 6, timestamp: "2026-09-28T18:05:31+08:00", actor: "Marco Dela Cruz", actor_clerk_id: null, role: "manager", action: "Approved refund #R-2291 (₱4,850.00)", module: "Orders", ip: "10.0.3.8", severity: "warning", flag: { reason: "Refund above ₱3,000 threshold", reviewed_at: "2026-09-28T19:00:00+08:00", reviewed_by: "Chris Paredes" } },
-  { id: 7, timestamp: "2026-09-28T16:22:09+08:00", actor: "Bea Mendoza", actor_clerk_id: null, role: "cashier", action: "Voided order #O-18842", module: "Orders", ip: "10.0.3.14", severity: "info", flag: null },
-  { id: 8, timestamp: "2026-09-28T14:10:44+08:00", actor: "System", actor_clerk_id: null, role: "system", action: "Payment webhook retries exceeded for GCash (3 events)", module: "Payments", ip: "—", severity: "warning", flag: null },
-  { id: 9, timestamp: "2026-09-28T11:36:02+08:00", actor: "Andrea Villanueva", actor_clerk_id: null, role: "manager", action: "Updated price of Caramel Macchiato (₱165 → ₱175)", module: "Menu", ip: "10.0.4.3", severity: "info", flag: null },
-  { id: 10, timestamp: "2026-09-28T02:18:57+08:00", actor: "Unknown", actor_clerk_id: null, role: "system", action: "Sign-in attempt as admin with invalid 2FA code", module: "Auth", ip: "45.83.12.201", severity: "critical", flag: { reason: "Admin sign-in attempt from a foreign IP", reviewed_at: null, reviewed_by: null } },
-  { id: 11, timestamp: "2026-09-27T10:40:12+08:00", actor: "Rosa Aquino", actor_clerk_id: null, role: "manager", action: "Confirmed purchase order #PO-0412", module: "Inventory", ip: "121.54.9.66", severity: "info", flag: null },
-  { id: 12, timestamp: "2026-09-26T11:09:30+08:00", actor: "Trisha Bautista", actor_clerk_id: null, role: "customer", action: "Account locked after 5 failed sign-in attempts", module: "Auth", ip: "49.145.22.8", severity: "warning", flag: null },
-  { id: 13, timestamp: "2026-09-26T09:00:00+08:00", actor: "Chris Paredes", actor_clerk_id: null, role: "admin", action: "Changed session timeout (60 → 30 min)", module: "Settings", ip: "10.0.4.12", severity: "info", flag: null },
-  { id: 14, timestamp: "2026-09-25T15:27:41+08:00", actor: "Jessa Ramos", actor_clerk_id: null, role: "cashier", action: "Applied 100% discount to order #O-18110", module: "Orders", ip: "10.0.2.31", severity: "warning", flag: { reason: "Full-value discount applied by cashier", reviewed_at: null, reviewed_by: null } },
-];
 
 export const TICKETS: Ticket[] = [
   {
@@ -142,16 +107,6 @@ export const RESPONSE_TIME_24H: SeriesPoint[] = [
   118, 112, 104, 98, 96, 101, 124, 168, 212, 236, 228, 251,
   274, 262, 231, 219, 226, 244, 197, 172, 150, 139, 131, 142,
 ].map((value, i) => ({ label: `${String(i).padStart(2, "0")}:00`, value }));
-
-export const SIGN_INS_7D: SeriesPoint[] = [
-  { label: "Tue", value: 412 },
-  { label: "Wed", value: 468 },
-  { label: "Thu", value: 455 },
-  { label: "Fri", value: 521 },
-  { label: "Sat", value: 238 },
-  { label: "Sun", value: 176 },
-  { label: "Mon", value: 489 },
-];
 
 export const RESOURCES = [
   { label: "CPU", value: 38, detail: "4 vCPU" },

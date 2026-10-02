@@ -5,6 +5,12 @@ import {
   getSignInStatsHandler,
   reviewActivityHandler,
 } from "../controllers/activity.controller.ts";
+import {
+  accountActionHandler,
+  inviteUserHandler,
+  listUsersHandler,
+  updateStaffHandler,
+} from "../controllers/admin-users.controller.ts";
 import { protectRoute, requireAdmin } from "../middleware/auth.middleware.ts";
 
 // Mounted at /api/admin. Every route below is for active admins only: the
@@ -20,5 +26,17 @@ router.get("/activity", getActivityHandler);
 router.get("/activity/modules", getActivityModulesHandler);
 router.get("/activity/stats/sign-ins", getSignInStatsHandler);
 router.patch("/activity/:id/review", reviewActivityHandler);
+
+/*
+    USERS - employees and customers, with their Clerk account state
+*/
+router.get("/users", listUsersHandler);
+router.post("/users", inviteUserHandler);
+router.patch("/users/employees/:id", updateStaffHandler);
+router.post("/users/:clerkId/lock", accountActionHandler("lock"));
+router.post("/users/:clerkId/unlock", accountActionHandler("unlock"));
+router.post("/users/:clerkId/deactivate", accountActionHandler("deactivate"));
+router.post("/users/:clerkId/reactivate", accountActionHandler("reactivate"));
+router.post("/users/:clerkId/sign-out", accountActionHandler("sign-out"));
 
 export default router;

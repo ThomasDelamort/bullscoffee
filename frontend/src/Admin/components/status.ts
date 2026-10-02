@@ -14,6 +14,7 @@ type StatusMap<K extends string> = Record<K, { tone: Tone; label: string }>;
 
 export const ACCOUNT_STATUS: StatusMap<AccountStatus> = {
   active: { tone: "success", label: "Active" },
+  invited: { tone: "info", label: "Invited" },
   locked: { tone: "warning", label: "Locked" },
   deactivated: { tone: "neutral", label: "Deactivated" },
 };
