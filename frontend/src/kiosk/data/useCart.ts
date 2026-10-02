@@ -59,18 +59,18 @@ export function useCart(): Cart {
   const remove = useCallback((key: number) => setLines((current) => current.filter((l) => l.key !== key)), []);
   const clear = useCallback(() => setLines([]), []);
 
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const units = new Map<number, number>();
+    for (const l of lines) units.set(l.product.product_id, (units.get(l.product.product_id) ?? 0) + l.quantity);
+    return {
       lines,
       count: lines.reduce((n, l) => n + l.quantity, 0),
       total: subtotalOf(lines.map((l) => ({ quantity: l.quantity, selling_price: l.price }))),
-      countOf: (productId) =>
-        lines.filter((l) => l.product.product_id === productId).reduce((n, l) => n + l.quantity, 0),
+      countOf: (productId: number) => units.get(productId) ?? 0,
       add,
       setQuantity,
       remove,
       clear,
-    }),
-    [lines, add, setQuantity, remove, clear],
-  );
+    };
+  }, [lines, add, setQuantity, remove, clear]);
 }

@@ -1,5 +1,7 @@
 import { motion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
+import { Link } from "react-router-dom";
+import { KIOSK_BASE_PATH } from "../../kiosk/routes";
 import HeroImage from "../Hero/HeroImage";
 import { MENU_ITEMS } from "../Menu/menu.config";
 import { ESPRESSO, GOLD } from "../theme";
@@ -48,13 +50,13 @@ export default function OrderCta() {
           Order ahead from any branch and it'll be ready by the time you arrive.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <button
-            type="button"
+          <Link
+            to={KIOSK_BASE_PATH}
             className={`${BUTTON} shadow-lg`}
             style={{ backgroundColor: GOLD, color: ESPRESSO }}
           >
             Order now
-          </button>
+          </Link>
           <button type="button" onClick={goToMenu} className={`${BUTTON} ring-2 ring-current ring-inset`}>
             See the menu
           </button>

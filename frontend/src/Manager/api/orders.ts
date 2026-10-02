@@ -4,7 +4,7 @@ import type { ItemSize, Order, OrderDetails, OrderStatus, PaymentMethod } from "
 import { numeric } from "./forms";
 import { managerKeys, type OrderFilters } from "./keys";
 
-const toOrder = (o: Order): Order => numeric(o, "discount_amount", "total_amount");
+const toOrder = (o: Order): Order => numeric(o, "discount_amount", "total_amount", "balance_due");
 const toOrderDetails = (o: OrderDetails): OrderDetails => ({
   ...toOrder(o),
   items: o.items.map((i) => numeric(i, "selling_price", "quantity")),
@@ -43,6 +43,8 @@ export function useOrder(orderId: number | null) {
 
 export interface NewOrderInput {
   customer_id: number | null;
+  /** A preset is priced by the backend; discount_amount only counts for a custom amount. */
+  discount_id: number | null;
   discount_amount: number;
   items: {
     product_id: number;
@@ -62,6 +64,27 @@ export function usePlaceOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (order: NewOrderInput) => toOrderDetails(await api.post<OrderDetails>("/orders", order)),
+    onSuccess: (order) => {
+      queryClient.setQueryData(managerKeys.order(order.order_id), order);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: managerKeys.orderLists }),
+        queryClient.invalidateQueries({ queryKey: managerKeys.reports }),
+      ]);
+    },
+  });
+}
+
+/**
+ * Takes payment at the counter for a kiosk order. The backend charges the
+ * whole balance, so only the method is sent. The order stays pending, now in
+ * the barista's queue.
+ */
+export function usePayOrder() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orderId, method }: { orderId: number; method: PaymentMethod }) =>
+      toOrderDetails(await api.post<OrderDetails>(`/orders/${orderId}/payments`, { payment_method: method })),
     onSuccess: (order) => {
       queryClient.setQueryData(managerKeys.order(order.order_id), order);
       return Promise.all([

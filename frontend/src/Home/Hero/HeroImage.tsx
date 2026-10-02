@@ -1,11 +1,6 @@
 import type { ImgHTMLAttributes } from 'react';
 import type { HeroAssetFile } from './hero.config';
-
-/** Whatever is currently in ./assets; files added later are picked up automatically. */
-const ASSET_URLS = import.meta.glob<string>('./assets/*.{png,webp,avif,jpg,jpeg,svg}', {
-  eager: true,
-  import: 'default',
-});
+import { heroAssetUrl } from './heroAssets';
 
 const PLACEHOLDER_SHAPES = {
   card: 'rounded-3xl',
@@ -32,7 +27,7 @@ export default function HeroImage({
   style,
   ...imgProps
 }: HeroImageProps) {
-  const src = ASSET_URLS[`./assets/${file}`];
+  const src = heroAssetUrl(file);
 
   if (src) {
     return (

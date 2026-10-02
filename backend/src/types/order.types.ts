@@ -1,15 +1,21 @@
 export type OrderStatus = "pending" | "completed" | "cancelled";
 export type PaymentMethod = "cash" | "card" | "e_wallet";
 export type ItemSize = "tall" | "grade" | "venti";
+/** Rung up by a cashier, or placed by a customer at the kiosk. */
+export type OrderSource = "counter" | "kiosk";
 
 export interface OrderRow {
   order_id: number;
   customer_id: number | null;
-  employee_id: number;
+  /** null for a kiosk order nobody at the counter has handled yet. */
+  employee_id: number | null;
   ordered_at: Date;
   discount_amount: number;
   total_amount: number;
   order_status: OrderStatus;
+  order_source: OrderSource;
+  /** The preset behind discount_amount; null for none or a custom amount. */
+  discount_id: number | null;
 }
 
 export interface OrderItemRow {
@@ -28,6 +34,8 @@ export interface PaymentRow {
   amount_paid: number;
   payment_method: PaymentMethod;
   paid_at: Date;
+  /** PayMongo's payment id for a payment taken online; null at the counter. */
+  paymongo_payment_id: string | null;
 }
 
 export interface OrderFilters {
@@ -53,7 +61,10 @@ export interface NewOrderItem {
 
 export interface NewOrder {
   customer_id: number | null;
-  employee_id: number;
+  /** null for a kiosk order. */
+  employee_id: number | null;
+  order_source: OrderSource;
+  discount_id: number | null;
   discount_amount: number;
   items: NewOrderItem[];
   /** Omit to leave the order pending and unpaid. */
@@ -64,7 +75,12 @@ export interface NewOrder {
 
 export interface OrderListRow extends OrderRow {
   customer_name: string | null;
-  employee_name: string;
+  employee_name: string | null;
+  discount_name: string | null;
+  /** The total less payments so far. Above 0 only for an order placed unpaid, i.e. from the kiosk. */
+  balance_due: number;
+  /** Every line's product and quantity, so a list can say what was ordered without loading each order. */
+  item_summary: { product_name: string; quantity: number }[];
 }
 
 export interface OrderDetails extends OrderListRow {

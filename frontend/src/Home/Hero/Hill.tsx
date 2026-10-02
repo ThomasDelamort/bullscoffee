@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { KIOSK_BASE_PATH } from "../../kiosk/routes";
 import { BRAND_GOLD, HILL_INK } from "./hero.config";
 
 const BADGES = [
@@ -19,13 +21,13 @@ function Hill() {
       </p>
 
       <div className="order-1 flex shrink-0 items-center gap-2 sm:order-2">
-        <button
-          type="button"
+        <Link
+          to={KIOSK_BASE_PATH}
           className="rounded-full px-7 py-3 text-lg font-extrabold uppercase shadow-md transition-transform hover:scale-105"
           style={{ backgroundColor: BRAND_GOLD, color: HILL_INK }}
         >
           Order Now
-        </button>
+        </Link>
       </div>
 
       <div className="order-3 hidden shrink-0 items-center gap-4 sm:flex">

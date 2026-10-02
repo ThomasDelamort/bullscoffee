@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import ToastProvider from "./components/ToastProvider";
-import PosDataProvider from "./data/PosDataProvider";
+import StaffGate from "./layout/StaffGate";
 import Register from "./pages/Register";
 import { POS_BASE_PATH } from "./routes";
 import "./pos.css";
@@ -9,14 +9,14 @@ import "./pos.css";
 export default function POSRoutes() {
   return (
     <div className="pos-root min-h-dvh bg-(--pos-canvas) text-(--pos-ink) antialiased">
-      <PosDataProvider>
-        <ToastProvider>
+      <ToastProvider>
+        <StaffGate>
           <Routes>
             <Route index element={<Register />} />
             <Route path="*" element={<Navigate to={POS_BASE_PATH} replace />} />
           </Routes>
-        </ToastProvider>
-      </PosDataProvider>
+        </StaffGate>
+      </ToastProvider>
     </div>
   );
 }

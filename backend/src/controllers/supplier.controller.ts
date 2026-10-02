@@ -27,7 +27,7 @@ const toBoolean = (value: unknown): boolean | undefined => {
   return undefined;
 };
 
-// Multipart requests carry the image as a file: uploadToS3 leaves its URL on
+// Multipart requests carry the image as a file: uploadFile leaves its URL on
 // res.locals.fileUrl. An empty image_url field with no file removes the image.
 // undefined means "leave the image alone".
 const resolveImageUrl = (

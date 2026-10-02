@@ -1,44 +1,66 @@
 import { useMemo, type ReactNode } from "react";
 import { FiX } from "react-icons/fi";
-import { usePosData } from "../data/posContext";
-import { itemSummary, linesOf, shiftSummary, type OrderFilter } from "../data/selectors";
+import { errorMessage } from "../../lib/api";
+import { useCompleteOrder } from "../api/orders";
+import { isPaid, itemSummary, shiftSummary, type OrderFilter } from "../data/selectors";
 import type { Order } from "../types";
-import { formatLongDate, formatPeso, formatRelative, fullName, round2 } from "../utils/format";
-import { useNow } from "../utils/useNow";
+import { formatLongDate, formatPeso, formatRelative, round2 } from "../utils/format";
+import { SOURCE } from "./status";
+import { ErrorNotice, Loading } from "./QueryState";
 import { buttonClass, FOCUS_RING, segmentClass } from "./styles";
 import { useToast } from "./toastContext";
 
 interface OrdersPanelProps {
+  /** Today's orders and yesterday's still pending; undefined while loading. */
+  orders: Order[] | undefined;
+  error: unknown;
+  onRetry: () => void;
+  /** The register's local YYYY-MM-DD. */
+  today: string;
+  now: Date;
   filter: OrderFilter;
   onFilterChange: (filter: OrderFilter) => void;
   onOpenOrder: (orderId: number) => void;
-  /** Closes the drawer below xl; the panel is a fixed column above it. */
   onClose: () => void;
 }
 
 const FILTERS: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "walk_in", label: "Walk-in" },
-  { value: "online", label: "Online" },
+  { value: "counter", label: SOURCE.counter.label },
+  { value: "kiosk", label: SOURCE.kiosk.label },
 ];
 
-/** Right-hand panel: the shift's numbers (sales, discounts given) and every order, open ones first. */
-export default function OrdersPanel({ filter, onFilterChange, onOpenOrder, onClose }: OrdersPanelProps) {
-  const { db, completeOrder } = usePosData();
+/** The shift's numbers (sales, discounts given) and every order, the ones needing the cashier first. */
+export default function OrdersPanel({
+  orders,
+  error,
+  onRetry,
+  today,
+  now,
+  filter,
+  onFilterChange,
+  onOpenOrder,
+  onClose,
+}: OrdersPanelProps) {
+  const completeOrder = useCompleteOrder();
   const notify = useToast();
-  const now = useNow();
-  const summary = useMemo(() => shiftSummary(db), [db]);
+  const rows = useMemo(() => orders ?? [], [orders]);
+  const summary = useMemo(() => shiftSummary(rows, today), [rows, today]);
 
-  const visible = db.orders.filter((o) => filter === "all" || o.order_type === filter);
-  // Oldest open order first: it has waited longest.
-  const open = visible.filter((o) => o.order_status === "pending").sort((a, b) => a.ordered_at.localeCompare(b.ordered_at));
+  const visible = rows.filter((o) => filter === "all" || o.order_source === filter);
+  // Oldest first among open orders: they've waited longest.
+  const oldestFirst = (a: Order, b: Order) => a.ordered_at.localeCompare(b.ordered_at);
+  const pending = visible.filter((o) => o.order_status === "pending");
+  const toCharge = pending.filter((o) => !isPaid(o)).sort(oldestFirst);
+  const toHandOver = pending.filter(isPaid).sort(oldestFirst);
   const closed = visible.filter((o) => o.order_status !== "pending").sort((a, b) => b.ordered_at.localeCompare(a.ordered_at));
-  const countFor = (f: OrderFilter) => db.orders.filter((o) => f === "all" || o.order_type === f).length;
+  const countFor = (f: OrderFilter) => rows.filter((o) => f === "all" || o.order_source === f).length;
 
-  const complete = (order: Order) => {
-    completeOrder(order.order_id);
-    notify(`Order #${order.order_id} completed.`);
-  };
+  const complete = (order: Order) =>
+    completeOrder.mutate(order.order_id, {
+      onSuccess: () => notify(`Order #${order.order_id} completed.`),
+      onError: (e) => notify(errorMessage(e), "error"),
+    });
 
   return (
     <div className="pos-scroll flex h-full flex-col overflow-y-auto">
@@ -52,27 +74,23 @@ export default function OrdersPanel({ filter, onFilterChange, onOpenOrder, onClo
             type="button"
             aria-label="Close orders"
             onClick={onClose}
-            className={`-mr-2 grid size-9 place-items-center rounded-lg text-(--pos-muted) hover:bg-white/5 hover:text-(--pos-ink) xl:hidden ${FOCUS_RING}`}
+            className={`-mr-2 grid size-9 place-items-center rounded-lg text-(--pos-muted) hover:bg-white/5 hover:text-(--pos-ink) ${FOCUS_RING}`}
           >
             <FiX aria-hidden className="size-5" />
           </button>
         </div>
 
         <p className="text-xs text-(--pos-muted)">Net sales</p>
-        <p className="text-3xl font-semibold tabular-nums">{formatPeso(summary.netSales)}</p>
+        <p className="text-3xl font-semibold tabular-nums">{orders ? formatPeso(summary.netSales) : "—"}</p>
         <p className="mt-0.5 text-xs text-(--pos-muted) tabular-nums">
           {summary.orderCount} paid orders
           {summary.orderCount > 0 && ` · avg ${formatPeso(round2(summary.netSales / summary.orderCount))}`}
         </p>
 
         <dl className="mt-4 divide-y divide-white/[0.06] text-sm">
-          <Row label="Walk-in" value={formatPeso(summary.byType.walk_in.sales)} hint={summary.byType.walk_in.count} />
-          <Row label="Online" value={formatPeso(summary.byType.online.sales)} hint={summary.byType.online.count} />
-          <Row
-            label="Discounts given"
-            value={`− ${formatPeso(summary.discountTotal)}`}
-            hint={summary.discountedCount}
-          />
+          <Row label={SOURCE.counter.label} value={formatPeso(summary.bySource.counter.sales)} hint={summary.bySource.counter.count} />
+          <Row label={SOURCE.kiosk.label} value={formatPeso(summary.bySource.kiosk.sales)} hint={summary.bySource.kiosk.count} />
+          <Row label="Discounts given" value={`− ${formatPeso(summary.discountTotal)}`} hint={summary.discountedCount} />
           {summary.discountsByName.map((d) => (
             <Row key={d.name} label={d.name} value={`− ${formatPeso(d.amount)}`} hint={`×${d.count}`} nested />
           ))}
@@ -80,7 +98,7 @@ export default function OrdersPanel({ filter, onFilterChange, onOpenOrder, onClo
       </section>
 
       <div className="sticky top-0 z-10 bg-(--pos-panel)/95 px-5 py-2 backdrop-blur">
-        <div role="group" aria-label="Order type" className="grid grid-cols-3 gap-1 rounded-lg bg-white/[0.04] p-1">
+        <div role="group" aria-label="Order source" className="grid grid-cols-3 gap-1 rounded-lg bg-white/[0.04] p-1">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -96,16 +114,36 @@ export default function OrdersPanel({ filter, onFilterChange, onOpenOrder, onClo
       </div>
 
       <div className="flex-1 space-y-5 px-5 pt-3 pb-5">
-        <OrderGroup title="To hand over" count={open.length} empty="Nothing waiting.">
-          {open.map((o) => (
-            <OrderRow key={o.order_id} order={o} now={now} onOpen={() => onOpenOrder(o.order_id)} onComplete={() => complete(o)} />
-          ))}
-        </OrderGroup>
-        <OrderGroup title="Earlier" count={closed.length} empty="No finished orders yet.">
-          {closed.map((o) => (
-            <OrderRow key={o.order_id} order={o} now={now} onOpen={() => onOpenOrder(o.order_id)} />
-          ))}
-        </OrderGroup>
+        {error ? <ErrorNotice title="Couldn't load orders" error={error} onRetry={onRetry} /> : null}
+        {!orders && !error && <Loading label="Loading orders…" />}
+        {orders && (
+          <>
+            {toCharge.length > 0 && (
+              <OrderGroup title="To charge" count={toCharge.length} empty="">
+                {toCharge.map((o) => (
+                  <OrderRow key={o.order_id} order={o} now={now} onOpen={() => onOpenOrder(o.order_id)} action="Charge" />
+                ))}
+              </OrderGroup>
+            )}
+            <OrderGroup title="To hand over" count={toHandOver.length} empty="Nothing waiting.">
+              {toHandOver.map((o) => (
+                <OrderRow
+                  key={o.order_id}
+                  order={o}
+                  now={now}
+                  onOpen={() => onOpenOrder(o.order_id)}
+                  action="Served"
+                  onAction={() => complete(o)}
+                />
+              ))}
+            </OrderGroup>
+            <OrderGroup title="Earlier" count={closed.length} empty="No finished orders yet.">
+              {closed.map((o) => (
+                <OrderRow key={o.order_id} order={o} now={now} onOpen={() => onOpenOrder(o.order_id)} />
+              ))}
+            </OrderGroup>
+          </>
+        )}
       </div>
     </div>
   );
@@ -147,49 +185,53 @@ interface OrderRowProps {
   order: Order;
   now: Date;
   onOpen: () => void;
-  onComplete?: () => void;
+  /** Label for the row's button. Without onAction it opens the order instead. */
+  action?: string;
+  onAction?: () => void;
 }
 
-function OrderRow({ order, now, onOpen, onComplete }: OrderRowProps) {
-  const { db } = usePosData();
-  const lines = linesOf(db, order.order_id);
-  const customer = db.customers.find((c) => c.customer_id === order.customer_id);
-  const discount = db.discounts.find((d) => d.discount_id === order.discount_id);
+function OrderRow({ order, now, onOpen, action, onAction }: OrderRowProps) {
   const pending = order.order_status === "pending";
   const cancelled = order.order_status === "cancelled";
-  const online = order.order_type === "online";
+  const source = SOURCE[order.order_source];
+  const unpaid = pending && !isPaid(order);
 
   return (
     <li className={`flex items-start gap-3 py-3 ${pending ? "" : "opacity-60"}`}>
       <span
         aria-hidden
         className={`mt-1.5 size-2 shrink-0 rounded-full ${
-          pending ? (online ? "bg-(--pos-sky)" : "bg-(--pos-gold)") : "bg-white/15"
+          pending ? (order.order_source === "kiosk" ? "bg-(--pos-sky)" : "bg-(--pos-gold)") : "bg-white/15"
         }`}
       />
       <button type="button" onClick={onOpen} className={`-my-1 min-w-0 flex-1 rounded-md py-1 text-left ${FOCUS_RING}`}>
         <span className="flex items-baseline gap-2">
           <span className="text-sm font-medium tabular-nums">#{order.order_id}</span>
-          <span className={`text-xs ${online ? "text-(--pos-sky)" : "text-(--pos-muted)"}`}>{online ? "Online" : "Walk-in"}</span>
+          <span className={`text-xs ${source.color}`}>{source.label}</span>
           <span className={`ml-auto text-sm tabular-nums ${cancelled ? "line-through" : ""}`}>
             {formatPeso(order.total_amount)}
           </span>
         </span>
-        <span className="mt-0.5 block truncate text-xs text-(--pos-ink)/80">{itemSummary(lines)}</span>
+        <span className="mt-0.5 block truncate text-xs text-(--pos-ink)/80">{itemSummary(order)}</span>
         <span className="mt-0.5 block truncate text-xs text-(--pos-muted)">
           {[
             cancelled && "Cancelled",
-            customer && fullName(customer),
+            unpaid && "Not paid yet",
+            order.customer_name,
             formatRelative(order.ordered_at, now),
-            order.discount_amount > 0 && `${discount?.discount_name ?? "Custom"} − ${formatPeso(order.discount_amount)}`,
+            order.discount_amount > 0 && `${order.discount_name ?? "Custom"} − ${formatPeso(order.discount_amount)}`,
           ]
             .filter(Boolean)
             .join(" · ")}
         </span>
       </button>
-      {pending && onComplete && (
-        <button type="button" onClick={onComplete} className={`${buttonClass("secondary", "sm")} mt-0.5`}>
-          {online ? "Picked up" : "Served"}
+      {pending && action && (
+        <button
+          type="button"
+          onClick={onAction ?? onOpen}
+          className={`${buttonClass(unpaid ? "primary" : "secondary", "sm")} mt-0.5`}
+        >
+          {action}
         </button>
       )}
     </li>

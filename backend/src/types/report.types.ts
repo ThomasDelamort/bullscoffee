@@ -37,7 +37,7 @@ export interface SalesReport {
 export interface SalesExportRow {
   order_id: number;
   ordered_at: Date;
-  cashier: string;
+  cashier: string | null;
   customer: string | null;
   discount_amount: number;
   total_amount: number;

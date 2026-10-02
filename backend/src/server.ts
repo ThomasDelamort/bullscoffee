@@ -5,7 +5,6 @@ import { clerkMiddleware } from "@clerk/express";
 import type { Request, Response } from "express";
 import { runInitSql } from "./lib/init.ts";
 import responseFormatter from "./middleware/responseFormatter.ts";
-import { handleUploadError } from "./middleware/upload.middleware.ts";
 import { StatusCodes } from "http-status-codes";
 
 // Import Routes
@@ -22,11 +21,23 @@ import deliveryRoutes from "./routes/delivery.route.ts";
 import orderRoutes from "./routes/order.route.ts";
 import stockMovementsRoute from "./routes/stock-movement.route.ts";
 import attendanceRoutes from "./routes/attendance.route.ts";
+import documentRoutes from "./routes/document.route.ts";
+import kioskRoutes from "./routes/kiosk.route.ts";
+import discountRoutes from "./routes/discount.route.ts";
+import paymentRoutes from "./routes/payment.route.ts";
+import { paymongoWebhookHandler } from "./controllers/payment.controller.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
 
 app.use(cors());
+// PayMongo signs the exact bytes it sends, so its webhook takes the raw body
+// and has to be registered before express.json() parses it away.
+app.post(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  paymongoWebhookHandler,
+);
 app.use(express.json());
 app.use(clerkMiddleware());
 app.use(responseFormatter);
@@ -60,9 +71,10 @@ app.use("/api", deliveryRoutes);
 app.use("/api", orderRoutes);
 app.use("/api", stockMovementsRoute);
 app.use("/api", attendanceRoutes);
-
-// After the routes: turns multer's size/type rejections into the API's JSON shape.
-app.use(handleUploadError);
+app.use("/api", documentRoutes);
+app.use("/api", kioskRoutes);
+app.use("/api", discountRoutes);
+app.use("/api", paymentRoutes);
 
 async function startServer() {
   try {

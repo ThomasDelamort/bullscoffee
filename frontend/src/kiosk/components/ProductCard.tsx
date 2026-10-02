@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FiPlus } from "react-icons/fi";
 import type { Product } from "../../POS/types";
 import { formatPeso } from "../../POS/utils/format";
@@ -11,18 +12,30 @@ interface ProductCardProps {
   onPick: (product: Product) => void;
 }
 
-/** A menu tile. The whole card is one tap target (a stretched button on the name). */
-export default function ProductCard({ product, inCart, onPick }: ProductCardProps) {
+/**
+ * A menu tile. The whole card is one tap target (a stretched button on the name).
+ * Memoized: adding to the order re-renders only the tile whose count changed.
+ */
+export default memo(function ProductCard({
+  product,
+  inCart,
+  onPick,
+}: ProductCardProps) {
   const soldOut = !product.is_available;
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-(--k-surface) shadow-[0_18px_40px_-28px_rgba(42,26,16,0.55)] ring-1 ring-(--k-line) transition ${FOCUS_WITHIN_RING} ${
-        soldOut ? "" : "hover:-translate-y-0.5 hover:shadow-[0_24px_44px_-26px_rgba(42,26,16,0.6)] active:scale-[0.985]"
+      className={`group relative isolate flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-(--k-surface) shadow-[0_18px_40px_-28px_rgba(42,26,16,0.55)] ring-1 ring-(--k-line) transition ${FOCUS_WITHIN_RING} ${
+        soldOut
+          ? ""
+          : "hover:-translate-y-0.5 hover:shadow-[0_24px_44px_-26px_rgba(42,26,16,0.6)] active:scale-[0.985]"
       }`}
     >
       <div className="relative">
-        <ProductArt product={product} className={`aspect-[4/3] w-full ${soldOut ? "opacity-50 grayscale" : ""}`} />
+        <ProductArt
+          product={product}
+          className={`aspect-4/3 w-full ${soldOut ? "opacity-50 grayscale" : ""}`}
+        />
         {inCart > 0 && (
           <span className="absolute top-3 left-3 rounded-full bg-(--k-ink) px-3 py-1 text-xs font-bold text-(--k-canvas) tabular-nums shadow">
             {inCart} in order
@@ -36,18 +49,23 @@ export default function ProductCard({ product, inCart, onPick }: ProductCardProp
             type="button"
             disabled={soldOut}
             onClick={() => onPick(product)}
-            className="text-left outline-none after:absolute after:inset-0 after:content-[''] disabled:cursor-not-allowed"
+            // z-10: the plus scales on hover/press, which would otherwise lift it above this target and swallow the click.
+            className="text-left outline-none after:absolute after:inset-0 after:z-10 after:content-[''] disabled:cursor-not-allowed"
           >
             {product.product_name}
             {soldOut && <span className="sr-only">, sold out</span>}
           </button>
         </h2>
         {product.description && (
-          <p className="mt-1 line-clamp-2 text-sm text-(--k-muted)">{product.description}</p>
+          <p className="mt-1 line-clamp-2 text-sm text-(--k-muted)">
+            {product.description}
+          </p>
         )}
 
         <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-          <span className={`text-base font-bold tabular-nums sm:text-lg ${soldOut ? "text-(--k-muted)" : ""}`}>
+          <span
+            className={`text-base font-bold tabular-nums sm:text-lg ${soldOut ? "text-(--k-muted)" : ""}`}
+          >
             {formatPeso(product.price)}
           </span>
           {soldOut ? (
@@ -66,4 +84,4 @@ export default function ProductCard({ product, inCart, onPick }: ProductCardProp
       </div>
     </article>
   );
-}
+});

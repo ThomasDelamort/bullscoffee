@@ -1,7 +1,7 @@
 import { ClerkProvider } from "@clerk/clerk-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { AUTH_PATHS } from "../AuthPage";
+import { AUTH_PATHS } from "../AuthPage/routes";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 

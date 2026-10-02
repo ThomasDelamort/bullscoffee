@@ -31,6 +31,17 @@ export const getProductsById = async (product_id: number): Promise<Product> => {
   return result.rows[0];
 };
 
+// Every product in `product_ids` that exists; missing ids are simply absent.
+export const getProductsByIds = async (
+  product_ids: number[],
+): Promise<Product[]> => {
+  const result = await pool.query(
+    `SELECT * FROM products WHERE product_id = ANY($1::int[])`,
+    [product_ids],
+  );
+  return result.rows;
+};
+
 // CREATE
 export const createProduct = async (
   product: NewProduct,

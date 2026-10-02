@@ -66,9 +66,11 @@ This is an active student project, not a finished product. What exists today:
   and suppliers, but most aren't mounted as routes yet — see
   [API Reference](#-api-reference) for exactly what's live today
   ([server.ts](backend/src/server.ts) only mounts three route files)
-- 🟡 S3 image upload is implemented
-  ([upload.middleware.ts](backend/src/middleware/upload.middleware.ts),
-  multer + `@aws-sdk/client-s3`) but not yet attached to any route
+- ✅ S3 uploads are routed: product, category, ingredient, supplier and
+  employee images, plus PDFs and private CSV logs, each in its own folder
+  under `bulls-coffee/` in the bucket
+  ([s3.ts](backend/src/lib/s3.ts),
+  [upload.middleware.ts](backend/src/middleware/upload.middleware.ts))
 - 🔜 The customer-facing `/menu` page is still a static/animated mock
   ([StaticMenu.tsx](frontend/src/Home/Menu/StaticMenu.tsx) /
   [PourShowcase](frontend/src/Home/Menu/PourShowcase.tsx)), not fetched
@@ -107,8 +109,8 @@ npm run dev
 ```
 
 The API starts on **http://localhost:3000** (see `PORT` in `.env`). The
-`AWS_*` variables in `.env.example` are only used by the (currently
-unrouted) S3 image-upload middleware — safe to leave blank for now.
+`AWS_*` variables in `.env.example` are used for file uploads — the server
+boots without them, but uploads then fail with "S3 is not configured".
 
 ### 3. Frontend
 
@@ -145,12 +147,11 @@ Both the frontend and backend need keys from the same
 | 🔑  | **Custom auth UI**      | Clerk-backed sign-in/sign-up page with email/password, social buttons, and password reset   |
 | 📊  | **Manager dashboard**   | 12-page UI (POS, orders, discounts, reports, feedback, products, staff, schedules, attendance, inventory, suppliers) — currently mock-data only, see [Project Status](#-project-status) |
 | 🛠️  | **Admin dashboard**     | 11-page system-admin UI (users, roles, health, logs, tickets, branches, payments, …) — also mock-data only |
-| ☁️  | **Image uploads**       | S3 upload middleware (multer + `@aws-sdk/client-s3`) implemented but not yet attached to a route |
+| ☁️  | **File uploads**        | S3 via multer: menu/supplier/staff images and PDFs (public), CSV logs (private, manager/admin only) |
 
 ### Planned
 
-Wiring the Manager/Admin UIs and the S3 upload middleware to the real
-API, a customer-facing menu backed by `/api/products`, cart & checkout,
+Wiring the Manager/Admin UIs to the real API, a customer-facing menu backed by `/api/products`, cart & checkout,
 order and payment processing, and role-based authorization
 (`requireManager`) are the next milestones. Most of the backend surface
 for these (controllers + providers for categories, ingredients, orders,
@@ -166,7 +167,7 @@ today.
 | Backend    | Express 5, TypeScript (native `.ts` execution via Node's `--watch`) |
 | Database   | PostgreSQL via `pg`, schema applied from a plain `init.sql`    |
 | Auth       | Clerk (`@clerk/express` on the backend, `@clerk/clerk-react` on the frontend) |
-| File storage | AWS S3 (`@aws-sdk/client-s3`) via `multer`, for product images (not yet routed) |
+| File storage | AWS S3 (`@aws-sdk/client-s3`) via `multer`, under `bulls-coffee/` in the bucket |
 | Tooling    | oxlint (frontend), `http-status-codes` for consistent API responses |
 
 ## 🔐 Authentication (Clerk)
@@ -195,7 +196,7 @@ Base URL: `http://localhost:3000/api`. Responses are wrapped as
 
 These are the only routes actually mounted in
 [server.ts](backend/src/server.ts) today. All of them except the product
-endpoints require a Clerk session (`Authorization: Bearer <token>`).
+and kiosk endpoints require a Clerk session (`Authorization: Bearer <token>`).
 
 | Method | Path                    | Notes                                                       |
 | ------ | ----------------------- | ----------------------------------------------------------- |
@@ -214,6 +215,7 @@ endpoints require a Clerk session (`Authorization: Bearer <token>`).
 | DELETE | `/admin/employees/:id`  |                                                              |
 | GET    | `/products`             | List all products — no auth required                        |
 | GET    | `/products/:id`         | No auth required                                             |
+| POST   | `/kiosk/orders`         | No auth required; rate limited to 30 requests per 5 minutes per IP. Self-order from `/kiosk`: `{ items: [{ product_id, quantity, size?, special_instructions? }] }`. Priced server-side, saved as pending with no cashier until it's paid at the counter; linked to the customer when a Clerk session is sent |
 
 The `/customers` and `/admin/customers` handlers are near-duplicates backed
 by two separate providers ([customer.provider.ts](backend/src/providers/customer.provider.ts),
@@ -265,7 +267,7 @@ backend/
     routes/              # only 3 files mounted: customer, admin, product — see API Reference
     controllers/         # request/response handling (many more resources than have routes)
     providers/           # SQL queries
-    middleware/           # clerk auth guards, response formatter, S3 upload (unrouted)
+    middleware/           # clerk auth guards, response formatter, S3 upload
     types/                # shared TS types per resource
     lib/                  # init.sql runner, query helpers
 

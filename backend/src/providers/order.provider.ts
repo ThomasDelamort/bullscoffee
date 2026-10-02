@@ -1,9 +1,34 @@
 import { pool } from "../lib/db.ts";
 import { withTransaction } from "../lib/sql.ts";
 import type { Queryable } from "../lib/sql.ts";
-import type { NewOrder, OrderStatus, OrderDetails, OrderFilters, OrderListRow } from "../types/order.types.ts";
+import type { NewOrder, OrderStatus, OrderDetails, OrderFilters, OrderListRow, PaymentMethod } from "../types/order.types.ts";
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+// An order row with its display names and what's still owed on it. A kiosk
+// order has no cashier until it's handled at the counter, hence the LEFT JOIN.
+const ORDER_ROW_SQL = `
+  SELECT o.*,
+         (c.first_name || ' ' || c.last_name) AS customer_name,
+         (e.first_name || ' ' || e.last_name) AS employee_name,
+         d.discount_name,
+         GREATEST(o.total_amount - COALESCE(
+           (SELECT SUM(pay.amount_paid) FROM payments pay WHERE pay.order_id = o.order_id), 0
+         ), 0) AS balance_due,
+         COALESCE((
+           SELECT json_agg(
+             json_build_object('product_name', p.product_name, 'quantity', oi.quantity)
+             ORDER BY oi.order_item_id
+           )
+           FROM order_items oi
+           JOIN products p ON p.product_id = oi.product_id
+           WHERE oi.order_id = o.order_id
+         ), '[]'::json) AS item_summary
+  FROM orders o
+  LEFT JOIN customers c ON c.customer_id = o.customer_id
+  LEFT JOIN employees e ON e.employee_id = o.employee_id
+  LEFT JOIN discounts d ON d.discount_id = o.discount_id
+`;
 
 export const getOrders = async (
   filters: OrderFilters = {},
@@ -41,12 +66,7 @@ export const getOrders = async (
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const query = `
-      SELECT o.*,
-             (c.first_name || ' ' || c.last_name) AS customer_name,
-             (e.first_name || ' ' || e.last_name) AS employee_name
-      FROM orders o
-      LEFT JOIN customers c ON c.customer_id = o.customer_id
-      JOIN employees e ON e.employee_id = o.employee_id
+      ${ORDER_ROW_SQL}
       ${where}
       ORDER BY o.ordered_at DESC, o.order_id DESC
     `;
@@ -62,12 +82,7 @@ export const getOrderById = async (
 ): Promise<OrderDetails | void> => {
   const orderResult = await db.query(
     `
-      SELECT o.*,
-             (c.first_name || ' ' || c.last_name) AS customer_name,
-             (e.first_name || ' ' || e.last_name) AS employee_name
-      FROM orders o
-      LEFT JOIN customers c ON c.customer_id = o.customer_id
-      JOIN employees e ON e.employee_id = o.employee_id
+      ${ORDER_ROW_SQL}
       WHERE o.order_id = $1
     `,
     [order_id],
@@ -109,11 +124,19 @@ export const createOrder = async (
   return withTransaction(async (client) => {
     const created = await client.query(
       `
-        INSERT INTO orders (customer_id, employee_id, discount_amount, total_amount, order_status)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO orders (customer_id, employee_id, order_source, discount_id, discount_amount, total_amount, order_status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING order_id
       `,
-      [order.customer_id, order.employee_id, discount, total, status],
+      [
+        order.customer_id,
+        order.employee_id,
+        order.order_source,
+        order.discount_id,
+        discount,
+        total,
+        status,
+      ],
     );
     const order_id: number = created.rows[0].order_id;
 
@@ -148,25 +171,78 @@ export const createOrder = async (
   });
 };
 
-// Only a pending order can move on; anything else comes back undefined so the
-// controller can answer 404 / 409.
+// Only a pending order can move on, and only a paid-up one can be completed;
+// anything else comes back undefined so the controller can answer 404 / 409.
+// A kiosk order has no cashier yet, so the employee who closes it out becomes
+// its cashier; one rung up at the POS keeps the cashier it has.
 const transitionPendingOrder = async (
   order_id: number,
   status: Exclude<OrderStatus, "pending">,
+  employee_id: number,
 ): Promise<OrderDetails | void> => {
+  const paidInFull =
+    status === "completed"
+      ? `AND total_amount <= (SELECT COALESCE(SUM(amount_paid), 0) FROM payments WHERE order_id = $2)`
+      : "";
   const result = await pool.query(
     `
-      UPDATE orders SET order_status = $1
-      WHERE order_id = $2 AND order_status = 'pending'
+      UPDATE orders
+      SET order_status = $1, employee_id = COALESCE(employee_id, $3)
+      WHERE order_id = $2 AND order_status = 'pending' ${paidInFull}
     `,
-    [status, order_id],
+    [status, order_id, employee_id],
   );
   if ((result.rowCount ?? 0) === 0) return;
   return getOrderById(order_id);
 };
 
-export const completeOrder = (order_id: number) =>
-  transitionPendingOrder(order_id, "completed");
+export const completeOrder = (order_id: number, employee_id: number) =>
+  transitionPendingOrder(order_id, "completed", employee_id);
 
-export const cancelOrder = (order_id: number) =>
-  transitionPendingOrder(order_id, "cancelled");
+export const cancelOrder = (order_id: number, employee_id: number) =>
+  transitionPendingOrder(order_id, "cancelled", employee_id);
+
+export type PayOrderResult =
+  | { status: "paid"; order: OrderDetails }
+  | { status: "not_found" | "not_pending" | "nothing_due" };
+
+// Charges the whole balance of an order placed unpaid (from the kiosk) as one
+// payment, and makes the employee taking it the order's cashier. The order
+// stays pending: it's now in the barista's queue, and is completed once it's
+// handed over. The row is locked first so two cashiers can't both charge it.
+export const payOrder = async (
+  order_id: number,
+  payment_method: PaymentMethod,
+  employee_id: number,
+): Promise<PayOrderResult> =>
+  withTransaction(async (client) => {
+    const locked = await client.query(
+      `SELECT order_status, total_amount FROM orders WHERE order_id = $1 FOR UPDATE`,
+      [order_id],
+    );
+    const order = locked.rows[0];
+    if (!order) return { status: "not_found" };
+    if (order.order_status !== "pending") return { status: "not_pending" };
+
+    const paid = await client.query(
+      `SELECT COALESCE(SUM(amount_paid), 0) AS amount FROM payments WHERE order_id = $1`,
+      [order_id],
+    );
+    const balance = round2(
+      Number(order.total_amount) - Number(paid.rows[0].amount),
+    );
+    if (balance <= 0) return { status: "nothing_due" };
+
+    await client.query(
+      `INSERT INTO payments (order_id, amount_paid, payment_method) VALUES ($1, $2, $3)`,
+      [order_id, balance, payment_method],
+    );
+    await client.query(
+      `UPDATE orders SET employee_id = COALESCE(employee_id, $2) WHERE order_id = $1`,
+      [order_id, employee_id],
+    );
+
+    const paidOrder = await getOrderById(order_id, client);
+    if (!paidOrder) throw new Error(`Order ${order_id} vanished while being paid`);
+    return { status: "paid", order: paidOrder };
+  });

@@ -57,3 +57,45 @@ export async function requireManager(
   res.locals["employee"] = employee;
   next();
 }
+
+// Must come after protectRoute. Allows managers and admins (e.g. for logs).
+export async function requireManagerOrAdmin(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const employee = await getEmployeeByClerkId(res.locals["clerkId"]);
+  if (
+    !employee ||
+    employee.employee_status !== "active" ||
+    (employee.employee_role !== "manager" && employee.employee_role !== "admin")
+  ) {
+    res
+      .status(StatusCodes.FORBIDDEN)
+      .json({ error: "Forbidden - manager or admin account required" });
+    return;
+  }
+  res.locals["employee"] = employee;
+  next();
+}
+
+// Must come after protectRoute. Allows admins only (e.g. payment settings).
+export async function requireAdmin(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const employee = await getEmployeeByClerkId(res.locals["clerkId"]);
+  if (
+    !employee ||
+    employee.employee_status !== "active" ||
+    employee.employee_role !== "admin"
+  ) {
+    res
+      .status(StatusCodes.FORBIDDEN)
+      .json({ error: "Forbidden - admin account required" });
+    return;
+  }
+  res.locals["employee"] = employee;
+  next();
+}

@@ -34,6 +34,14 @@ DO $$ BEGIN CREATE TYPE discount_eligibility AS ENUM ('none', 'university_id', '
 EXCEPTION
 WHEN duplicate_object THEN null;
 END $$;
+DO $$ BEGIN CREATE TYPE document_kind AS ENUM ('pdf', 'log');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE order_source AS ENUM ('counter', 'kiosk');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
 
 -- ============================ STAFF ============================
 
@@ -87,7 +95,8 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE NOT 
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
     category_name VARCHAR(50) NOT NULL UNIQUE,
-    image_url VARCHAR(255)
+    image_url VARCHAR(255),
+    category_banner VARCHAR(255)
 );
 
 -- Self-heals databases created before image_url existed on this table (see
@@ -145,12 +154,21 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 CREATE TABLE IF NOT EXISTS orders (
     order_id SERIAL PRIMARY KEY,
     customer_id INT REFERENCES customers(customer_id),
-    employee_id INT NOT NULL REFERENCES employees(employee_id),
+    employee_id INT REFERENCES employees(employee_id),
     ordered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     discount_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (discount_amount >= 0),
     total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 CHECK (total_amount >= 0),
     order_status order_status NOT NULL DEFAULT 'pending'
 );
+
+-- Kiosk orders are placed by customers with no cashier involved, so
+-- employee_id stays NULL until someone at the counter completes or cancels
+-- the order (see transitionPendingOrder). Self-heals databases created when
+-- the column was NOT NULL.
+ALTER TABLE orders ALTER COLUMN employee_id DROP NOT NULL;
+
+-- Rows that predate this column can't be told apart, so they read as counter.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_source order_source NOT NULL DEFAULT 'counter';
 
 CREATE TABLE IF NOT EXISTS order_items (
     order_item_id SERIAL PRIMARY KEY,
@@ -162,6 +180,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     special_instructions TEXT
 );
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS size item_size;
+CREATE INDEX IF NOT EXISTS order_items_order_id_idx ON order_items (order_id);
 
 CREATE TABLE IF NOT EXISTS payments (
     payment_id SERIAL PRIMARY KEY,
@@ -170,6 +189,22 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_method payment_method NOT NULL,
     paid_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Every order row sums its payments to work out the balance due.
+CREATE INDEX IF NOT EXISTS payments_order_id_idx ON payments (order_id);
+
+-- PayMongo's id (pay_...) for a payment taken online; NULL for one taken at
+-- the counter. Unique, so a webhook PayMongo retries is only recorded once.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS paymongo_payment_id VARCHAR(64) UNIQUE;
+
+-- One row: which PayMongo methods checkout offers, set from the admin
+-- Payment Gateway page. The API keys aren't here; they live in backend/.env.
+CREATE TABLE IF NOT EXISTS payment_settings (
+    settings_id INT PRIMARY KEY DEFAULT 1 CHECK (settings_id = 1),
+    enabled_methods TEXT[] NOT NULL DEFAULT ARRAY['gcash', 'paymaya', 'grab_pay', 'qrph', 'card'],
+    send_email_receipt BOOLEAN NOT NULL DEFAULT TRUE
+);
+INSERT INTO payment_settings (settings_id) VALUES (1) ON CONFLICT DO NOTHING;
 
 -- =========================== SUPPLY ============================
 
@@ -232,4 +267,28 @@ CREATE TABLE IF NOT EXISTS discounts (
     value DECIMAL(10, 2) NOT NULL CHECK (value > 0),
     eligibility discount_eligibility NOT NULL DEFAULT 'none',
     is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Which preset produced orders.discount_amount; NULL for none or a custom
+-- amount. Declared here because discounts is created after orders. No ON
+-- DELETE: a discount that's been used is switched off, not deleted, so past
+-- orders keep its name.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_id INT REFERENCES discounts(discount_id);
+
+-- =========================== DOCUMENTS ===========================
+
+-- PDFs and CSV logs stored in S3 (bulls-coffee/pdfs/, bulls-coffee/logs/).
+-- Images don't need this - their row's image_url points at them - but these
+-- belong to no other row, and the app's AWS user can't list the bucket, so
+-- this table is the index of what's stored. file_url is NULL for logs: they
+-- are private and only downloadable through the API.
+CREATE TABLE IF NOT EXISTS documents (
+    document_id SERIAL PRIMARY KEY,
+    kind document_kind NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    s3_key VARCHAR(512) NOT NULL UNIQUE,
+    file_url VARCHAR(512),
+    size_bytes INT NOT NULL CHECK (size_bytes >= 0),
+    uploaded_by INT REFERENCES employees(employee_id) ON DELETE SET NULL,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -49,13 +49,16 @@ export interface Customer {
 export interface Order {
   order_id: number;
   customer_id: number | null;
-  employee_id: number;
+  /** null for a kiosk order nobody at the counter has completed or cancelled yet. */
+  employee_id: number | null;
   ordered_at: string;
   discount_amount: number;
   total_amount: number;
   order_status: OrderStatus;
   customer_name: string | null;
-  employee_name: string;
+  employee_name: string | null;
+  /** The total less payments so far. Above 0 only for a kiosk order not yet paid at the counter. */
+  balance_due: number;
 }
 
 export interface OrderItem {

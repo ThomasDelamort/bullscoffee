@@ -1,8 +1,9 @@
 import { useId } from "react";
+import { describeMethods, type PaymongoMethod } from "../../checkout/api";
 import { formatPeso } from "../../POS/utils/format";
 import { SIZE_LABELS } from "../../POS/utils/pricing";
 import type { Cart } from "../data/useCart";
-import { FOCUS_RING, PRIMARY_BUTTON } from "../styles";
+import { FOCUS_RING, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../styles";
 import ProductArt from "./ProductArt";
 import QtyStepper from "./QtyStepper";
 import Sheet, { CloseButton } from "./Sheet";
@@ -13,13 +14,25 @@ interface CartSheetProps {
   cart: Cart;
   /** "Mika Reyes" when a customer is signed in, null for a guest. */
   customerName: string | null;
-  placing: boolean;
+  /** What the order is being placed for, while it is. */
+  placing: "online" | "counter" | null;
+  /** The methods PayMongo checkout offers; empty when online payment is off, leaving only the counter. */
+  onlineMethods: PaymongoMethod[];
   error: string | null;
-  onPlaceOrder: () => void;
+  onPlaceOrder: (payOnline: boolean) => void;
 }
 
-/** Everything in the order, with quantities to adjust, then the place-order button. */
-export default function CartSheet({ open, onClose, cart, customerName, placing, error, onPlaceOrder }: CartSheetProps) {
+/** Everything in the order, with quantities to adjust, then how to pay for it. */
+export default function CartSheet({
+  open,
+  onClose,
+  cart,
+  customerName,
+  placing,
+  onlineMethods,
+  error,
+  onPlaceOrder,
+}: CartSheetProps) {
   const headingId = useId();
 
   return (
@@ -91,10 +104,41 @@ export default function CartSheet({ open, onClose, cart, customerName, placing, 
             {error}
           </p>
         )}
-        <button type="button" onClick={onPlaceOrder} disabled={placing} className={`${PRIMARY_BUTTON} w-full px-8`}>
-          {placing ? "Placing order…" : "Place order"}
-        </button>
-        <p className="text-center text-sm text-(--k-muted)">You'll pay at the counter with your order number.</p>
+        {onlineMethods.length > 0 ? (
+          <>
+            <button
+              type="button"
+              onClick={() => onPlaceOrder(true)}
+              disabled={placing !== null}
+              className={`${PRIMARY_BUTTON} w-full px-8`}
+            >
+              {placing === "online" ? "Opening checkout…" : "Pay now"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onPlaceOrder(false)}
+              disabled={placing !== null}
+              className={`${SECONDARY_BUTTON} w-full px-8`}
+            >
+              {placing === "counter" ? "Placing order…" : "Pay at the counter"}
+            </button>
+            <p className="text-center text-sm text-(--k-muted)">
+              Pay now with {describeMethods(onlineMethods)}, or at the counter with your order number.
+            </p>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => onPlaceOrder(false)}
+              disabled={placing !== null}
+              className={`${PRIMARY_BUTTON} w-full px-8`}
+            >
+              {placing ? "Placing order…" : "Place order"}
+            </button>
+            <p className="text-center text-sm text-(--k-muted)">You'll pay at the counter with your order number.</p>
+          </>
+        )}
       </footer>
     </Sheet>
   );

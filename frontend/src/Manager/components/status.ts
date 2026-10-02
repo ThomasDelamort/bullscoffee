@@ -22,6 +22,9 @@ export const ORDER_STATUS: StatusMap<OrderStatus> = {
   cancelled: { tone: "neutral", label: "Cancelled" },
 };
 
+/** Shown in place of Pending while a kiosk order waits to be paid at the counter (see needsPayment). */
+export const AWAITING_PAYMENT: { tone: Tone; label: string } = { tone: "accent", label: "Awaiting payment" };
+
 export const STOCK_STATE: StatusMap<StockState> = {
   in: { tone: "success", label: "In stock" },
   low: { tone: "warning", label: "Low stock" },

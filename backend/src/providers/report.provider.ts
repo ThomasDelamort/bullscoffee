@@ -125,7 +125,7 @@ export const getSalesExportRows = async (
              (SELECT string_agg(DISTINCT pay.payment_method::text, ', ')
               FROM payments pay WHERE pay.order_id = o.order_id) AS payment_methods
       FROM orders o
-      JOIN employees e ON e.employee_id = o.employee_id
+      LEFT JOIN employees e ON e.employee_id = o.employee_id
       LEFT JOIN customers c ON c.customer_id = o.customer_id
       WHERE o.order_status = 'completed'
         AND o.ordered_at >= $1::date

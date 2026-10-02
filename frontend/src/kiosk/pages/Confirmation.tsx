@@ -4,26 +4,30 @@ import { LOGO_MARK } from "../../Home/Hero/hero.config";
 import { formatPeso, formatTime } from "../../POS/utils/format";
 import { SIZE_LABELS } from "../../POS/utils/pricing";
 import type { PlacedOrder } from "../data/orders";
-import type { CartLine } from "../data/useCart";
+import HomeLink from "../components/HomeLink";
 import { PRIMARY_BUTTON } from "../styles";
 
 /** The kiosk goes back to the menu on its own, so the next customer isn't left looking at this. */
 const RESET_AFTER_SECONDS = 45;
 
+/** The order as the backend saved and priced it, so it matches what the cashier sees. */
 export interface Receipt extends PlacedOrder {
-  lines: CartLine[];
   /** Signed-in customer's first name, null for a guest. */
   firstName: string | null;
 }
 
 interface ConfirmationProps {
   receipt: Receipt;
+  /** Paid online already; otherwise the customer pays at the counter. */
+  paid?: boolean;
+  /** Why the customer is paying at the counter after all, e.g. a cancelled online payment. */
+  notice?: string | null;
   /** Must be stable: it also fires when the countdown runs out. */
   onDone: () => void;
 }
 
 /** The order number, big enough to read from the counter, and what to do next. */
-export default function Confirmation({ receipt, onDone }: ConfirmationProps) {
+export default function Confirmation({ receipt, paid = false, notice = null, onDone }: ConfirmationProps) {
   const [secondsLeft, setSecondsLeft] = useState(RESET_AFTER_SECONDS);
 
   useEffect(() => {
@@ -49,9 +53,16 @@ export default function Confirmation({ receipt, onDone }: ConfirmationProps) {
           </span>
         </h1>
 
-        <h2 className="hero-display mt-6 text-4xl uppercase sm:text-5xl">Pay at the counter</h2>
+        {notice && (
+          <p role="status" className="mx-auto mt-6 max-w-xs rounded-2xl bg-white/10 px-4 py-3 text-sm font-medium">
+            {notice}
+          </p>
+        )}
+        <h2 className="hero-display mt-6 text-4xl uppercase sm:text-5xl">{paid ? "You're all paid" : "Pay at the counter"}</h2>
         <p className="mx-auto mt-3 max-w-xs text-base opacity-75">
-          Tell the cashier your number. We'll start making your order as soon as it's paid.
+          {paid
+            ? "We're making your order now. Listen for your number at the counter."
+            : "Tell the cashier your number. We'll start making your order as soon as it's paid."}
         </p>
 
         <div className="mt-8 rounded-[1.75rem] bg-(--k-canvas) p-5 text-left text-(--k-ink) sm:p-6">
@@ -60,18 +71,18 @@ export default function Confirmation({ receipt, onDone }: ConfirmationProps) {
             <span className="tabular-nums">{formatTime(receipt.ordered_at)}</span>
           </p>
           <ul className="mt-3 space-y-2">
-            {receipt.lines.map((l) => (
-              <li key={l.key} className="flex justify-between gap-3 text-base">
+            {receipt.items.map((i) => (
+              <li key={i.order_item_id} className="flex justify-between gap-3 text-base">
                 <span className="min-w-0">
-                  <span className="font-extrabold tabular-nums">{l.quantity}×</span> {l.product.product_name}
-                  {l.size && <span className="text-(--k-muted)"> · {SIZE_LABELS[l.size]}</span>}
+                  <span className="font-extrabold tabular-nums">{i.quantity}×</span> {i.product_name}
+                  {i.size && <span className="text-(--k-muted)"> · {SIZE_LABELS[i.size]}</span>}
                 </span>
-                <span className="font-semibold tabular-nums">{formatPeso(l.price * l.quantity)}</span>
+                <span className="font-semibold tabular-nums">{formatPeso(i.selling_price * i.quantity)}</span>
               </li>
             ))}
           </ul>
           <p className="mt-4 flex items-baseline justify-between border-t-2 border-(--k-ink) pt-4">
-            <span className="text-sm font-bold tracking-[0.2em] uppercase">Total</span>
+            <span className="text-sm font-bold tracking-[0.2em] uppercase">{paid ? "Paid" : "Total"}</span>
             <span className="text-2xl font-extrabold tabular-nums">{formatPeso(receipt.total_amount)}</span>
           </p>
         </div>
@@ -79,6 +90,7 @@ export default function Confirmation({ receipt, onDone }: ConfirmationProps) {
         <button type="button" autoFocus onClick={onDone} className={`${PRIMARY_BUTTON} mt-8 w-full px-8`}>
           Start a new order
         </button>
+        <HomeLink />
         <p className="mt-4 text-sm tabular-nums opacity-60">Back to the menu in {Math.max(secondsLeft, 0)}s</p>
       </div>
     </main>

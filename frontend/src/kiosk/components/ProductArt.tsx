@@ -2,7 +2,7 @@ import HeroImage from "../../Home/Hero/HeroImage";
 import { CREAM, ESPRESSO } from "../../Home/theme";
 import CategoryIcon from "../../POS/components/CategoryIcon";
 import type { Product } from "../../POS/types";
-import { categoryLook, categoryOf, cupFor } from "../data/menu";
+import { categoryLook, cupFor, useCategoryOf } from "../data/menu";
 
 const ICON_SIZES = {
   thumb: "size-7",
@@ -32,7 +32,17 @@ interface ProductArtProps {
  */
 export default function ProductArt({ product, variant = "card", className = "" }: ProductArtProps) {
   if (product.image_url) {
-    return <img src={product.image_url} alt="" draggable={false} className={`object-cover ${className}`} />;
+    return (
+      <img
+        src={product.image_url}
+        alt=""
+        draggable={false}
+        // The sheet's header is the one place the photo is the point; tiles and thumbs load as they scroll in.
+        loading={variant === "hero" ? "eager" : "lazy"}
+        decoding="async"
+        className={`object-cover ${className}`}
+      />
+    );
   }
 
   const flavor = cupFor(product);
@@ -44,7 +54,12 @@ export default function ProductArt({ product, variant = "card", className = "" }
     );
   }
 
-  const category = categoryOf(product);
+  return <CategoryArt product={product} variant={variant} className={className} />;
+}
+
+/** Split out so only products without a photo or cup subscribe to the categories query. */
+function CategoryArt({ product, variant = "card", className = "" }: ProductArtProps) {
+  const category = useCategoryOf(product);
   const { color } = categoryLook(category);
   return (
     <span

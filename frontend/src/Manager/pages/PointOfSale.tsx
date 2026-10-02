@@ -19,6 +19,7 @@ import CustomerPicker from "../components/CustomerPicker";
 import { Field, Input, Select } from "../components/Field";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import PaymentFields from "../components/PaymentFields";
 import { ErrorNotice, Loading } from "../components/QueryState";
 import SearchInput from "../components/SearchInput";
 import { PAYMENT_METHOD_LABELS } from "../components/status";
@@ -39,6 +40,7 @@ import { formatPeso, initials, round2 } from "../utils/format";
 import {
   describeDiscount,
   discountFor,
+  paymentCovers,
   SIZES,
   subtotalOf,
   unitPrice,
@@ -62,7 +64,6 @@ interface Receipt {
   tendered: number;
 }
 
-const PAYMENT_METHODS: readonly PaymentMethod[] = ["cash", "card", "e_wallet"];
 const LOW_STOCK_HINT = 5;
 
 export default function PointOfSale() {
@@ -149,7 +150,6 @@ export default function PointOfSale() {
         : 0;
   const total = round2(subtotal - discountAmount);
   const cash = Number(tendered) || 0;
-  const change = round2(cash - total);
 
   const eligible = (d: Discount) =>
     d.eligibility !== "university_id" || Boolean(customer?.university_id);
@@ -161,7 +161,7 @@ export default function PointOfSale() {
         ? "The student discount needs a customer with a university ID."
         : needsIdCheck && !idChecked
           ? "Confirm you've checked the senior citizen or PWD ID."
-          : method === "cash" && total > 0 && cash < total
+          : !paymentCovers(method, cash, total)
             ? "Enter the cash received."
             : null;
 
@@ -209,6 +209,7 @@ export default function PointOfSale() {
     placeOrder.mutate(
       {
         customer_id: customer?.customer_id ?? null,
+        discount_id: discount?.discount_id ?? null,
         discount_amount: discountAmount,
         items: lines.map((l) => ({
           product_id: l.product.product_id,
@@ -556,54 +557,13 @@ export default function PointOfSale() {
               </div>
             </dl>
 
-            <div
-              role="radiogroup"
-              aria-label="Payment method"
-              className="grid grid-cols-3 gap-1 rounded-xl bg-(--mgr-ink)/5 p-1"
-            >
-              {PAYMENT_METHODS.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={method === m}
-                  onClick={() => setMethod(m)}
-                  className={`rounded-lg py-1.5 text-sm font-medium ${FOCUS_RING} ${
-                    method === m
-                      ? "bg-(--mgr-surface) shadow-sm"
-                      : "text-(--mgr-muted) hover:text-(--mgr-ink)"
-                  }`}
-                >
-                  {PAYMENT_METHOD_LABELS[m]}
-                </button>
-              ))}
-            </div>
-
-            {method === "cash" && total > 0 && (
-              <div className="flex items-end gap-2">
-                <Field label="Cash received (₱)" className="flex-1">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="0.01"
-                    value={tendered}
-                    onChange={(e) => setTendered(e.target.value)}
-                  />
-                </Field>
-                <Button size="md" onClick={() => setTendered(String(total))}>
-                  Exact
-                </Button>
-              </div>
-            )}
-            {method === "cash" && cash >= total && total > 0 && (
-              <p className="text-sm">
-                Change:{" "}
-                <span className="font-semibold tabular-nums">
-                  {formatPeso(change)}
-                </span>
-              </p>
-            )}
+            <PaymentFields
+              total={total}
+              method={method}
+              onMethodChange={setMethod}
+              tendered={tendered}
+              onTenderedChange={setTendered}
+            />
 
             <Button
               variant="primary"

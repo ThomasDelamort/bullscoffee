@@ -9,7 +9,7 @@ import {
 
 import { Router } from "express";
 import { protectRoute, requireManager } from "../middleware/auth.middleware.ts";
-import { uploadSingle, uploadToS3 } from "../middleware/upload.middleware.ts";
+import { uploadFile } from "../middleware/upload.middleware.ts";
 
 const router = Router();
 /*
@@ -18,8 +18,8 @@ const router = Router();
 
 router.get("/suppliers", protectRoute, requireManager, getSuppliersHandler);
 router.get("/suppliers/:id", protectRoute, requireManager, getSupplierByIdHandler);
-router.post("/suppliers", protectRoute, requireManager, uploadSingle("image"), uploadToS3, createSupplierHandler);
-router.put("/suppliers/:id", protectRoute, requireManager, uploadSingle("image"), uploadToS3, updateSupplierHandler);
+router.post("/suppliers", protectRoute, requireManager, uploadFile("supplier"), createSupplierHandler);
+router.put("/suppliers/:id", protectRoute, requireManager, uploadFile("supplier"), updateSupplierHandler);
 router.get("/suppliers/:id/ingredients", protectRoute, requireManager, getSupplierIngredientsHandler);
 router.put("/suppliers/:id/ingredients", protectRoute, requireManager, replaceSupplierIngredientsHandler);
 

@@ -1,15 +1,15 @@
-import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/clerk-react";
+import { useClerk, useUser } from "@clerk/clerk-react";
 import { useEffect, type ReactNode } from "react";
-import { FiLogIn, FiLogOut, FiX } from "react-icons/fi";
-import { LuLayoutGrid, LuPanelLeftClose, LuPanelLeftOpen } from "react-icons/lu";
+import { FiLogOut, FiX } from "react-icons/fi";
+import { LuLayoutGrid, LuPanelLeftClose, LuPanelLeftOpen, LuReceipt } from "react-icons/lu";
 import { Link } from "react-router-dom";
-import { AUTH_PATHS } from "../../AuthPage";
 import HeroImage from "../../Home/Hero/HeroImage";
 import { LOGO_MARK } from "../../Home/Hero/hero.config";
 import CategoryIcon from "../components/CategoryIcon";
 import { FOCUS_RING } from "../components/styles";
-import { usePosData } from "../data/posContext";
-import { formatTime, initials } from "../utils/format";
+import { useCategories, useCurrentEmployee, useProducts } from "../api/catalog";
+import type { EmployeeRole } from "../types";
+import { formatTime, fullName, initials } from "../utils/format";
 import { useNow } from "../utils/useNow";
 
 export type CategoryChoice = number | "all";
@@ -23,7 +23,15 @@ interface SideBarProps {
   onToggleCollapsed: () => void;
   category: CategoryChoice;
   onCategoryChange: (category: CategoryChoice) => void;
+  /** Pending orders: kiosk ones to charge plus paid ones to hand over. */
+  openOrderCount: number;
+  /** Some of them are kiosk orders waiting to be charged. */
+  ordersNeedPayment: boolean;
+  ordersOpen: boolean;
+  onOpenOrders: () => void;
 }
+
+const ROLE_LABELS: Record<EmployeeRole, string> = { cashier: "Cashier", manager: "Manager", admin: "Admin" };
 
 export default function SideBar({
   open,
@@ -32,8 +40,14 @@ export default function SideBar({
   onToggleCollapsed,
   category,
   onCategoryChange,
+  openOrderCount,
+  ordersNeedPayment,
+  ordersOpen,
+  onOpenOrders,
 }: SideBarProps) {
-  const { db } = usePosData();
+  const categories = useCategories();
+  const products = useProducts();
+  const countIn = (categoryId: number) => products.data?.filter((p) => p.category_id === categoryId).length;
   // Rail-only classes; every one is lg-prefixed so the mobile drawer is unaffected.
   const rail = (classes: string) => (collapsed ? classes : "");
 
@@ -98,6 +112,21 @@ export default function SideBar({
           </button>
         </div>
 
+        <div className="px-2 pb-1">
+          <RailItem
+            label="Orders"
+            icon={<LuReceipt aria-hidden className="size-4 shrink-0" />}
+            meta={openOrderCount || undefined}
+            highlight={ordersNeedPayment}
+            active={ordersOpen}
+            collapsed={collapsed}
+            onClick={() => {
+              onOpenOrders();
+              onClose();
+            }}
+          />
+        </div>
+
         <nav aria-label="Menu categories" className={`pos-scroll flex-1 overflow-y-auto px-2 py-2 ${rail("lg:overflow-visible")}`}>
           <p className={`px-3 pb-2 text-[11px] font-medium tracking-wider text-(--pos-muted)/80 uppercase ${rail("lg:hidden")}`}>
             Menu
@@ -107,18 +136,18 @@ export default function SideBar({
               <RailItem
                 label="All items"
                 icon={<LuLayoutGrid aria-hidden className="size-4 shrink-0" />}
-                meta={db.products.length}
+                meta={products.data?.length}
                 active={category === "all"}
                 collapsed={collapsed}
                 onClick={() => pick("all")}
               />
             </li>
-            {db.categories.map((c) => (
+            {categories.data?.map((c) => (
               <li key={c.category_id}>
                 <RailItem
                   label={c.category_name}
                   icon={<CategoryIcon category={c} className="size-4 shrink-0" />}
-                  meta={db.products.filter((p) => p.category_id === c.category_id).length}
+                  meta={countIn(c.category_id)}
                   active={category === c.category_id}
                   collapsed={collapsed}
                   onClick={() => pick(c.category_id)}
@@ -129,21 +158,7 @@ export default function SideBar({
         </nav>
 
         <div className="border-t border-(--pos-line) p-2">
-          <SignedIn>
-            <CashierFooter collapsed={collapsed} />
-          </SignedIn>
-          <SignedOut>
-            <Link
-              to={AUTH_PATHS["sign-in"]}
-              className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-(--pos-muted) hover:bg-white/5 hover:text-(--pos-ink) ${FOCUS_RING} ${rail(
-                "lg:justify-center lg:px-0",
-              )}`}
-            >
-              <FiLogIn aria-hidden className="size-4 shrink-0" />
-              <span className={rail("lg:sr-only")}>Sign in</span>
-              {collapsed && <RailTooltip label="Sign in" />}
-            </Link>
-          </SignedOut>
+          <CashierFooter collapsed={collapsed} />
         </div>
       </aside>
     </>
@@ -155,12 +170,14 @@ interface RailItemProps {
   icon: ReactNode;
   /** Shown at the right when expanded, and in the tooltip when collapsed. */
   meta?: string | number;
+  /** Draws the eye to meta: something needs the cashier. */
+  highlight?: boolean;
   active?: boolean;
   collapsed: boolean;
   onClick: () => void;
 }
 
-function RailItem({ label, icon, meta, active, collapsed, onClick }: RailItemProps) {
+function RailItem({ label, icon, meta, highlight, active, collapsed, onClick }: RailItemProps) {
   return (
     <button
       type="button"
@@ -175,10 +192,21 @@ function RailItem({ label, icon, meta, active, collapsed, onClick }: RailItemPro
       }`}
     >
       {active && <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-(--pos-gold)" />}
-      <span className={active ? "text-(--pos-gold)" : ""}>{icon}</span>
+      <span className={`relative ${active ? "text-(--pos-gold)" : ""}`}>
+        {icon}
+        {highlight && collapsed && (
+          <span aria-hidden className="absolute -top-1 -right-1 hidden size-2 rounded-full bg-(--pos-gold) lg:block" />
+        )}
+      </span>
       <span className={`flex-1 truncate text-left ${collapsed ? "lg:sr-only" : ""}`}>{label}</span>
       {meta !== undefined && (
-        <span className={`text-xs text-(--pos-muted)/80 tabular-nums ${collapsed ? "lg:sr-only" : ""}`}>
+        <span
+          className={`text-xs tabular-nums ${collapsed ? "lg:sr-only" : ""} ${
+            highlight
+              ? "grid h-5 min-w-5 place-items-center rounded-full bg-(--pos-gold) px-1.5 font-semibold text-(--pos-canvas)"
+              : "text-(--pos-muted)/80"
+          }`}
+        >
           {meta}
         </span>
       )}
@@ -202,8 +230,10 @@ function RailTooltip({ label }: { label: string }) {
 function CashierFooter({ collapsed }: { collapsed: boolean }) {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const me = useCurrentEmployee();
   const now = useNow();
-  const name = user?.fullName || user?.primaryEmailAddress?.emailAddress || "Cashier";
+  const name = (me.data && fullName(me.data)) || user?.fullName || user?.primaryEmailAddress?.emailAddress || "Cashier";
+  const role = me.data ? ROLE_LABELS[me.data.employee_role] : "Staff";
 
   return (
     <div className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${collapsed ? "lg:flex-col lg:gap-2 lg:px-0" : ""}`}>
@@ -219,7 +249,9 @@ function CashierFooter({ collapsed }: { collapsed: boolean }) {
       )}
       <div className={`min-w-0 flex-1 leading-tight ${collapsed ? "lg:hidden" : ""}`}>
         <p className="truncate text-sm font-medium">{name}</p>
-        <p className="text-xs text-(--pos-muted) tabular-nums">Cashier · {formatTime(now)}</p>
+        <p className="text-xs text-(--pos-muted) tabular-nums">
+          {role} · {formatTime(now)}
+        </p>
       </div>
       <button
         type="button"

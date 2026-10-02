@@ -16,7 +16,7 @@ const STORY =
   "Bull's Coffee started with a simple idea: rich aromas, exceptional beans, and a cup worth slowing down for. Every frappé is blended to order and served with a grin, just like our bulldog's. Now, Bull's Coffee is growing from that simple idea into a real business, with online ordering, self-service kiosks, and student discounts that put your favorite cup just a few taps away.";
 
 const QUOTE =
-  "“While everyone is chasing 4.0s in academics we gon be building a legitimate business”";
+  "“While everyone is chasing 4.0s in academics, We on the other hand, we gon be building a legitimate business”";
 const QUOTE_AUTHOR = "Christian Neal Paredes";
 
 const REVEAL_CLASS =

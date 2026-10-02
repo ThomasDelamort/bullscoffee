@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiCheck, FiDownload, FiEye, FiX } from "react-icons/fi";
+import { FiCheck, FiCreditCard, FiDownload, FiEye, FiX } from "react-icons/fi";
 import { useCancelOrder, useCompleteOrder, useOrder, useOrders } from "../api/orders";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -11,10 +11,12 @@ import PageHeader from "../components/PageHeader";
 import { ErrorNotice, LoadingRow } from "../components/QueryState";
 import RowAction from "../components/RowAction";
 import SearchInput from "../components/SearchInput";
-import { ORDER_STATUS } from "../components/status";
+import { AWAITING_PAYMENT, ORDER_STATUS } from "../components/status";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
+import TakePaymentModal from "../components/TakePaymentModal";
 import { useNotifyError, useToast } from "../components/toastContext";
+import { needsPayment } from "../data/selectors";
 import type { Order, OrderStatus } from "../types";
 import { sumBy } from "../utils/collections";
 import { downloadCsv } from "../utils/csv";
@@ -53,6 +55,7 @@ export default function Orders() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [viewing, setViewing] = useState<Order | null>(null);
   const [cancelling, setCancelling] = useState<Order | null>(null);
+  const [paying, setPaying] = useState<Order | null>(null);
 
   const search = useDebouncedValue(query.trim().replace(/^#/, "")) || undefined;
   // Pending orders are a live queue, so they ignore the date range; the rest is filtered server-side.
@@ -107,7 +110,7 @@ export default function Orders() {
         ordered_at: o.ordered_at,
         status: o.order_status,
         customer: o.customer_name ?? "Walk-in",
-        cashier: o.employee_name,
+        cashier: o.employee_name ?? "Kiosk",
         discount: o.discount_amount,
         total: o.total_amount,
       })),
@@ -189,7 +192,8 @@ export default function Orders() {
             {loading && <LoadingRow colSpan={6} label="Loading orders…" />}
             {!loading &&
               visible.slice(0, limit).map((o) => {
-                const s = ORDER_STATUS[o.order_status];
+                const unpaid = needsPayment(o);
+                const s = unpaid ? AWAITING_PAYMENT : ORDER_STATUS[o.order_status];
                 const pending = o.order_status === "pending";
                 return (
                   <tr key={o.order_id} className="hover:bg-(--mgr-canvas)/50">
@@ -200,7 +204,7 @@ export default function Orders() {
                       </p>
                     </Td>
                     <Td>{o.customer_name ?? "Walk-in"}</Td>
-                    <Td className="text-(--mgr-muted)">{o.employee_name}</Td>
+                    <Td className="text-(--mgr-muted)">{o.employee_name ?? "Kiosk"}</Td>
                     <Td className="text-right tabular-nums">
                       {formatPeso(o.total_amount)}
                       {o.discount_amount > 0 && (
@@ -215,7 +219,11 @@ export default function Orders() {
                         <RowAction icon={FiEye} label={`View order #${o.order_id}`} onClick={() => setViewing(o)} />
                         {pending && (
                           <>
-                            <RowAction icon={FiCheck} label={`Complete order #${o.order_id}`} onClick={() => complete(o)} />
+                            {unpaid ? (
+                              <RowAction icon={FiCreditCard} label={`Take payment for order #${o.order_id}`} onClick={() => setPaying(o)} />
+                            ) : (
+                              <RowAction icon={FiCheck} label={`Complete order #${o.order_id}`} onClick={() => complete(o)} />
+                            )}
                             <RowAction icon={FiX} label={`Cancel order #${o.order_id}`} danger onClick={() => setCancelling(o)} />
                           </>
                         )}
@@ -250,17 +258,30 @@ export default function Orders() {
               <Button variant="danger" icon={FiX} onClick={() => setCancelling(viewed)}>
                 Cancel order
               </Button>
-              <Button
-                variant="primary"
-                icon={FiCheck}
-                disabled={completeOrder.isPending}
-                onClick={() => complete(viewed, () => setViewing(null))}
-              >
-                Mark completed
-              </Button>
+              {needsPayment(viewed) ? (
+                <Button variant="primary" icon={FiCreditCard} onClick={() => setPaying(viewed)}>
+                  Take payment
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  icon={FiCheck}
+                  disabled={completeOrder.isPending}
+                  onClick={() => complete(viewed, () => setViewing(null))}
+                >
+                  Mark completed
+                </Button>
+              )}
             </>
           )
         }
+      />
+
+      <TakePaymentModal
+        key={`pay-${paying?.order_id ?? "closed"}`}
+        order={paying}
+        onClose={() => setPaying(null)}
+        onPaid={() => setViewing(null)}
       />
 
       <Modal

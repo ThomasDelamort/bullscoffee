@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { FiSearch, FiX } from "react-icons/fi";
-import { usePosData } from "../data/posContext";
+import { useCategories, useProducts } from "../api/catalog";
 import type { CategoryChoice } from "../layout/SideBar";
 import type { Category, Product } from "../types";
 import { formatPeso } from "../utils/format";
 import ProductArt from "./ProductArt";
+import { ErrorNotice, Loading } from "./QueryState";
 import { FOCUS_RING, INPUT_CLASS } from "./styles";
 
 interface MenuPanelProps {
@@ -17,26 +18,32 @@ interface MenuPanelProps {
 
 /** The menu, one section per category, so "Frappés" lists every frappé together. */
 export default function MenuPanel({ category, onAdd, countOf }: MenuPanelProps) {
-  const { db } = usePosData();
+  const categories = useCategories();
+  const products = useProducts();
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
-  const selected = db.categories.find((c) => c.category_id === category);
-  const groups = db.categories
+  const selected = categories.data?.find((c) => c.category_id === category);
+  const groups = (categories.data ?? [])
     .filter((c) => category === "all" || c.category_id === category)
     .map((c) => ({
       category: c,
-      products: db.products.filter((p) => p.category_id === c.category_id && (!q || p.product_name.toLowerCase().includes(q))),
+      products: (products.data ?? []).filter(
+        (p) => p.category_id === c.category_id && (!q || p.product_name.toLowerCase().includes(q)),
+      ),
     }))
     .filter((g) => g.products.length > 0);
   const shown = groups.reduce((n, g) => n + g.products.length, 0);
+  // A failed background refresh keeps the last good menu on screen.
+  const loaded = categories.data !== undefined && products.data !== undefined;
+  const error = loaded ? null : (categories.error ?? products.error);
 
   return (
     <section aria-labelledby="pos-menu-heading" className="flex flex-col">
       <div className="sticky top-14 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 bg-(--pos-canvas)/90 px-4 py-3 backdrop-blur sm:flex-nowrap lg:top-0 lg:h-16 lg:px-6 lg:py-0">
         <h1 id="pos-menu-heading" className="text-base font-semibold whitespace-nowrap">
           {selected?.category_name ?? "All items"}
-          <span className="ml-2 text-sm font-normal text-(--pos-muted) tabular-nums">{shown}</span>
+          {loaded && <span className="ml-2 text-sm font-normal text-(--pos-muted) tabular-nums">{shown}</span>}
         </h1>
         <div className="relative w-full sm:ml-auto sm:max-w-xs">
           <FiSearch aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-(--pos-muted)" />
@@ -82,7 +89,20 @@ export default function MenuPanel({ category, onAdd, countOf }: MenuPanelProps) 
           </section>
         ))}
 
-        {groups.length === 0 && (
+        {error && (
+          <ErrorNotice
+            className="mt-2"
+            title="Couldn't load the menu"
+            error={error}
+            onRetry={() => {
+              if (categories.isError) void categories.refetch();
+              if (products.isError) void products.refetch();
+            }}
+          />
+        )}
+        {!loaded && !error && <Loading label="Loading the menu…" />}
+
+        {loaded && groups.length === 0 && (
           <p className="py-16 text-center text-sm text-(--pos-muted)">
             {q ? `Nothing matches “${query.trim()}”.` : "No items in this category yet."}
           </p>
