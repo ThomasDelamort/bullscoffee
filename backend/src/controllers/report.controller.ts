@@ -6,6 +6,7 @@ import {
 } from "../providers/report.provider.ts";
 import type { ReportPeriod } from "../types/report.types.ts";
 import { toCsv } from "../lib/csv.ts";
+import { isOutsideBusinessHours, recordActivity } from "../providers/activity.provider.ts";
 
 const isDate = (value: string): boolean => {
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -85,6 +86,11 @@ export const exportSalesReportHandler = async (
     const label = query.period === "monthly" ? day.slice(0, 7) : day;
     // res.attachment also sets the text/csv content type from the extension.
     res.attachment(`sales-${query.period}-${label}.csv`);
+    recordActivity(req, res, {
+      module: "Reports",
+      action: `Exported the ${query.period} sales report for ${label} (${rows.length} orders, CSV)`,
+      flag: isOutsideBusinessHours() ? "Data export outside business hours" : null,
+    });
     res
       .status(StatusCodes.OK)
       .send(toCsv(CSV_COLUMNS, rows as unknown as Record<string, unknown>[]));

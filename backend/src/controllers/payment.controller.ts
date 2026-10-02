@@ -18,6 +18,7 @@ import {
   updatePaymentSettings,
   type PaymentSettings,
 } from "../providers/payment.provider.ts";
+import { recordActivity } from "../providers/activity.provider.ts";
 
 // Public: whether the kiosk and the register should offer online payment.
 export const getPaymentOptionsHandler = async (
@@ -274,6 +275,10 @@ export const updateGatewayHandler = async (
         ? {}
         : { enabled_methods: [...new Set(enabled_methods as PaymentSettings["enabled_methods"])] }),
       ...(send_email_receipt === undefined ? {} : { send_email_receipt }),
+    });
+    recordActivity(req, res, {
+      module: "Settings",
+      action: `Saved payment gateway settings (methods: ${settings.enabled_methods.join(", ") || "none"}; email receipts ${settings.send_email_receipt ? "on" : "off"})`,
     });
     res
       .status(StatusCodes.OK)

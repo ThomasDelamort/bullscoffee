@@ -1,12 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import { StatusCodes } from "http-status-codes";
+import { recordSignIn } from "../providers/activity.provider.ts";
 import { getEmployeeByClerkId } from "../providers/employee.provider.ts";
 
 // Requires a valid Clerk session token (Authorization: Bearer <token>).
 // Exposes the Clerk user id on res.locals.clerkId for downstream handlers.
+// The first request of each Clerk session is logged as a sign-in.
 export function protectRoute(req: Request, res: Response, next: NextFunction) {
-  const { isAuthenticated, userId } = getAuth(req);
+  const { isAuthenticated, userId, sessionId } = getAuth(req);
 
   if (!isAuthenticated || !userId) {
     res
@@ -16,6 +18,7 @@ export function protectRoute(req: Request, res: Response, next: NextFunction) {
   }
 
   res.locals["clerkId"] = userId;
+  recordSignIn(req, userId, sessionId);
   next();
 }
 

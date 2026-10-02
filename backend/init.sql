@@ -292,3 +292,38 @@ CREATE TABLE IF NOT EXISTS documents (
     uploaded_by INT REFERENCES employees(employee_id) ON DELETE SET NULL,
     uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================ ADMIN ==============================
+--
+-- Tables a restore must not touch (activity_logs, backups, export_jobs,
+-- notification_log, health_checks, request_metrics) hold no foreign keys to
+-- tables a backup restores. A restore truncates those tables, which would
+-- otherwise either fail or, with CASCADE, wipe the audit trail too. They
+-- keep names and plain ids instead.
+
+DO $$ BEGIN CREATE TYPE log_severity AS ENUM ('info', 'warning', 'critical');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+
+-- Activity log and audit trail. Insert-only, apart from a flag's review. A
+-- row with a flag_reason is in the audit trail until someone reviews it.
+-- session_id is set only on sign_in rows, one per Clerk session.
+CREATE TABLE IF NOT EXISTS activity_logs (
+    log_id BIGSERIAL PRIMARY KEY,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actor_clerk_id VARCHAR(255),
+    actor_name VARCHAR(120) NOT NULL,
+    actor_role VARCHAR(20) NOT NULL CHECK (actor_role IN ('admin', 'manager', 'cashier', 'customer', 'system')),
+    action TEXT NOT NULL,
+    module VARCHAR(30) NOT NULL,
+    ip VARCHAR(45),
+    severity log_severity NOT NULL DEFAULT 'info',
+    flag_reason TEXT,
+    flag_reviewed_by VARCHAR(120),
+    flag_reviewed_at TIMESTAMPTZ,
+    session_id VARCHAR(64) UNIQUE
+);
+CREATE INDEX IF NOT EXISTS activity_logs_occurred_at_idx ON activity_logs (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS activity_logs_unreviewed_idx ON activity_logs (log_id DESC)
+    WHERE flag_reason IS NOT NULL AND flag_reviewed_at IS NULL;

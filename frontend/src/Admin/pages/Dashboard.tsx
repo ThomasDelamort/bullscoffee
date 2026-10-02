@@ -21,7 +21,7 @@ export default function Dashboard() {
   const openTickets = TICKETS.filter((t) => t.status === "open" || t.status === "in-progress");
   const urgentTickets = openTickets.filter((t) => t.priority === "urgent").length;
   const lastBackup = BACKUPS.find((b) => b.status === "completed");
-  const unreviewedFlags = LOGS.filter((l) => l.flag && !l.flag.reviewed);
+  const unreviewedFlags = LOGS.filter((l) => l.flag && !l.flag.reviewed_at);
   const avgUptime = SERVICES.reduce((sum, s) => sum + s.uptime, 0) / SERVICES.length;
   const degraded = SERVICES.filter((s) => s.state !== "operational");
 

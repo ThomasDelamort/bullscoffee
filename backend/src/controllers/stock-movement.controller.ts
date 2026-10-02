@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
+import { recordActivity } from "../providers/activity.provider.ts";
 import { getEmployeeByClerkId } from "../providers/employee.provider.ts";
 import {
   createStockMovement,
@@ -103,6 +104,14 @@ export const createStockMovementHandler = async (
         .json({ error: "Ingredient not found" });
       return;
     }
+    const amount = `${Math.abs(quantity_change)} ${movement.unit_of_measure} of ${movement.ingredient_name}`;
+    recordActivity(req, res, {
+      module: "Inventory",
+      action:
+        reason === "waste"
+          ? `Logged ${amount} as waste`
+          : `Adjusted stock: ${quantity_change > 0 ? "added" : "removed"} ${amount}`,
+    });
     res.status(StatusCodes.CREATED).json({
       message: "Successfully recorded stock movement",
       data: movement,

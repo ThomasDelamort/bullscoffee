@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
+import { recordActivity } from "../providers/activity.provider.ts";
 import {
   createDiscount,
   deleteDiscount,
@@ -115,6 +116,7 @@ export const createDiscountHandler = async (
       eligibility: changes.eligibility ?? "none",
       is_active: changes.is_active ?? true,
     });
+    recordActivity(req, res, { module: "Menu", action: `Created discount "${discount_name}"` });
     res
       .status(StatusCodes.CREATED)
       .json({ message: "Discount created", data: discount });
@@ -166,6 +168,13 @@ export const updateDiscountHandler = async (
       res.status(StatusCodes.NOT_FOUND).json({ error: "Discount not found" });
       return;
     }
+    const changed = Object.entries(changes)
+      .filter(([, value]) => value !== undefined)
+      .map(([field]) => field.replace(/_/g, " "));
+    recordActivity(req, res, {
+      module: "Menu",
+      action: `Changed discount "${current.discount_name}"${changed.length ? ` (${changed.join(", ")})` : ""}`,
+    });
     res
       .status(StatusCodes.OK)
       .json({ message: "Discount updated", data: discount });
@@ -193,10 +202,15 @@ export const deleteDiscountHandler = async (
       res.status(StatusCodes.BAD_REQUEST).json({ error: "Invalid discount ID" });
       return;
     }
+    const existing = await getDiscountById(discount_id);
     if (!(await deleteDiscount(discount_id))) {
       res.status(StatusCodes.NOT_FOUND).json({ error: "Discount not found" });
       return;
     }
+    recordActivity(req, res, {
+      module: "Menu",
+      action: `Deleted discount "${existing?.discount_name ?? `#${discount_id}`}"`,
+    });
     res
       .status(StatusCodes.OK)
       .json({ message: "Discount deleted", data: { discount_id } });

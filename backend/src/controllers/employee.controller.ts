@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
+import { recordActivity } from "../providers/activity.provider.ts";
 import {
   createEmployee,
   getEmployeeById,
@@ -131,6 +132,10 @@ export const createEmployeeHandler = async (
     };
 
     const newEmployee = await createEmployee(employee);
+    recordActivity(req, res, {
+      module: "Staff",
+      action: `Added ${employee.employee_role} ${employee.first_name} ${employee.last_name} (${employee.employee_email})`,
+    });
     res
       .status(StatusCodes.CREATED)
       .json({ message: "Successfully registered employee", data: newEmployee });
@@ -226,6 +231,13 @@ export const updateEmployeeHandler = async (
     if (!employee) {
       res.status(StatusCodes.NOT_FOUND).json({ error: "Employee not found" });
       return;
+    }
+    const fields = Object.keys(changes).map((field) => field.replace(/_/g, " "));
+    if (fields.length > 0) {
+      recordActivity(req, res, {
+        module: "Staff",
+        action: `Updated ${employee.first_name} ${employee.last_name} (${fields.join(", ")})`,
+      });
     }
     res
       .status(StatusCodes.OK)

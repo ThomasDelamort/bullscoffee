@@ -46,17 +46,29 @@ export interface ActivityFilters {
   search?: string;
 }
 
+export type ActorRole = StaffRole | "customer" | "system";
+
+/** GET /admin/activity: one row of the activity log. */
 export interface LogEntry {
   id: number;
   timestamp: string;
   actor: string;
-  role: Role | "system";
+  /** null for the System actor. */
+  actor_clerk_id: string | null;
+  role: ActorRole;
   action: string;
   module: string;
-  ip: string;
+  ip: string | null;
   severity: Severity;
   /** Set when the audit trail flags the event as suspicious. */
-  flag?: { reason: string; reviewed: boolean };
+  flag: { reason: string; reviewed_at: string | null; reviewed_by: string | null } | null;
+}
+
+export interface ActivityPage {
+  entries: LogEntry[];
+  /** Flagged entries nobody has reviewed yet, across the whole log. */
+  unreviewed: number;
+  has_more: boolean;
 }
 
 export type TicketKind = "complaint" | "bug";

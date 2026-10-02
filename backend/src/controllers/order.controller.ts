@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { discountFor, round2 } from "../lib/pricing.ts";
+import { peso, recordActivity } from "../providers/activity.provider.ts";
 import { getCustomerById } from "../providers/customer.provider.ts";
 import { getDiscountById } from "../providers/discount.provider.ts";
 import { getEmployeeByClerkId } from "../providers/employee.provider.ts";
@@ -289,6 +290,17 @@ export const createOrderHandler = async (
     };
 
     const order = await createOrder(newOrder);
+    const subtotal = parsedItems.reduce(
+      (sum, item) => sum + item.quantity * item.selling_price,
+      0,
+    );
+    if (order && subtotal > 0 && newOrder.discount_amount >= subtotal) {
+      recordActivity(req, res, {
+        module: "Orders",
+        action: `Placed order #${order.order_id} with a ${peso(subtotal)} discount, its whole subtotal`,
+        flag: "Full-value discount",
+      });
+    }
     res
       .status(StatusCodes.CREATED)
       .json({ message: "Successfully placed order", data: order });
@@ -325,6 +337,17 @@ const changeOrderStatus = async (
 
     const order = await transition(order_id, res.locals["employee"].employee_id);
     if (order) {
+      if (status === "cancelled") {
+        const paid = order.payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+        recordActivity(req, res, {
+          module: "Orders",
+          action:
+            paid > 0
+              ? `Cancelled order #${order_id} after ${peso(paid)} was paid`
+              : `Cancelled order #${order_id}`,
+          flag: paid > 0 ? "Paid order cancelled" : null,
+        });
+      }
       res
         .status(StatusCodes.OK)
         .json({ message: `Order ${status}`, data: order });

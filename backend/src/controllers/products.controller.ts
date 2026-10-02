@@ -9,6 +9,7 @@ import {
   updateProduct,
 } from "../providers/product.provider.ts";
 import type { Request, Response } from "express";
+import { peso, recordActivity } from "../providers/activity.provider.ts";
 import type {
   Product,
   ProductChanges,
@@ -161,6 +162,10 @@ export const createProductHandler = async (
       is_available: available,
       has_sizes: sized,
     });
+    recordActivity(req, res, {
+      module: "Menu",
+      action: `Added "${product_name.trim()}" to the menu at ${peso(amount)}`,
+    });
     res
       .status(StatusCodes.CREATED)
       .json({ message: "Successfully created product", data: product });
@@ -245,10 +250,19 @@ export const updateProductHandler = async (
       return;
     }
 
+    // Read first, so a price change can be logged as old -> new.
+    const before =
+      changes.price === undefined ? undefined : await getProductsById(product_id);
     const product = await updateProduct(product_id, changes);
     if (!product) {
       res.status(StatusCodes.NOT_FOUND).json({ error: "Product not found" });
       return;
+    }
+    if (before && Number(before.price) !== Number(product.price)) {
+      recordActivity(req, res, {
+        module: "Menu",
+        action: `Changed the price of "${product.product_name}" (${peso(before.price)} → ${peso(product.price)})`,
+      });
     }
     res
       .status(StatusCodes.OK)
@@ -282,11 +296,16 @@ export const deleteProductHandler = async (
       return;
     }
 
+    const existing = await getProductsById(product_id);
     const deleted = await deleteProduct(product_id);
     if (!deleted) {
       res.status(StatusCodes.NOT_FOUND).json({ error: "Product not found" });
       return;
     }
+    recordActivity(req, res, {
+      module: "Menu",
+      action: `Deleted "${existing?.product_name ?? `product #${product_id}`}" from the menu`,
+    });
     res.status(StatusCodes.OK).json({ message: "Product deleted successfully" });
   } catch (error: any) {
     console.error("deleteProductHandler failed:", error);
