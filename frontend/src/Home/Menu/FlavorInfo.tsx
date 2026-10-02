@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { KIOSK_BASE_PATH } from "../../kiosk/routes";
 import { formatPrice, type MenuItem } from "./menu.config";
 
 interface FlavorInfoProps {
@@ -7,9 +9,6 @@ interface FlavorInfoProps {
   /** Text color that reads on the flavor's background. */
   ink: string;
 }
-
-const goToOrder = () =>
-  document.getElementById("order")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
 export default function FlavorInfo({ item, index, headingId, ink }: FlavorInfoProps) {
   return (
@@ -29,14 +28,13 @@ export default function FlavorInfo({ item, index, headingId, ink }: FlavorInfoPr
           <span className="sr-only">Price: </span>
           {formatPrice(item.price)}
         </p>
-        <button
-          type="button"
-          onClick={goToOrder}
+        <Link
+          to={KIOSK_BASE_PATH}
           className="rounded-full px-5 py-2.5 text-sm font-extrabold uppercase shadow-md transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
           style={{ backgroundColor: ink, color: item.background }}
         >
           Order now
-        </button>
+        </Link>
       </div>
     </>
   );

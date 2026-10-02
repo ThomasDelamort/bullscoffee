@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ADMIN_BASE_PATH } from './Admin/routes';
 import { AUTH_PATHS, SSO_CALLBACK_PATH } from './AuthPage/routes';
 import { CHECKOUT_BASE_PATH } from './checkout/routes';
+import HomeLoader from './Home/Loader/HomeLoader';
 import { KIOSK_BASE_PATH } from './kiosk/routes';
 import { MANAGER_BASE_PATH } from './Manager/routes';
 import { POS_BASE_PATH } from './POS/routes';
@@ -12,8 +13,12 @@ import RegistrationNotice from './auth/RegistrationNotice';
 
 // One chunk per app, so a kiosk or register only downloads its own screens.
 // The paths come from each app's routes.ts: importing them from its index would pull the whole app back in.
-const Home = lazy(() => import('./Home/Home'));
-const Footer = lazy(() => import('./components/Footer'));
+const loadHome = () => import('./Home/Home');
+const loadFooter = () => import('./components/Footer');
+const Home = lazy(loadHome);
+const Footer = lazy(loadFooter);
+// The Home loader fetches these while its cup pours, so the page opens without a second wait.
+const HOME_CHUNKS = [loadHome, loadFooter];
 const AuthPage = lazy(() => import('./AuthPage'));
 const AdminRoutes = lazy(() => import('./Admin'));
 const ManagerRoutes = lazy(() => import('./Manager'));
@@ -28,10 +33,10 @@ function App() {
         <Routes>
           <Route
             element={
-              <>
+              <HomeLoader preload={HOME_CHUNKS}>
                 <Home />
                 <Footer />
-              </>
+              </HomeLoader>
             }
           >
             <Route path="/" />
