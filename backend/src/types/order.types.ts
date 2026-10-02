@@ -34,6 +34,8 @@ export interface PaymentRow {
   amount_paid: number;
   payment_method: PaymentMethod;
   paid_at: Date;
+  /** PayMongo's payment id for a payment taken online; null at the counter. */
+  paymongo_payment_id: string | null;
 }
 
 export interface OrderFilters {

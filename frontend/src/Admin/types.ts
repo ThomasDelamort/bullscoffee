@@ -83,22 +83,6 @@ export interface Backup {
   status: "completed" | "failed" | "in-progress";
 }
 
-export type GatewayMode = "sandbox" | "live";
-
-export interface PaymentMethod {
-  id: string;
-  label: string;
-  enabled: boolean;
-}
-
-export interface PaymentGatewaySettings {
-  mode: GatewayMode;
-  public_key: string;
-  secret_key: string;
-  webhook_url: string;
-  methods: PaymentMethod[];
-}
-
 export type BranchStatus = "open" | "closed" | "inactive";
 
 export interface Branch {

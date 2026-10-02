@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { FiCheck } from "react-icons/fi";
+import { goToCheckout, usePaymentOptions } from "../../checkout/api";
 import { errorMessage } from "../../lib/api";
 import { useCancelOrder, useCompleteOrder, useOrder, usePayOrder } from "../api/orders";
+import { useStartCheckout } from "../api/payments";
 import { isPaid } from "../data/selectors";
-import type { PaymentMethod } from "../types";
+import type { Tender } from "../types";
 import { formatPeso, formatTime, round2 } from "../utils/format";
 import { PAYMENT_METHOD_LABELS, paymentProblem, SIZE_LABELS, subtotalOf } from "../utils/pricing";
 import { OrderSourceBadge, StatusBadge } from "./badges";
@@ -27,9 +29,12 @@ export default function OrderDetailsModal({ orderId, onClose }: OrderDetailsModa
   const pay = usePayOrder();
   const complete = useCompleteOrder();
   const cancel = useCancelOrder();
+  const startCheckout = useStartCheckout();
+  const paymentOptions = usePaymentOptions();
+  const onlineMethods = paymentOptions.data?.online ? paymentOptions.data.methods : [];
   const notify = useToast();
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [method, setMethod] = useState<Tender>("cash");
   const [tendered, setTendered] = useState("");
   /** Shown after a cash payment until the modal closes. */
   const [changeDue, setChangeDue] = useState<number | null>(null);
@@ -37,11 +42,25 @@ export default function OrderDetailsModal({ orderId, onClose }: OrderDetailsModa
   const order = query.data;
   const pending = order?.order_status === "pending";
   const unpaid = pending && !isPaid(order);
-  const busy = pay.isPending || complete.isPending || cancel.isPending;
-  const problem = order && unpaid ? paymentProblem(order.balance_due, method, tendered) : null;
+  // Leaving for PayMongo's checkout page shows as busy until the page goes.
+  const openingCheckout = startCheckout.isPending || startCheckout.isSuccess;
+  const busy = pay.isPending || complete.isPending || cancel.isPending || openingCheckout;
+  const problem =
+    order && unpaid
+      ? method === "online" && onlineMethods.length === 0
+        ? "Online payment is switched off."
+        : paymentProblem(order.balance_due, method, tendered)
+      : null;
 
   const takePayment = () => {
     if (!order || problem || busy) return;
+    if (method === "online") {
+      startCheckout.mutate(order.order_id, {
+        onSuccess: ({ checkout_url }) => goToCheckout(checkout_url),
+        onError: (e) => notify(errorMessage(e), "error"),
+      });
+      return;
+    }
     const cash = Number(tendered) || 0;
     pay.mutate(
       { orderId: order.order_id, method },
@@ -89,7 +108,13 @@ export default function OrderDetailsModal({ orderId, onClose }: OrderDetailsModa
       </button>
       {unpaid ? (
         <button type="button" disabled={problem !== null || busy} onClick={takePayment} className={buttonClass("primary")}>
-          {pay.isPending ? "Charging…" : `Charge ${formatPeso(order.balance_due)}`}
+          {openingCheckout
+            ? "Opening checkout…"
+            : pay.isPending
+              ? "Charging…"
+              : method === "online"
+                ? `Pay ${formatPeso(order.balance_due)} online`
+                : `Charge ${formatPeso(order.balance_due)}`}
         </button>
       ) : (
         <button type="button" disabled={busy} onClick={() => finish("complete")} className={buttonClass("primary")}>
@@ -139,7 +164,9 @@ export default function OrderDetailsModal({ orderId, onClose }: OrderDetailsModa
               <dt className="text-xs text-(--pos-muted)">Payment</dt>
               <dd className="font-medium">
                 {order.payments.length
-                  ? order.payments.map((p) => PAYMENT_METHOD_LABELS[p.payment_method]).join(", ") + " · paid"
+                  ? order.payments
+                      .map((p) => `${PAYMENT_METHOD_LABELS[p.payment_method]}${p.paymongo_payment_id ? " (PayMongo)" : ""}`)
+                      .join(", ") + " · paid"
                   : order.total_amount > 0
                     ? "Not paid yet"
                     : "Nothing to pay"}
@@ -151,7 +178,7 @@ export default function OrderDetailsModal({ orderId, onClose }: OrderDetailsModa
             </div>
           </dl>
 
-          <ul className="mt-5 divide-y divide-white/[0.06] border-y border-white/[0.06]">
+          <ul className="mt-5 divide-y divide-white/6 border-y border-white/6">
             {order.items.map((l) => (
               <li key={l.order_item_id} className="flex items-start gap-3 py-3 text-sm">
                 <span className="w-6 shrink-0 text-(--pos-muted) tabular-nums">{l.quantity}×</span>
@@ -190,6 +217,7 @@ export default function OrderDetailsModal({ orderId, onClose }: OrderDetailsModa
                 total={order.balance_due}
                 method={method}
                 onMethodChange={setMethod}
+                onlineMethods={onlineMethods}
                 tendered={tendered}
                 onTenderedChange={setTendered}
                 labelClassName={LABEL}

@@ -7,6 +7,8 @@
 
 export type OrderStatus = "pending" | "completed" | "cancelled";
 export type PaymentMethod = "cash" | "card" | "e_wallet";
+/** How the cashier takes payment: a method recorded here, or online through PayMongo, which records it once it clears. */
+export type Tender = PaymentMethod | "online";
 export type ItemSize = "tall" | "grade" | "venti";
 export type DiscountKind = "percent" | "fixed";
 /** What the cashier must check before the discount can be applied. */
@@ -96,6 +98,8 @@ export interface Payment {
   amount_paid: number;
   payment_method: PaymentMethod;
   paid_at: string;
+  /** Set for a payment taken online through PayMongo. */
+  paymongo_payment_id: string | null;
 }
 
 /** GET /orders/:id: the row plus its lines and payments. */

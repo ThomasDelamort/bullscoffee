@@ -1,9 +1,10 @@
 # Setting up PayMongo
 
 Bull's Coffee takes GCash, Maya, GrabPay, QR Ph and card payments through PayMongo
-(see the admin [Payment Gateway](frontend/src/Admin/pages/PaymentGateway.tsx) page,
-currently wired to mock data). This is the procedure for turning that into a real
-integration against the existing Express/Postgres backend and React/Vite frontend.
+(configured on the admin [Payment Gateway](frontend/src/Admin/pages/PaymentGateway.tsx)
+page). The code in steps 3–7 is built; see [What's implemented](#whats-implemented) at
+the end for where it lives and where it departs from this plan. What's left is done by
+hand: steps 1, 2, the dashboard part of 6, 8 and 9.
 
 ## 1. Create a PayMongo account and get test keys
 
@@ -160,9 +161,10 @@ the event payload and:
 - insert a row into `payments` (`order_id`, `amount_paid`, `payment_method`), reusing
   the existing `PaymentMethod` union (`"card"` or `"e_wallet"` depending on the
   PayMongo payment method returned),
-- transition the order from `pending` to `completed` the same way
-  `completeOrder` in [order.provider.ts](backend/src/providers/order.provider.ts)
-  does.
+- leave the order `pending`. In this app `completed` means handed over, not paid:
+  `payOrder` in [order.provider.ts](backend/src/providers/order.provider.ts) leaves a
+  paid order pending so it shows in the barista's queue, and an online payment does
+  the same.
 
 Respond `200` quickly (PayMongo retries on non-2xx) and do the verification/order
 update before returning.
@@ -173,8 +175,9 @@ update before returning.
   customer picks GCash/Maya/GrabPay/QR Ph/card instead of cash, call
   `POST /api/payments/checkout-session` with the created `order_id`, then
   `window.location.href = checkout_url`. On `PAYMONGO_SUCCESS_URL`, poll
-  `GET /api/orders/:id` (already exists) until `order_status` is `completed`, since
-  the webhook — not the redirect — is the source of truth.
+  `GET /api/payments/orders/:id/status` until `paid` is true, since the webhook —
+  not the redirect — is the source of truth. (`GET /api/orders/:id` is staff-only, so
+  a kiosk customer can't poll it.)
 - **Admin Payment Gateway page** (`frontend/src/Admin/pages/PaymentGateway.tsx`):
   replace the `PAYMONGO_SETTINGS` mock with a real `GET`/`PUT` against a small admin
   settings endpoint for the non-secret fields (mode, enabled methods, timeout,
@@ -207,3 +210,53 @@ update before returning.
    domain.
 5. Flip the admin page's mode toggle from Sandbox to Live only after a real
    small-value test transaction succeeds end-to-end.
+
+## What's implemented
+
+Backend:
+
+- [lib/paymongo.ts](backend/src/lib/paymongo.ts): the REST client, and
+  `Paymongo-Signature` verification (only `te` is accepted with an `sk_test_` key,
+  only `li` with an `sk_live_` key).
+- [payment.provider.ts](backend/src/providers/payment.provider.ts): checkout
+  sessions and recording webhook payments. A session charges the order's
+  `balance_due`, not its line items, so a POS discount isn't charged in full; the
+  items are listed one per line only when they add up to the balance.
+- [payment.controller.ts](backend/src/controllers/payment.controller.ts) and
+  [payment.route.ts](backend/src/routes/payment.route.ts):
+  - `POST /api/payments/webhook`: raw body, registered in
+    [server.ts](backend/src/server.ts) ahead of `express.json()`
+  - `POST /api/payments/checkout-session`: employees
+  - `GET /api/payments/options` and `GET /api/payments/orders/:id/status`:
+    public; the status route is rate limited
+  - `GET`/`PUT /api/payments/gateway` and `POST /api/payments/gateway/test`:
+    admins only
+- `POST /api/kiosk/orders` takes `pay_online: true` and answers with a
+  `checkout_url`. If checkout can't start, `checkout_url` is null and the order is
+  paid at the counter as before.
+- [init.sql](backend/init.sql): `payments.paymongo_payment_id` (unique, so a retried
+  webhook is recorded once) and a one-row `payment_settings` table (enabled methods,
+  email receipt).
+
+Frontend:
+
+- POS: an **Online** tender on the ticket and on an unpaid order's details. The
+  order is placed unpaid and the register goes to PayMongo's checkout.
+- Kiosk: **Pay now** next to **Pay at the counter** in the cart.
+- `/checkout/success` and `/checkout/cancel`
+  ([checkout/](frontend/src/checkout/)): poll the status route. A kiosk order shows
+  its receipt (carried across the redirect in sessionStorage) and goes back to the
+  menu; a register order goes back to `/pos`.
+- Admin Payment Gateway: reads and saves the enabled methods and the email-receipt
+  setting. It shows whether each `.env` key is set (never the key itself) and the
+  webhook URL. **Test connection** checks the key and lists the webhooks subscribed
+  to `checkout_session.payment.paid`. The mode follows the secret key and can't be
+  toggled. The mock payment-timeout, refund-window and auto-verify controls were
+  removed because nothing enforces them yet.
+
+Not built yet:
+
+- Expiring an open checkout session when the order is cancelled or paid another
+  way. Until then, a customer who pays after that is still recorded (and logged)
+  and has to be refunded from the PayMongo dashboard.
+- Cancelling unpaid online orders automatically after a timeout.

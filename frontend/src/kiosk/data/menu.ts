@@ -1,4 +1,5 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 import { HERO_FLAVORS, type HeroFlavor } from "../../Home/Hero/hero.config";
 import { CREMA } from "../../Home/theme";
 import type { ApiClient } from "../../lib/api";
@@ -41,7 +42,8 @@ export type MenuState =
       status: "ready";
       /** Only categories with something in them; an empty tab is a dead end on a kiosk. */
       categories: Category[];
-      products: Product[];
+      /** Every category in `categories` has a non-empty list here. */
+      productsByCategory: ReadonlyMap<number, Product[]>;
     };
 
 /** The whole menu from GET /api/categories and /api/products, both public. */
@@ -50,15 +52,24 @@ export function useMenu(): MenuState {
   const categories = useQuery({ ...categoriesQuery(api), refetchInterval: MENU_REFRESH_MS });
   const products = useQuery({ ...productsQuery(api), refetchInterval: MENU_REFRESH_MS });
 
-  // Once loaded, a failed background refresh keeps the last good menu on screen.
-  if (categories.data && products.data) {
-    const stocked = new Set(products.data.map((p) => p.category_id));
+  // Rebuilt only when a refresh actually changes the menu, not on every render.
+  const ready = useMemo(() => {
+    if (!categories.data || !products.data) return null;
+    const productsByCategory = new Map<number, Product[]>();
+    for (const p of products.data) {
+      const list = productsByCategory.get(p.category_id);
+      if (list) list.push(p);
+      else productsByCategory.set(p.category_id, [p]);
+    }
     return {
-      status: "ready",
-      categories: categories.data.filter((c) => stocked.has(c.category_id)),
-      products: products.data,
+      status: "ready" as const,
+      categories: categories.data.filter((c) => productsByCategory.has(c.category_id)),
+      productsByCategory,
     };
-  }
+  }, [categories.data, products.data]);
+
+  // Once loaded, a failed background refresh keeps the last good menu on screen.
+  if (ready) return ready;
   const error = categories.error ?? products.error;
   if (error) {
     return {
@@ -76,10 +87,9 @@ export function useMenu(): MenuState {
 /** The product's category, from the menu already in the cache. */
 export function useCategoryOf(product: Pick<Product, "category_id">): Category | undefined {
   const api = useApi();
-  return useQuery({
-    ...categoriesQuery(api),
-    select: (rows) => rows.find((c) => c.category_id === product.category_id),
-  }).data;
+  const categoryId = product.category_id;
+  const select = useCallback((rows: Category[]) => rows.find((c) => c.category_id === categoryId), [categoryId]);
+  return useQuery({ ...categoriesQuery(api), select }).data;
 }
 
 export interface CategoryLook {

@@ -1,9 +1,11 @@
 import type { Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { StatusCodes } from "http-status-codes";
+import { isOnlinePaymentReady } from "../lib/paymongo.ts";
 import { isItemSize, unitPrice } from "../lib/pricing.ts";
 import { getCustomerByClerkId } from "../providers/customer.provider.ts";
 import { createOrder } from "../providers/order.provider.ts";
+import { createCheckoutSession } from "../providers/payment.provider.ts";
 import { getProductsByIds } from "../providers/product.provider.ts";
 import type {
   ItemSize,
@@ -114,8 +116,23 @@ const toReceipt = (order: OrderDetails) => ({
   })),
 });
 
-// A kiosk order is pending and unpaid with no cashier: the customer pays at
-// the counter, and whoever completes it there becomes its cashier.
+// Paying online is a convenience at the kiosk: when checkout can't start, the
+// order still stands and is paid at the counter like any other.
+const startCheckout = async (order_id: number): Promise<string | null> => {
+  if (!isOnlinePaymentReady()) return null;
+  try {
+    const result = await createCheckoutSession(order_id);
+    return result.status === "created" ? result.checkout_url : null;
+  } catch (error: any) {
+    console.error(`Kiosk checkout for order #${order_id} failed:`, error);
+    return null;
+  }
+};
+
+// A kiosk order is pending and unpaid with no cashier. With pay_online, the
+// answer carries a PayMongo checkout_url to send the customer to; otherwise
+// (or when that can't start) they pay at the counter. Whoever completes it
+// there becomes its cashier.
 export const createKioskOrderHandler = async (
   req: Request,
   res: Response,
@@ -135,6 +152,7 @@ export const createKioskOrderHandler = async (
       return;
     }
 
+    const payOnline = req.body?.pay_online === true;
     const order = await createOrder({
       customer_id: await signedInCustomerId(req),
       employee_id: null,
@@ -146,9 +164,13 @@ export const createKioskOrderHandler = async (
     });
     if (!order) throw new Error("Placed order could not be read back");
 
-    res
-      .status(StatusCodes.CREATED)
-      .json({ message: "Order placed. Pay at the counter.", data: toReceipt(order) });
+    const checkout_url = payOnline ? await startCheckout(order.order_id) : null;
+    res.status(StatusCodes.CREATED).json({
+      message: checkout_url
+        ? "Order placed. Continue to payment."
+        : "Order placed. Pay at the counter.",
+      data: { ...toReceipt(order), checkout_url },
+    });
   } catch (error: any) {
     console.error("createKioskOrderHandler failed:", error);
     res

@@ -24,11 +24,20 @@ import attendanceRoutes from "./routes/attendance.route.ts";
 import documentRoutes from "./routes/document.route.ts";
 import kioskRoutes from "./routes/kiosk.route.ts";
 import discountRoutes from "./routes/discount.route.ts";
+import paymentRoutes from "./routes/payment.route.ts";
+import { paymongoWebhookHandler } from "./controllers/payment.controller.ts";
 
 const app = express();
 const PORT = process.env["PORT"] || 3000;
 
 app.use(cors());
+// PayMongo signs the exact bytes it sends, so its webhook takes the raw body
+// and has to be registered before express.json() parses it away.
+app.post(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  paymongoWebhookHandler,
+);
 app.use(express.json());
 app.use(clerkMiddleware());
 app.use(responseFormatter);
@@ -65,6 +74,7 @@ app.use("/api", attendanceRoutes);
 app.use("/api", documentRoutes);
 app.use("/api", kioskRoutes);
 app.use("/api", discountRoutes);
+app.use("/api", paymentRoutes);
 
 async function startServer() {
   try {

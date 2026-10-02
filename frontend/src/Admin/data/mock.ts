@@ -9,7 +9,6 @@ import type {
   ExportJob,
   LogEntry,
   NotificationTemplate,
-  PaymentGatewaySettings,
   Permission,
   PermissionMatrix,
   Role,
@@ -183,20 +182,6 @@ export const BACKUPS: Backup[] = [
   { id: "bk-0926", created_at: "2026-09-26T03:00:01+08:00", size: "1.81 GB", kind: "automatic", status: "completed" },
   { id: "bk-0925", created_at: "2026-09-25T03:00:05+08:00", size: "1.80 GB", kind: "automatic", status: "completed" },
 ];
-
-export const PAYMONGO_SETTINGS: PaymentGatewaySettings = {
-  mode: "live",
-  public_key: "pk_live_••••••••••••sLp",
-  secret_key: "sk_live_••••••••••••••••••••••••c19e7",
-  webhook_url: "https://api.bullscoffee.ph/webhooks/paymongo",
-  methods: [
-    { id: "gcash", label: "GCash", enabled: true },
-    { id: "maya", label: "Maya", enabled: true },
-    { id: "grab_pay", label: "GrabPay", enabled: true },
-    { id: "card", label: "Credit & debit cards", enabled: false },
-    { id: "qrph", label: "QR Ph", enabled: true },
-  ],
-};
 
 export const BRANCHES: Branch[] = [
   { id: 1, name: "Main Campus", address: "Ground floor, Student Center, University Ave.", manager: "Andrea Villanueva", phone: "+63 917 555 0101", hours: "7:00 AM – 9:00 PM", staff_count: 9, status: "open" },

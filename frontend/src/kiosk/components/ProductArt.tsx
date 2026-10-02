@@ -31,10 +31,18 @@ interface ProductArtProps {
  * category's color for everything else.
  */
 export default function ProductArt({ product, variant = "card", className = "" }: ProductArtProps) {
-  const category = useCategoryOf(product);
-
   if (product.image_url) {
-    return <img src={product.image_url} alt="" draggable={false} className={`object-cover ${className}`} />;
+    return (
+      <img
+        src={product.image_url}
+        alt=""
+        draggable={false}
+        // The sheet's header is the one place the photo is the point; tiles and thumbs load as they scroll in.
+        loading={variant === "hero" ? "eager" : "lazy"}
+        decoding="async"
+        className={`object-cover ${className}`}
+      />
+    );
   }
 
   const flavor = cupFor(product);
@@ -46,6 +54,12 @@ export default function ProductArt({ product, variant = "card", className = "" }
     );
   }
 
+  return <CategoryArt product={product} variant={variant} className={className} />;
+}
+
+/** Split out so only products without a photo or cup subscribe to the categories query. */
+function CategoryArt({ product, variant = "card", className = "" }: ProductArtProps) {
+  const category = useCategoryOf(product);
   const { color } = categoryLook(category);
   return (
     <span

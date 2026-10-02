@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useCustomer, type Customer } from "../../auth/customerContext";
+import { goToCheckout, usePaymentOptions } from "../../checkout/api";
 import HeroImage from "../../Home/Hero/HeroImage";
 import { LOGO_MARK } from "../../Home/Hero/hero.config";
 import type { Product } from "../../POS/types";
@@ -8,6 +9,7 @@ import CartBar from "../components/CartBar";
 import CartSheet from "../components/CartSheet";
 import CategoryBanner from "../components/CategoryBanner";
 import CategoryTabs from "../components/CategoryTabs";
+import { saveCheckoutReceipt } from "../data/checkoutReceipt";
 import ProductCard from "../components/ProductCard";
 import ProductSheet from "../components/ProductSheet";
 import { useMenu } from "../data/menu";
@@ -25,6 +27,8 @@ export default function Kiosk() {
   const menu = useMenu();
   const cart = useCart();
   const placeOrder = usePlaceKioskOrder();
+  const paymentOptions = usePaymentOptions();
+  const onlineMethods = paymentOptions.data?.online ? paymentOptions.data.methods : [];
   const { state } = useCustomer();
   const customer = state.status === "registered" ? state.customer : null;
 
@@ -33,17 +37,21 @@ export default function Kiosk() {
   const [picked, setPicked] = useState<Product | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Set once PayMongo's checkout is loading, so the buttons stay busy until the page goes.
+  const [leaving, setLeaving] = useState(false);
   // Read out by screen readers, since the cart bar changes out of view of the focus.
   const [announcement, setAnnouncement] = useState("");
 
   const startOver = useCallback(() => {
     setReceipt(null);
+    setNotice(null);
     setCategoryId(null);
     setAnnouncement("");
     window.scrollTo({ top: 0 });
   }, []);
 
-  if (receipt) return <Confirmation receipt={receipt} onDone={startOver} />;
+  if (receipt) return <Confirmation receipt={receipt} notice={notice} onDone={startOver} />;
 
   if (menu.status === "loading") return <MenuStatus title="Loading the menu" />;
   if (menu.status === "error") {
@@ -61,7 +69,7 @@ export default function Kiosk() {
 
   // The tapped category, or the first one (also once the tapped one has emptied out).
   const category = menu.categories.find((c) => c.category_id === categoryId) ?? menu.categories[0]!;
-  const products = menu.products.filter((p) => p.category_id === category.category_id);
+  const products = menu.productsByCategory.get(category.category_id) ?? [];
 
   const changeCategory = (id: number) => {
     setCategoryId(id);
@@ -74,7 +82,7 @@ export default function Kiosk() {
     setAnnouncement(`Added ${choice.quantity} ${product.product_name} to your order.`);
   };
 
-  const submitOrder = () => {
+  const submitOrder = (payOnline: boolean) => {
     const items = cart.lines.map((l) => ({
       product_id: l.product.product_id,
       quantity: l.quantity,
@@ -82,16 +90,28 @@ export default function Kiosk() {
       special_instructions: l.note || null,
     }));
     placeOrder.mutate(
-      { items },
+      { items, pay_online: payOnline },
       {
         onSuccess: (order) => {
-          setReceipt({ ...order, firstName: customer?.first_name ?? null });
+          const placed = { ...order, firstName: customer?.first_name ?? null };
+          if (order.checkout_url) {
+            // PayMongo sends the customer back to /checkout, which shows this receipt.
+            saveCheckoutReceipt(placed);
+            setLeaving(true);
+            goToCheckout(order.checkout_url);
+            return;
+          }
+          setReceipt(placed);
+          setNotice(payOnline ? "Paying here isn't available right now, so please pay at the counter." : null);
           cart.clear();
           setCartOpen(false);
         },
       },
     );
   };
+
+  const placing =
+    placeOrder.isPending || leaving ? (placeOrder.variables?.pay_online ? "online" : "counter") : null;
 
   return (
     <>
@@ -102,7 +122,9 @@ export default function Kiosk() {
             <p className="hero-display text-2xl tracking-wide uppercase">Bull's Coffee</p>
             <p className="mt-1 text-[11px] font-bold tracking-[0.25em] text-(--k-muted) uppercase">Self-order</p>
           </div>
-          <div className="ml-auto">{customer ? <Greeting customer={customer} /> : <PayAtCounter />}</div>
+          <div className="ml-auto">
+            {customer ? <Greeting customer={customer} /> : <PayAtCounter online={onlineMethods.length > 0} />}
+          </div>
         </div>
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <CategoryTabs categories={menu.categories} active={category.category_id} onChange={changeCategory} />
@@ -129,7 +151,8 @@ export default function Kiosk() {
         onClose={() => setCartOpen(false)}
         cart={cart}
         customerName={customer ? `${customer.first_name} ${customer.last_name}` : null}
-        placing={placeOrder.isPending}
+        placing={placing}
+        onlineMethods={onlineMethods}
         error={placeOrder.isError ? placeOrderError(placeOrder.error) : null}
         onPlaceOrder={submitOrder}
       />
@@ -183,11 +206,11 @@ function MenuStatus({ title, detail, onRetry }: MenuStatusProps) {
   );
 }
 
-function PayAtCounter() {
+function PayAtCounter({ online }: { online: boolean }) {
   return (
     <span className="hidden items-center gap-2 text-xs font-bold tracking-[0.2em] text-(--k-muted) uppercase sm:flex">
       <span aria-hidden className="size-2 rounded-full bg-(--k-gold)" />
-      Pay at the counter
+      {online ? "Pay here or at the counter" : "Pay at the counter"}
     </span>
   );
 }

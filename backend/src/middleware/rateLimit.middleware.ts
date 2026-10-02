@@ -26,3 +26,18 @@ export const kioskOrderLimiter = rateLimit({
     });
   },
 });
+
+// GET /api/payments/orders/:id/status needs no sign-in either: the checkout
+// return page polls it every few seconds until PayMongo's webhook lands. Set
+// for a handful of devices on one address all waiting on a payment at once.
+export const paymentStatusLimiter = rateLimit({
+  windowMs: 5 * 60_000,
+  limit: 600,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(StatusCodes.TOO_MANY_REQUESTS).json({
+      error: "Too many requests. Please wait a moment and try again.",
+    });
+  },
+});

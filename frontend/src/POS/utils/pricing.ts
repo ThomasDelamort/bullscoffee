@@ -1,4 +1,4 @@
-import type { Discount, ItemSize, OrderItem, PaymentMethod, Product } from "../types";
+import type { Discount, ItemSize, OrderItem, PaymentMethod, Product, Tender } from "../types";
 import { round2 } from "./format";
 
 interface SizeOption {
@@ -22,6 +22,8 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card: "Card",
   e_wallet: "E-wallet",
 };
+
+export const TENDER_LABELS: Record<Tender, string> = { ...PAYMENT_METHOD_LABELS, online: "Online" };
 
 export function unitPrice(product: Pick<Product, "price">, size: ItemSize | null): number {
   const upcharge = SIZES.find((s) => s.value === size)?.upcharge ?? 0;
@@ -51,6 +53,6 @@ export function cashSuggestions(total: number): number[] {
 }
 
 /** Why the payment can't go through yet, or null when it can. `tendered` is the cash received, as typed. */
-export function paymentProblem(total: number, method: PaymentMethod, tendered: string): string | null {
+export function paymentProblem(total: number, method: Tender, tendered: string): string | null {
   return method === "cash" && total > 0 && (Number(tendered) || 0) < total ? "Enter the cash received." : null;
 }

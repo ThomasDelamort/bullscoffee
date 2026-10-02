@@ -11,6 +11,8 @@ import { kioskKeys } from "./menu";
  */
 export interface KioskOrderDraft {
   items: Pick<OrderItem, "product_id" | "quantity" | "size" | "special_instructions">[];
+  /** Ask for a PayMongo checkout to pay at once instead of at the counter. */
+  pay_online?: boolean;
 }
 
 export interface PlacedItem {
@@ -28,6 +30,8 @@ export interface PlacedOrder {
   ordered_at: string;
   total_amount: number;
   items: PlacedItem[];
+  /** Where to send the customer to pay; null when paying at the counter, or when online payment couldn't start. */
+  checkout_url: string | null;
 }
 
 // pg sends DECIMAL columns as strings ("120.00").
@@ -38,8 +42,9 @@ const toPlacedOrder = (o: PlacedOrder): PlacedOrder => ({
 });
 
 /**
- * Places the order as pending and unpaid; the cashier finds it by its number
- * and takes payment at the counter.
+ * Places the order as pending and unpaid. The customer either pays online
+ * through the checkout_url it comes back with, or gives the cashier its
+ * number and pays at the counter.
  */
 export function usePlaceKioskOrder() {
   const api = useApi();

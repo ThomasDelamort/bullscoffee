@@ -1,14 +1,17 @@
-import type { PaymentMethod } from "../types";
+import { describeMethods, type PaymongoMethod } from "../../checkout/api";
+import type { Tender } from "../types";
 import { formatPeso, round2 } from "../utils/format";
-import { cashSuggestions, PAYMENT_METHOD_LABELS } from "../utils/pricing";
+import { cashSuggestions, TENDER_LABELS } from "../utils/pricing";
 import { buttonClass, INPUT_CLASS, segmentClass } from "./styles";
 
-const PAYMENT_METHODS: readonly PaymentMethod[] = ["cash", "card", "e_wallet"];
+const COUNTER_TENDERS: readonly Tender[] = ["cash", "card", "e_wallet"];
 
 interface PaymentFieldsProps {
   total: number;
-  method: PaymentMethod;
-  onMethodChange: (method: PaymentMethod) => void;
+  method: Tender;
+  onMethodChange: (method: Tender) => void;
+  /** What PayMongo checkout offers; empty when online payment is off, which hides the Online choice. */
+  onlineMethods: PaymongoMethod[];
   /** Cash received, as typed. */
   tendered: string;
   onTenderedChange: (tendered: string) => void;
@@ -20,16 +23,22 @@ export default function PaymentFields({
   total,
   method,
   onMethodChange,
+  onlineMethods,
   tendered,
   onTenderedChange,
   labelClassName,
 }: PaymentFieldsProps) {
   const cash = Number(tendered) || 0;
+  const tenders = onlineMethods.length ? [...COUNTER_TENDERS, "online" as const] : COUNTER_TENDERS;
 
   return (
     <>
-      <div role="radiogroup" aria-label="Payment method" className="grid grid-cols-3 gap-1 rounded-lg bg-white/[0.04] p-1">
-        {PAYMENT_METHODS.map((m) => (
+      <div
+        role="radiogroup"
+        aria-label="Payment method"
+        className={`grid gap-1 rounded-lg bg-white/[0.04] p-1 ${tenders.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}
+      >
+        {tenders.map((m) => (
           <button
             key={m}
             type="button"
@@ -38,10 +47,17 @@ export default function PaymentFields({
             onClick={() => onMethodChange(m)}
             className={`${segmentClass(method === m)} py-1.5 text-sm`}
           >
-            {PAYMENT_METHOD_LABELS[m]}
+            {TENDER_LABELS[m]}
           </button>
         ))}
       </div>
+
+      {method === "online" && total > 0 && (
+        <p className="text-xs text-(--pos-muted)">
+          The customer pays with {describeMethods(onlineMethods)} on PayMongo's checkout page. The order shows as paid
+          once PayMongo confirms it.
+        </p>
+      )}
 
       {method === "cash" && total > 0 && (
         <div className="space-y-2">

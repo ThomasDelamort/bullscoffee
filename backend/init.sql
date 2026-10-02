@@ -95,7 +95,8 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS clerk_id VARCHAR(255) UNIQUE NOT 
 CREATE TABLE IF NOT EXISTS categories (
     category_id SERIAL PRIMARY KEY,
     category_name VARCHAR(50) NOT NULL UNIQUE,
-    image_url VARCHAR(255)
+    image_url VARCHAR(255),
+    category_banner VARCHAR(255)
 );
 
 -- Self-heals databases created before image_url existed on this table (see
@@ -191,6 +192,19 @@ CREATE TABLE IF NOT EXISTS payments (
 
 -- Every order row sums its payments to work out the balance due.
 CREATE INDEX IF NOT EXISTS payments_order_id_idx ON payments (order_id);
+
+-- PayMongo's id (pay_...) for a payment taken online; NULL for one taken at
+-- the counter. Unique, so a webhook PayMongo retries is only recorded once.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS paymongo_payment_id VARCHAR(64) UNIQUE;
+
+-- One row: which PayMongo methods checkout offers, set from the admin
+-- Payment Gateway page. The API keys aren't here; they live in backend/.env.
+CREATE TABLE IF NOT EXISTS payment_settings (
+    settings_id INT PRIMARY KEY DEFAULT 1 CHECK (settings_id = 1),
+    enabled_methods TEXT[] NOT NULL DEFAULT ARRAY['gcash', 'paymaya', 'grab_pay', 'qrph', 'card'],
+    send_email_receipt BOOLEAN NOT NULL DEFAULT TRUE
+);
+INSERT INTO payment_settings (settings_id) VALUES (1) ON CONFLICT DO NOTHING;
 
 -- =========================== SUPPLY ============================
 
