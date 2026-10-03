@@ -7,54 +7,7 @@ import type {
   ExportJob,
   SeriesPoint,
   ServiceStatus,
-  Ticket,
 } from "../types";
-
-export const TICKETS: Ticket[] = [
-  {
-    id: "T-1042", kind: "bug", subject: "Payment stuck on 'processing' with GCash", reporter: "Mika Reyes", reporter_email: "mika.reyes@student.edu.ph",
-    priority: "urgent", status: "open", created_at: "2026-09-29T08:20:00+08:00",
-    description: "I paid for my order using GCash and the money was deducted, but the app has shown 'Processing payment' for 20 minutes. Order #O-18901.",
-    replies: [],
-  },
-  {
-    id: "T-1041", kind: "complaint", subject: "Charged twice for the same order", reporter: "Joshua Garcia", reporter_email: "joshua.garcia@student.edu.ph",
-    priority: "high", status: "in-progress", created_at: "2026-09-28T19:02:00+08:00",
-    description: "My card was charged ₱185 twice for one Spanish Latte. Please refund the duplicate charge.",
-    replies: [
-      { author: "Chris Paredes", from: "staff", body: "Hi Joshua, thanks for flagging this. We can see two authorizations and are confirming with the payment provider. We'll update you within 24 hours.", at: "2026-09-28T20:15:00+08:00" },
-    ],
-  },
-  {
-    id: "T-1040", kind: "bug", subject: "Order history page is blank on iPhone", reporter: "Trisha Bautista", reporter_email: "trisha.b@student.edu.ph",
-    priority: "medium", status: "open", created_at: "2026-09-28T12:44:00+08:00",
-    description: "When I open Order History on Safari (iOS 19) the page loads but nothing shows. It works on my laptop.",
-    replies: [],
-  },
-  {
-    id: "T-1039", kind: "complaint", subject: "Loyalty points not credited", reporter: "Mika Reyes", reporter_email: "mika.reyes@student.edu.ph",
-    priority: "low", status: "resolved", created_at: "2026-09-26T09:30:00+08:00",
-    description: "I bought 3 drinks yesterday but my points balance didn't change.",
-    replies: [
-      { author: "Chris Paredes", from: "staff", body: "Points were delayed by a sync job. We've credited 45 points to your account.", at: "2026-09-26T13:10:00+08:00" },
-      { author: "Mika Reyes", from: "reporter", body: "Got them, thank you!", at: "2026-09-26T13:42:00+08:00" },
-    ],
-  },
-  {
-    id: "T-1038", kind: "bug", subject: "Receipt PDF shows wrong branch address", reporter: "Andrea Villanueva", reporter_email: "andrea.v@bullscoffee.ph",
-    priority: "medium", status: "in-progress", created_at: "2026-09-25T15:05:00+08:00",
-    description: "Receipts printed at Engineering Hall still show the Main Campus address in the header.",
-    replies: [],
-  },
-  {
-    id: "T-1037", kind: "complaint", subject: "Promo code SEMSTART rejected", reporter: "Joshua Garcia", reporter_email: "joshua.garcia@student.edu.ph",
-    priority: "low", status: "closed", created_at: "2026-09-22T10:12:00+08:00",
-    description: "The code from the poster says invalid at checkout.",
-    replies: [
-      { author: "Chris Paredes", from: "staff", body: "SEMSTART expired on Sept 20. We've added a one-time 10% voucher to your account instead.", at: "2026-09-22T11:00:00+08:00" },
-    ],
-  },
-];
 
 export const SERVICES: ServiceStatus[] = [
   { id: "web", name: "Storefront", description: "Customer web app", state: "operational", latency_ms: 142, uptime: 99.98 },

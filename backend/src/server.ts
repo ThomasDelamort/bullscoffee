@@ -27,6 +27,7 @@ import kioskRoutes from "./routes/kiosk.route.ts";
 import discountRoutes from "./routes/discount.route.ts";
 import paymentRoutes from "./routes/payment.route.ts";
 import settingsRoutes from "./routes/settings.route.ts";
+import supportRoutes from "./routes/support.route.ts";
 import { paymongoWebhookHandler } from "./controllers/payment.controller.ts";
 
 const app = express();
@@ -83,6 +84,7 @@ app.use("/api", kioskRoutes);
 app.use("/api", discountRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api", settingsRoutes);
+app.use("/api", supportRoutes);
 
 async function startServer() {
   try {

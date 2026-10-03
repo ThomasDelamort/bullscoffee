@@ -251,7 +251,9 @@ function RecentSends() {
             <tr key={entry.id}>
               <Td className="text-(--admin-muted)">{formatDateTime(entry.sent_at)}</Td>
               <Td>{entry.template_name ?? entry.template_id ?? "—"}</Td>
-              <Td className="text-(--admin-muted)">{entry.order_id ? `#${entry.order_id}` : "Test"}</Td>
+              <Td className="text-(--admin-muted)">
+                {entry.order_id ? `#${entry.order_id}` : entry.template_id === "ticket-reply" ? "—" : "Test"}
+              </Td>
               <Td className="text-(--admin-muted)">{entry.recipient ?? "—"}</Td>
               <Td wrap>
                 <Badge tone={SEND_STATUS[entry.status].tone} dot>{SEND_STATUS[entry.status].label}</Badge>

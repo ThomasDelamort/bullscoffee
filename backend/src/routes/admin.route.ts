@@ -19,6 +19,12 @@ import {
 } from "../controllers/notifications.controller.ts";
 import { getPermissionsHandler, savePermissionsHandler } from "../controllers/permissions.controller.ts";
 import { getSettingsHandler, updateSettingsHandler } from "../controllers/settings.controller.ts";
+import {
+  getTicketHandler,
+  listTicketsHandler,
+  replyToTicketHandler,
+  updateTicketHandler,
+} from "../controllers/tickets.controller.ts";
 import { protectRoute, requireAdmin } from "../middleware/auth.middleware.ts";
 
 // Mounted at /api/admin. Every route below is for active admins only: the
@@ -66,5 +72,13 @@ router.get("/notifications/templates", listTemplatesHandler);
 router.put("/notifications/templates/:id", updateTemplateHandler);
 router.post("/notifications/templates/:id/test", sendTestHandler);
 router.get("/notifications/log", getNotificationLogHandler);
+
+/*
+    SUPPORT TICKETS
+*/
+router.get("/tickets", listTicketsHandler);
+router.get("/tickets/:id", getTicketHandler);
+router.patch("/tickets/:id", updateTicketHandler);
+router.post("/tickets/:id/replies", replyToTicketHandler);
 
 export default router;

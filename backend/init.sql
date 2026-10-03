@@ -407,3 +407,49 @@ CREATE TABLE IF NOT EXISTS notification_log (
     sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS notification_log_sent_at_idx ON notification_log (sent_at DESC);
+
+DO $$ BEGIN CREATE TYPE ticket_kind AS ENUM ('complaint', 'bug');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE ticket_status AS ENUM ('open', 'in_progress', 'resolved', 'closed');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE ticket_priority AS ENUM ('low', 'medium', 'high', 'urgent');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+
+-- Complaints and bug reports from the storefront's Contact form, handled on
+-- the admin Support Tickets page. customer_id is set when the reporter was
+-- signed in; order_id when they named an order that exists.
+CREATE TABLE IF NOT EXISTS support_tickets (
+    ticket_id SERIAL PRIMARY KEY,
+    kind ticket_kind NOT NULL,
+    subject VARCHAR(150) NOT NULL,
+    description TEXT NOT NULL,
+    reporter_name VARCHAR(100) NOT NULL,
+    reporter_email VARCHAR(255) NOT NULL,
+    customer_id INT REFERENCES customers(customer_id) ON DELETE SET NULL,
+    order_id INT REFERENCES orders(order_id) ON DELETE SET NULL,
+    priority ticket_priority NOT NULL DEFAULT 'medium',
+    status ticket_status NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS support_tickets_status_idx ON support_tickets (status, created_at DESC);
+
+-- Staff replies, each also emailed to the reporter (email_status says
+-- whether it went). The reporter's own email replies land in the support
+-- inbox and aren't pulled back in here.
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    message_id SERIAL PRIMARY KEY,
+    ticket_id INT NOT NULL REFERENCES support_tickets(ticket_id) ON DELETE CASCADE,
+    author_employee_id INT REFERENCES employees(employee_id) ON DELETE SET NULL,
+    author_name VARCHAR(120) NOT NULL,
+    body TEXT NOT NULL,
+    email_status notification_status NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ticket_messages_ticket_id_idx ON ticket_messages (ticket_id);

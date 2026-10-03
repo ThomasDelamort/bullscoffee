@@ -65,7 +65,9 @@ export interface NotificationLogEntry {
 export async function getNotificationLog(limit: number): Promise<NotificationLogEntry[]> {
   const result = await pool.query(
     `
-      SELECT l.log_id::int AS id, l.template_id, t.name AS template_name, l.order_id,
+      SELECT l.log_id::int AS id, l.template_id,
+             COALESCE(t.name, CASE WHEN l.template_id = 'ticket-reply' THEN 'Support ticket reply' END) AS template_name,
+             l.order_id,
              l.recipient, l.status, l.error, l.latency_ms, l.sent_at
       FROM notification_log l
       LEFT JOIN notification_templates t ON t.template_id = l.template_id

@@ -3,6 +3,7 @@ import { FiAlertTriangle, FiArrowRight, FiClock, FiDatabase, FiLifeBuoy, FiUsers
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../lib/api";
 import { useActivity, useSignIns } from "../api/activity";
+import { useTickets } from "../api/tickets";
 import { useAdminUsers } from "../api/users";
 import Badge from "../components/Badge";
 import Card from "../components/Card";
@@ -14,10 +15,10 @@ import { ErrorNotice, Loading } from "../components/QueryState";
 import StatCard from "../components/StatCard";
 import { SERVICE_STATE, SEVERITY } from "../components/status";
 import { buttonClass } from "../components/styles";
-import { BACKUPS, RESPONSE_TIME_24H, SERVICES, TICKETS } from "../data/mock";
+import { BACKUPS, RESPONSE_TIME_24H, SERVICES } from "../data/mock";
 import { adminPath } from "../routes";
 import type { SeriesPoint } from "../types";
-import { formatDateTime, formatNumber } from "../utils/format";
+import { formatDateTime, formatNumber, ticketNumber } from "../utils/format";
 
 const ms = (v: number) => `${formatNumber(v)} ms`;
 const WEEKDAY = new Intl.DateTimeFormat("en-PH", { weekday: "short", timeZone: "UTC" });
@@ -105,13 +106,13 @@ function AccountsStat() {
 }
 
 function TicketsStat() {
-  const open = TICKETS.filter((t) => t.status === "open" || t.status === "in-progress");
-  const urgent = open.filter((t) => t.priority === "urgent").length;
+  const tickets = useTickets();
+  const urgent = tickets.data?.tickets.filter((t) => t.priority === "urgent").length ?? 0;
   return (
     <StatCard
       label="Open tickets"
-      value={open.length}
-      hint={urgent ? `${urgent} urgent` : "Nothing urgent"}
+      value={statValue(tickets, (data) => data.tickets.length)}
+      hint={tickets.isError ? errorMessage(tickets.error) : tickets.data && (urgent ? `${urgent} urgent` : "Nothing urgent")}
       icon={FiLifeBuoy}
     />
   );
@@ -240,15 +241,28 @@ function ServicesCard() {
 }
 
 function LatestTickets() {
-  const open = TICKETS.filter((t) => t.status === "open" || t.status === "in-progress");
+  const tickets = useTickets();
+  // Newest first; the API sorts by urgency.
+  const latest = [...(tickets.data?.tickets ?? [])]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 3);
   return (
     <Card title="Latest tickets" flush actions={<ViewAll to={adminPath("tickets")} />}>
+      {tickets.isPending && <Loading />}
+      {tickets.isError && (
+        <div className="p-4">
+          <ErrorNotice error={tickets.error} onRetry={() => void tickets.refetch()} />
+        </div>
+      )}
+      {tickets.isSuccess && latest.length === 0 && (
+        <p className="px-5 py-6 text-center text-sm text-(--admin-muted)">No open tickets.</p>
+      )}
       <ul className="divide-y divide-(--admin-line)">
-        {open.slice(0, 3).map((ticket) => (
+        {latest.map((ticket) => (
           <li key={ticket.id} className="px-5 py-3">
             <p className="truncate text-sm font-medium">{ticket.subject}</p>
             <p className="mt-0.5 text-xs text-(--admin-muted)">
-              {ticket.id} · {ticket.reporter} · {ticket.kind === "bug" ? "Bug report" : "Complaint"}
+              {ticketNumber(ticket.id)} · {ticket.reporter_name} · {ticket.kind === "bug" ? "Bug report" : "Complaint"}
             </p>
           </li>
         ))}

@@ -32,3 +32,6 @@ export function initials(name: string): string {
 export function fillTemplate(text: string, values: Record<string, string>): string {
   return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => values[key] ?? match);
 }
+
+/** A support ticket's display number: 12 → "T-12". */
+export const ticketNumber = (id: number): string => `T-${id}`;

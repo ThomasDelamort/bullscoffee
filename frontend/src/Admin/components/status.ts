@@ -27,7 +27,7 @@ export const SEVERITY: StatusMap<Severity> = {
 
 export const TICKET_STATUS: StatusMap<TicketStatus> = {
   open: { tone: "info", label: "Open" },
-  "in-progress": { tone: "gold", label: "In progress" },
+  in_progress: { tone: "gold", label: "In progress" },
   resolved: { tone: "success", label: "Resolved" },
   closed: { tone: "neutral", label: "Closed" },
 };

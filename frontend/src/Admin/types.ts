@@ -101,27 +101,50 @@ export interface ActivityPage {
 }
 
 export type TicketKind = "complaint" | "bug";
-export type TicketStatus = "open" | "in-progress" | "resolved" | "closed";
+export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 export type TicketPriority = "low" | "medium" | "high" | "urgent";
 
-export interface TicketReply {
-  author: string;
-  from: "staff" | "reporter";
-  body: string;
-  at: string;
-}
-
+/** A complaint or bug report from the storefront's Contact form. */
 export interface Ticket {
-  id: string;
+  id: number;
   kind: TicketKind;
   subject: string;
-  reporter: string;
+  description: string;
+  reporter_name: string;
   reporter_email: string;
+  /** Set when the reporter was signed in. */
+  customer_id: number | null;
+  /** Set when they named an order that exists. */
+  order_id: number | null;
   priority: TicketPriority;
   status: TicketStatus;
   created_at: string;
-  description: string;
-  replies: TicketReply[];
+  updated_at: string;
+  message_count: number;
+}
+
+/** A staff reply, also emailed to the reporter. */
+export interface TicketMessage {
+  id: number;
+  author_name: string;
+  body: string;
+  email_status: "sent" | "failed" | "skipped";
+  created_at: string;
+}
+
+export interface TicketWithMessages extends Ticket {
+  messages: TicketMessage[];
+}
+
+export interface TicketList {
+  tickets: Ticket[];
+  /** Open or in-progress tickets of each kind. */
+  open: Record<TicketKind, number>;
+}
+
+export interface TicketReply {
+  ticket: TicketWithMessages;
+  email: { status: TicketMessage["email_status"]; error: string | null };
 }
 
 export type ServiceState = "operational" | "degraded" | "down" | "restarting";

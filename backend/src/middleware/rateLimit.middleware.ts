@@ -41,3 +41,18 @@ export const paymentStatusLimiter = rateLimit({
     });
   },
 });
+
+// POST /api/support/tickets (the Contact form) needs no sign-in either. A
+// person writes in a few times at most; this stops a script from filling
+// the support inbox.
+export const ticketLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(StatusCodes.TOO_MANY_REQUESTS).json({
+      error: "You've sent several messages already. Please wait an hour, or email us directly.",
+    });
+  },
+});
