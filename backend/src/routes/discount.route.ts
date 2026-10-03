@@ -5,18 +5,14 @@ import {
   getDiscountsHandler,
   updateDiscountHandler,
 } from "../controllers/discount.controller.ts";
-import {
-  protectRoute,
-  requireEmployee,
-  requireManager,
-} from "../middleware/auth.middleware.ts";
+import { protectRoute, requirePermission } from "../middleware/auth.middleware.ts";
 
 const router = Router();
 
-// Every register reads the list; only managers change it.
-router.get("/discounts", protectRoute, requireEmployee, getDiscountsHandler);
-router.post("/discounts", protectRoute, requireManager, createDiscountHandler);
-router.patch("/discounts/:id", protectRoute, requireManager, updateDiscountHandler);
-router.delete("/discounts/:id", protectRoute, requireManager, deleteDiscountHandler);
+// Every register reads the list to apply one; changing it is separate.
+router.get("/discounts", protectRoute, requirePermission("orders.process"), getDiscountsHandler);
+router.post("/discounts", protectRoute, requirePermission("discounts.manage"), createDiscountHandler);
+router.patch("/discounts/:id", protectRoute, requirePermission("discounts.manage"), updateDiscountHandler);
+router.delete("/discounts/:id", protectRoute, requirePermission("discounts.manage"), deleteDiscountHandler);
 
 export default router;

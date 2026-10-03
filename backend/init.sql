@@ -327,3 +327,19 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 CREATE INDEX IF NOT EXISTS activity_logs_occurred_at_idx ON activity_logs (occurred_at DESC);
 CREATE INDEX IF NOT EXISTS activity_logs_unreviewed_idx ON activity_logs (log_id DESC)
     WHERE flag_reason IS NOT NULL AND flag_reviewed_at IS NULL;
+
+-- One row per one-off data step that has run (e.g. a seed), so it never
+-- runs again, even if what it created is later deleted on purpose.
+CREATE TABLE IF NOT EXISTS app_migrations (
+    name VARCHAR(100) PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Which permissions managers and cashiers hold (the catalogue lives in
+-- src/lib/permissions.ts). Admins hold every permission and are never
+-- stored. Seeded once at startup by seedRolePermissions().
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role employee_role NOT NULL CHECK (role <> 'admin'),
+    permission VARCHAR(50) NOT NULL,
+    PRIMARY KEY (role, permission)
+);

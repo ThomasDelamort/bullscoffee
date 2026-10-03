@@ -51,9 +51,20 @@ export interface Permission {
   id: string;
   label: string;
   module: string;
+  /** What it gates, in words. */
+  gates: string;
+  /** System permissions: admins only, never grantable. */
+  admin_only: boolean;
 }
 
-export type PermissionMatrix = Record<Role, string[]>;
+/** Roles whose permissions can be edited; admins hold every permission. */
+export type EditableRole = "manager" | "cashier";
+export type PermissionMatrix = Record<EditableRole, string[]>;
+
+export interface PermissionsResponse {
+  catalogue: Permission[];
+  matrix: PermissionMatrix;
+}
 
 export type Severity = "info" | "warning" | "critical";
 

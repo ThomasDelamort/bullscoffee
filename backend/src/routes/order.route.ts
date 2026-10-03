@@ -1,14 +1,14 @@
 import { getOrdersHandler, getOrderByIdHandler, createOrderHandler, completeOrderHandler, cancelOrderHandler, payOrderHandler } from "../controllers/order.controller.ts";
 import { Router } from "express";
-import { protectRoute, requireEmployee } from "../middleware/auth.middleware.ts";
+import { protectRoute, requirePermission } from "../middleware/auth.middleware.ts";
 
 const router = Router();
 
-router.get("/orders", protectRoute, requireEmployee, getOrdersHandler);
-router.get("/orders/:id", protectRoute, requireEmployee, getOrderByIdHandler);
-router.post("/orders", protectRoute, requireEmployee, createOrderHandler);
-router.post("/orders/:id/payments", protectRoute, requireEmployee, payOrderHandler);
-router.patch("/orders/:id/complete", protectRoute, requireEmployee, completeOrderHandler);
-router.patch("/orders/:id/cancel", protectRoute, requireEmployee, cancelOrderHandler);
+router.get("/orders", protectRoute, requirePermission("orders.view"), getOrdersHandler);
+router.get("/orders/:id", protectRoute, requirePermission("orders.view"), getOrderByIdHandler);
+router.post("/orders", protectRoute, requirePermission("orders.process"), createOrderHandler);
+router.post("/orders/:id/payments", protectRoute, requirePermission("orders.process"), payOrderHandler);
+router.patch("/orders/:id/complete", protectRoute, requirePermission("orders.process"), completeOrderHandler);
+router.patch("/orders/:id/cancel", protectRoute, requirePermission("orders.cancel"), cancelOrderHandler);
 
 export default router;

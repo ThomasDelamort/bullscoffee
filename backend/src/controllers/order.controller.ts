@@ -321,7 +321,7 @@ export const createOrderHandler = async (
 
 // Only a pending order can move on. The provider answers undefined for both
 // "no such order" and "not pending", so look the order up to tell them apart.
-// requireEmployee has already put the signed-in employee on res.locals.
+// requirePermission has already put the signed-in employee on res.locals.
 const changeOrderStatus = async (
   req: Request,
   res: Response,

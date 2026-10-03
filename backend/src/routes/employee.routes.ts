@@ -5,18 +5,19 @@ import {
   updateEmployeeHandler,
 } from "../controllers/employee.controller.ts";
 import { Router } from "express";
-import { protectRoute, requireManager } from "../middleware/auth.middleware.ts";
+import { protectRoute, requirePermission } from "../middleware/auth.middleware.ts";
 import { uploadFile } from "../middleware/upload.middleware.ts";
 
 const router = Router();
+const canManage = requirePermission("staff.manage");
 
-router.get("/employees", protectRoute, requireManager, getEmployeesHandler);
-router.get("/employees/:id", protectRoute, requireManager, getEmployeeByIdHandler);
-router.post("/employees", protectRoute, requireManager, createEmployeeHandler);
+router.get("/employees", protectRoute, canManage, getEmployeesHandler);
+router.get("/employees/:id", protectRoute, canManage, getEmployeeByIdHandler);
+router.post("/employees", protectRoute, canManage, createEmployeeHandler);
 router.put(
   "/employees/:id",
   protectRoute,
-  requireManager,
+  canManage,
   uploadFile("employee"),
   updateEmployeeHandler,
 );

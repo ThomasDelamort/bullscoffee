@@ -7,14 +7,14 @@ import {
   searchCustomersHandler
 } from "../controllers/customer.controller.ts";
 import { Router } from "express";
-import { protectRoute, requireAdmin, requireEmployee } from "../middleware/auth.middleware.ts";
+import { protectRoute, requireAdmin, requirePermission } from "../middleware/auth.middleware.ts";
 
 const router = Router();
 
 // A customer registers themself right after signing in.
 router.post("/customers", protectRoute, createCustomerHandler);
 // Registered before /customers/:id so Express doesn't read "search" as an id.
-router.get("/customers/search", protectRoute, requireEmployee, searchCustomersHandler);
+router.get("/customers/search", protectRoute, requirePermission("orders.process"), searchCustomersHandler);
 // Reading, editing or deleting any customer's record is for admins only; the
 // storefront never calls these.
 router.get("/customers", protectRoute, requireAdmin, getAllCustomersHandler);

@@ -6,47 +6,10 @@ import type {
   Backup,
   ExportJob,
   NotificationTemplate,
-  Permission,
-  PermissionMatrix,
   SeriesPoint,
   ServiceStatus,
   Ticket,
 } from "../types";
-
-export const PERMISSIONS: Permission[] = [
-  { id: "orders.view", label: "View orders", module: "Orders" },
-  { id: "orders.process", label: "Process walk-in & online orders", module: "Orders" },
-  { id: "orders.void", label: "Void or cancel orders", module: "Orders" },
-  { id: "orders.refund", label: "Process refunds", module: "Orders" },
-  { id: "menu.manage", label: "Manage menu items", module: "Menu & pricing" },
-  { id: "menu.pricing", label: "Manage pricing & recipes", module: "Menu & pricing" },
-  { id: "menu.promotions", label: "Manage promotions & loyalty", module: "Menu & pricing" },
-  { id: "inventory.view", label: "View inventory", module: "Inventory" },
-  { id: "inventory.manage", label: "Adjust stock & log wastage", module: "Inventory" },
-  { id: "inventory.purchase", label: "Create purchase orders", module: "Inventory" },
-  { id: "supply.fulfil", label: "Confirm & deliver purchase orders", module: "Inventory" },
-  { id: "staff.schedule", label: "Manage staff schedules", module: "Staff" },
-  { id: "staff.attendance", label: "View attendance", module: "Staff" },
-  { id: "reports.view", label: "View sales reports", module: "Reports" },
-  { id: "reports.export", label: "Export reports", module: "Reports" },
-  { id: "system.users", label: "Manage users & roles", module: "System" },
-  { id: "system.logs", label: "View system logs", module: "System" },
-  { id: "system.settings", label: "Configure system settings", module: "System" },
-  { id: "system.payments", label: "Manage payment gateway", module: "System" },
-  { id: "system.backups", label: "Backup & restore database", module: "System" },
-];
-
-export const DEFAULT_PERMISSIONS: PermissionMatrix = {
-  admin: PERMISSIONS.map((p) => p.id),
-  manager: [
-    "orders.view", "orders.process", "orders.void", "orders.refund",
-    "menu.manage", "menu.pricing", "menu.promotions",
-    "inventory.view", "inventory.manage", "inventory.purchase",
-    "staff.schedule", "staff.attendance", "reports.view", "reports.export", "system.logs",
-  ],
-  cashier: ["orders.view", "orders.process", "orders.void", "inventory.view", "inventory.manage"],
-  customer: [],
-};
 
 export const TICKETS: Ticket[] = [
   {

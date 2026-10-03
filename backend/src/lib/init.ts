@@ -3,6 +3,7 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "url";
 import { pool } from "./db.ts";
+import { seedRolePermissions } from "./permissions.ts";
 import { withTransaction } from "./sql.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +25,7 @@ export async function runInitSql(): Promise<void> {
     client.release();
   }
   await bootstrapAdmin();
+  await seedRolePermissions();
 }
 
 // The admin console only opens for an active admin, and only an admin can

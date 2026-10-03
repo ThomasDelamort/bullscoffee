@@ -7,7 +7,7 @@ import {
   testGatewayHandler,
   updateGatewayHandler,
 } from "../controllers/payment.controller.ts";
-import { protectRoute, requireAdmin, requireEmployee } from "../middleware/auth.middleware.ts";
+import { protectRoute, requireAdmin, requirePermission } from "../middleware/auth.middleware.ts";
 import { paymentStatusLimiter } from "../middleware/rateLimit.middleware.ts";
 
 // The PayMongo webhook isn't here: it needs the raw request body, so it's
@@ -19,7 +19,7 @@ const router = Router();
 router.get("/payments/options", getPaymentOptionsHandler);
 router.get("/payments/orders/:id/status", paymentStatusLimiter, getOrderPaymentStatusHandler);
 
-router.post("/payments/checkout-session", protectRoute, requireEmployee, createCheckoutSessionHandler);
+router.post("/payments/checkout-session", protectRoute, requirePermission("orders.process"), createCheckoutSessionHandler);
 
 router.get("/payments/gateway", protectRoute, requireAdmin, getGatewayHandler);
 router.put("/payments/gateway", protectRoute, requireAdmin, updateGatewayHandler);
