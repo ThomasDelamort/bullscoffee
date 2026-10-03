@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { StatusCodes } from "http-status-codes";
+import { notify } from "../lib/notify.ts";
 import { isOnlinePaymentReady } from "../lib/paymongo.ts";
 import { isItemSize, unitPrice } from "../lib/pricing.ts";
 import { getCustomerByClerkId } from "../providers/customer.provider.ts";
@@ -179,6 +180,7 @@ export const createKioskOrderHandler = async (
       order_status: "pending",
     });
     if (!order) throw new Error("Placed order could not be read back");
+    notify("order.placed", order.order_id);
 
     const checkout_url = payOnline ? await startCheckout(order.order_id) : null;
     res.status(StatusCodes.CREATED).json({

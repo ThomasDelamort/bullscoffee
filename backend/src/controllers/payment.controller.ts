@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { notify } from "../lib/notify.ts";
 import { StatusCodes } from "http-status-codes";
 import {
   isOnlinePaymentReady,
@@ -205,6 +206,7 @@ export const paymongoWebhookHandler = async (
         paymongo_payment_id: id,
       });
 
+      if (result.status === "recorded") notify("payment.received", order_id);
       if (result.status === "unknown_order") {
         console.warn(`PayMongo payment ${id} is for order #${order_id}, which doesn't exist`);
       } else if (result.status === "recorded" && result.order_status !== "pending") {

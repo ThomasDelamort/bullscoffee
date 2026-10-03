@@ -364,3 +364,46 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_by INT REFERENCES employees(employee_id) ON DELETE SET NULL
 );
 INSERT INTO system_settings (settings_id) VALUES (1) ON CONFLICT DO NOTHING;
+
+DO $$ BEGIN CREATE TYPE notification_status AS ENUM ('sent', 'failed', 'skipped');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+
+-- Customer emails sent when something happens to an order, edited on the
+-- admin Notification Templates page. {{name}} placeholders are filled in
+-- when sending (see lib/notify.ts for the variables).
+CREATE TABLE IF NOT EXISTS notification_templates (
+    template_id VARCHAR(50) PRIMARY KEY,
+    event VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    subject VARCHAR(200) NOT NULL,
+    body TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO notification_templates (template_id, event, name, subject, body) VALUES
+    ('order-placed', 'order.placed', 'Order placed', 'We got your order {{order_number}}',
+     E'Hi {{customer_name}},\n\nThanks for ordering at {{store_name}}! Order {{order_number}} ({{order_total}}) was placed on {{ordered_at}}. We''ll let you know when it''s ready.\n\nSee you soon!'),
+    ('order-completed', 'order.completed', 'Order ready', 'Order {{order_number}} is ready',
+     E'Hi {{customer_name}},\n\nYour order {{order_number}} is ready. Enjoy!\n\n{{store_name}}'),
+    ('order-cancelled', 'order.cancelled', 'Order cancelled', 'Order {{order_number}} was cancelled',
+     E'Hi {{customer_name}},\n\nYour order {{order_number}} ({{order_total}}) from {{ordered_at}} was cancelled. If you already paid, reply to this email and we''ll sort out your refund.\n\n{{store_name}}'),
+    ('payment-received', 'payment.received', 'Payment received', 'Receipt for order {{order_number}}',
+     E'Hi {{customer_name}},\n\nWe received your payment of {{order_total}} for order {{order_number}}. Thank you!\n\n{{store_name}}')
+ON CONFLICT (template_id) DO NOTHING;
+
+-- Every attempt to send one of those emails, for the Notifications page and
+-- System Health's email status. template_id and order_id are plain values,
+-- not foreign keys (see the note at the top of this section).
+CREATE TABLE IF NOT EXISTS notification_log (
+    log_id BIGSERIAL PRIMARY KEY,
+    template_id VARCHAR(50),
+    order_id INT,
+    recipient VARCHAR(255),
+    status notification_status NOT NULL,
+    error TEXT,
+    latency_ms INT,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notification_log_sent_at_idx ON notification_log (sent_at DESC);

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
+import { notify } from "../lib/notify.ts";
 import { discountFor, round2 } from "../lib/pricing.ts";
 import { peso, recordActivity } from "../providers/activity.provider.ts";
 import { getCustomerById } from "../providers/customer.provider.ts";
@@ -290,6 +291,7 @@ export const createOrderHandler = async (
     };
 
     const order = await createOrder(newOrder);
+    if (order) notify("order.placed", order.order_id);
     const subtotal = parsedItems.reduce(
       (sum, item) => sum + item.quantity * item.selling_price,
       0,
@@ -337,6 +339,7 @@ const changeOrderStatus = async (
 
     const order = await transition(order_id, res.locals["employee"].employee_id);
     if (order) {
+      notify(status === "completed" ? "order.completed" : "order.cancelled", order_id);
       if (status === "cancelled") {
         const paid = order.payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
         recordActivity(req, res, {
@@ -413,6 +416,7 @@ export const payOrderHandler = async (
       res.locals["employee"].employee_id,
     );
     if (result.status === "paid") {
+      notify("payment.received", order_id);
       res
         .status(StatusCodes.CREATED)
         .json({ message: "Payment recorded", data: result.order });

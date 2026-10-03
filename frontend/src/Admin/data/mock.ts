@@ -5,7 +5,6 @@
 import type {
   Backup,
   ExportJob,
-  NotificationTemplate,
   SeriesPoint,
   ServiceStatus,
   Ticket,
@@ -85,29 +84,6 @@ export const BACKUPS: Backup[] = [
   { id: "bk-0927", created_at: "2026-09-27T03:00:03+08:00", size: "—", kind: "automatic", status: "failed" },
   { id: "bk-0926", created_at: "2026-09-26T03:00:01+08:00", size: "1.81 GB", kind: "automatic", status: "completed" },
   { id: "bk-0925", created_at: "2026-09-25T03:00:05+08:00", size: "1.80 GB", kind: "automatic", status: "completed" },
-];
-
-export const TEMPLATE_VARIABLES = [
-  "customer_name", "order_id", "order_total", "branch_name", "pickup_time", "points_balance", "reset_link",
-] as const;
-
-export const TEMPLATE_SAMPLE: Record<(typeof TEMPLATE_VARIABLES)[number], string> = {
-  customer_name: "Mika",
-  order_id: "O-18901",
-  order_total: "₱355.00",
-  branch_name: "Main Campus",
-  pickup_time: "9:40 AM",
-  points_balance: "320",
-  reset_link: "https://bullscoffee.ph/reset/•••",
-};
-
-export const TEMPLATES: NotificationTemplate[] = [
-  { id: "order-confirmed", name: "Order confirmed", event: "order.placed", channel: "email", enabled: true, subject: "We got your order, {{customer_name}}!", body: "Hi {{customer_name}},\n\nThanks for ordering at Bull's Coffee {{branch_name}}. Your order {{order_id}} ({{order_total}}) is being prepared and will be ready for pickup around {{pickup_time}}.\n\nSee you soon!" },
-  { id: "order-ready", name: "Order ready for pickup", event: "order.ready", channel: "sms", enabled: true, subject: "", body: "Bull's Coffee: Order {{order_id}} is ready for pickup at {{branch_name}}. Enjoy!" },
-  { id: "order-ready-push", name: "Order ready (push)", event: "order.ready", channel: "push", enabled: true, subject: "Your coffee is ready ☕", body: "Order {{order_id}} is waiting for you at {{branch_name}}." },
-  { id: "payment-receipt", name: "Payment receipt", event: "payment.confirmed", channel: "email", enabled: true, subject: "Receipt for order {{order_id}}", body: "Hi {{customer_name}},\n\nWe received your payment of {{order_total}} for order {{order_id}}. Your receipt is attached.\n\nYou now have {{points_balance}} loyalty points." },
-  { id: "password-reset", name: "Password reset", event: "auth.password_reset", channel: "email", enabled: true, subject: "Reset your Bull's Coffee password", body: "Hi {{customer_name}},\n\nUse the link below to reset your password. It expires in 30 minutes.\n\n{{reset_link}}\n\nIf you didn't ask for this, you can ignore this email." },
-  { id: "refund-issued", name: "Refund issued", event: "order.refunded", channel: "email", enabled: false, subject: "Your refund for {{order_id}}", body: "Hi {{customer_name}},\n\nWe've refunded {{order_total}} for order {{order_id}}. It may take 3–5 banking days to appear." },
 ];
 
 export const EXPORT_DATASETS = [

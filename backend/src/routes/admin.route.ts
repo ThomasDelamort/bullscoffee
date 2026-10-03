@@ -11,6 +11,12 @@ import {
   listUsersHandler,
   updateStaffHandler,
 } from "../controllers/admin-users.controller.ts";
+import {
+  getNotificationLogHandler,
+  listTemplatesHandler,
+  sendTestHandler,
+  updateTemplateHandler,
+} from "../controllers/notifications.controller.ts";
 import { getPermissionsHandler, savePermissionsHandler } from "../controllers/permissions.controller.ts";
 import { getSettingsHandler, updateSettingsHandler } from "../controllers/settings.controller.ts";
 import { protectRoute, requireAdmin } from "../middleware/auth.middleware.ts";
@@ -52,5 +58,13 @@ router.put("/permissions", savePermissionsHandler);
 */
 router.get("/settings", getSettingsHandler);
 router.put("/settings", updateSettingsHandler);
+
+/*
+    NOTIFICATION TEMPLATES (email)
+*/
+router.get("/notifications/templates", listTemplatesHandler);
+router.put("/notifications/templates/:id", updateTemplateHandler);
+router.post("/notifications/templates/:id/test", sendTestHandler);
+router.get("/notifications/log", getNotificationLogHandler);
 
 export default router;

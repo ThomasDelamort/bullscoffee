@@ -143,16 +143,31 @@ export interface Backup {
   status: "completed" | "failed" | "in-progress";
 }
 
-export type NotificationChannel = "email" | "sms" | "push";
-
+/** An email sent to the order's customer when `event` happens. */
 export interface NotificationTemplate {
   id: string;
   name: string;
   event: string;
-  channel: NotificationChannel;
   subject: string;
   body: string;
   enabled: boolean;
+  updated_at: string;
+}
+
+export type TemplateChanges = Pick<NotificationTemplate, "name" | "subject" | "body" | "enabled">;
+
+export interface TemplatesResponse {
+  templates: NotificationTemplate[];
+  /** false: RESEND_API_KEY / NOTIFY_FROM aren't set, so nothing is actually sent. */
+  email_configured: boolean;
+  /** Each {{variable}} with the sample value previews and test sends use. */
+  variables: Record<string, string>;
+}
+
+export interface SendResult {
+  status: "sent" | "failed" | "skipped";
+  error: string | null;
+  recipient: string;
 }
 
 export type ExportFormat = "csv" | "xlsx" | "json" | "pdf";
@@ -194,3 +209,15 @@ export type GeneralSettings = Pick<
   SystemSettings,
   "store_name" | "support_email" | "online_ordering" | "maintenance_mode" | "maintenance_message"
 >;
+
+export interface NotificationLogEntry {
+  id: number;
+  template_id: string | null;
+  template_name: string | null;
+  order_id: number | null;
+  recipient: string | null;
+  status: SendResult["status"];
+  error: string | null;
+  latency_ms: number | null;
+  sent_at: string;
+}
