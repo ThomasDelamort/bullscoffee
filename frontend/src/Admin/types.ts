@@ -237,16 +237,43 @@ export interface SendResult {
   recipient: string;
 }
 
-export type ExportFormat = "csv" | "xlsx" | "json" | "pdf";
+export type ExportFormat = "csv" | "json";
 
-export interface ExportJob {
+export interface ExportDataset {
   id: string;
+  label: string;
+  /** Whether a date range applies (orders, payments, activity). */
+  ranged: boolean;
+}
+
+/** One requested export; the file is kept for 7 days. */
+export interface ExportJob {
+  id: number;
   dataset: string;
   format: ExportFormat;
-  range: string;
+  range_from: string | null;
+  range_to: string | null;
+  status: JobStatus;
+  row_count: number | null;
+  size_bytes: number | null;
+  error: string | null;
+  requested_by_name: string | null;
   requested_at: string;
-  status: "queued" | "ready" | "failed";
-  size: string | null;
+  finished_at: string | null;
+}
+
+/** GET /admin/exports */
+export interface ExportsResponse {
+  datasets: ExportDataset[];
+  storage_configured: boolean;
+  jobs: ExportJob[];
+}
+
+export interface NewExport {
+  dataset: string;
+  format: ExportFormat;
+  from?: string;
+  to?: string;
 }
 
 export interface SeriesPoint {

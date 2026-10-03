@@ -56,7 +56,7 @@ export const ADMIN_NAV: NavGroup[] = [
     label: "Data",
     items: [
       { page: "backups", label: "Backup & Restore", icon: FiDatabase },
-      { page: "archive", label: "Archive & Export", icon: FiArchive },
+      { page: "archive", label: "Data Export", icon: FiArchive },
     ],
   },
   {

@@ -501,3 +501,28 @@ CREATE TABLE IF NOT EXISTS backups (
     finished_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS backups_created_at_idx ON backups (created_at DESC);
+
+DO $$ BEGIN CREATE TYPE export_format AS ENUM ('csv', 'json');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+
+-- Data exports requested on the admin Data Export page: the file is in
+-- private S3 under bulls-coffee/exports/ and deleted (with its row) after
+-- 7 days. A restore never touches this table.
+CREATE TABLE IF NOT EXISTS export_jobs (
+    export_id SERIAL PRIMARY KEY,
+    dataset VARCHAR(30) NOT NULL,
+    format export_format NOT NULL,
+    range_from DATE,
+    range_to DATE,
+    status job_status NOT NULL DEFAULT 'in_progress',
+    s3_key VARCHAR(512) UNIQUE,
+    row_count INT,
+    size_bytes BIGINT,
+    error TEXT,
+    requested_by_name VARCHAR(120),
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS export_jobs_requested_at_idx ON export_jobs (requested_at DESC);

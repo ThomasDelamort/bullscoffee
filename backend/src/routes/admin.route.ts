@@ -19,6 +19,7 @@ import {
   restoreBackupHandler,
   saveScheduleHandler,
 } from "../controllers/backups.controller.ts";
+import { createExportHandler, downloadExportHandler, listExportsHandler } from "../controllers/exports.controller.ts";
 import { getHealthHandler, runDiagnosticsHandler } from "../controllers/health.controller.ts";
 import {
   getNotificationLogHandler,
@@ -105,5 +106,12 @@ router.post("/backups", createBackupHandler);
 router.get("/backups/:id/download", downloadBackupHandler);
 router.post("/backups/:id/restore", restoreBackupHandler);
 router.delete("/backups/:id", deleteBackupHandler);
+
+/*
+    DATA EXPORT
+*/
+router.get("/exports", listExportsHandler);
+router.post("/exports", createExportHandler);
+router.get("/exports/:id/download", downloadExportHandler);
 
 export default router;

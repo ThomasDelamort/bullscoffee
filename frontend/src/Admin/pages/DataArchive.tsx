@@ -1,141 +1,124 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FiArchive, FiDownload, FiUploadCloud } from "react-icons/fi";
+import { useState, type FormEvent } from "react";
+import { FiDownload, FiInfo, FiUploadCloud } from "react-icons/fi";
+import { errorMessage } from "../../lib/api";
+import { useCreateExport, useDownloadExport, useExports } from "../api/exports";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import { Field, Input, Select } from "../components/Field";
-import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
-import { EXPORT_STATUS } from "../components/status";
+import { ErrorRow, LoadingRow } from "../components/QueryState";
+import { JOB_STATUS } from "../components/status";
 import { EmptyRow, Table, Td, Th } from "../components/Table";
 import Tabs from "../components/Tabs";
 import { useToast } from "../components/toastContext";
-import Toggle from "../components/Toggle";
-import { EXPORT_DATASETS, EXPORT_JOBS } from "../data/mock";
 import type { ExportFormat, ExportJob } from "../types";
-import { formatDate, formatDateTime } from "../utils/format";
+import { formatBytes, formatDate, formatDateTime, formatNumber } from "../utils/format";
 
 const FORMATS: { value: ExportFormat; label: string }[] = [
-  { value: "csv", label: "CSV" },
-  { value: "xlsx", label: "Excel" },
+  { value: "csv", label: "CSV (Excel)" },
   { value: "json", label: "JSON" },
-  { value: "pdf", label: "PDF" },
 ];
 
+// Range dates are calendar days (YYYY-MM-DD); read them as local midnight,
+// not UTC, so they show the same day everywhere.
+const day = (date: string) => formatDate(`${date}T00:00:00`);
+
+const rangeLabel = (job: ExportJob): string => {
+  const { range_from: from, range_to: to } = job;
+  if (from && to) return from === to ? day(from) : `${day(from)} – ${day(to)}`;
+  if (from) return `Since ${day(from)}`;
+  if (to) return `Until ${day(to)}`;
+  return "All";
+};
+
+/** Exports only; the route stays /admin/archive so old links still work. */
 export default function DataArchive() {
   const notify = useToast();
-  const [jobs, setJobs] = useState<ExportJob[]>(EXPORT_JOBS);
+  const exports = useExports();
+  const create = useCreateExport();
+  const download = useDownloadExport();
   const [format, setFormat] = useState<ExportFormat>("csv");
-  const [autoArchive, setAutoArchive] = useState(true);
-  const [archiveAfter, setArchiveAfter] = useState("12");
-  const [confirmArchive, setConfirmArchive] = useState(false);
-  const timers = useRef<number[]>([]);
+  const [datasetId, setDatasetId] = useState<string>("orders");
 
-  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
+  const datasets = exports.data?.datasets ?? [];
+  const jobs = exports.data?.jobs ?? [];
+  const storage = exports.data?.storage_configured ?? true;
+  const dataset = datasets.find((d) => d.id === datasetId);
+  const labelOf = (id: string) => datasets.find((d) => d.id === id)?.label ?? id;
 
   const requestExport = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const from = String(form.get("from"));
-    const to = String(form.get("to"));
+    const from = String(form.get("from") ?? "");
+    const to = String(form.get("to") ?? "");
     if (from && to && from > to) {
-      notify("The start date must be before the end date.", "error");
+      notify("The start date must be on or before the end date.", "error");
       return;
     }
-    const range =
-      from && to ? `${formatDate(from)} – ${formatDate(to)}` : from ? `Since ${formatDate(from)}` : to ? `Until ${formatDate(to)}` : "All time";
-    const id = `ex-${Date.now()}`;
-    setJobs((current) => [
-      { id, dataset: String(form.get("dataset")), format, range, requested_at: new Date().toISOString(), status: "queued", size: null },
-      ...current,
-    ]);
-    notify("Export started. It'll appear below when it's ready.", "info");
-    timers.current.push(
-      window.setTimeout(() => {
-        setJobs((current) => current.map((j) => (j.id === id ? { ...j, status: "ready", size: "860 KB" } : j)));
-      }, 2500),
+    create.mutate(
+      { dataset: datasetId, format, ...(dataset?.ranged && from ? { from } : {}), ...(dataset?.ranged && to ? { to } : {}) },
+      {
+        onSuccess: () => notify("Export started. It'll be ready below in a moment.", "info"),
+        onError: (error) => notify(errorMessage(error), "error"),
+      },
     );
-  };
-
-  const runArchive = () => {
-    setConfirmArchive(false);
-    notify(`Archiving orders older than ${archiveAfter} months. You'll be notified when it's done.`, "info");
   };
 
   return (
     <>
       <PageHeader
-        title="Archive & Export"
-        description="Download system data for reporting or safekeeping, and move old records out of the live database."
+        title="Data Export"
+        description="Download store data for reporting or safekeeping. Files are kept for 7 days."
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <Card title="Export data" description="Exports include everything the selected dataset holds for the date range.">
-          <form onSubmit={requestExport} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Dataset" className="sm:col-span-2">
-              <Select name="dataset" defaultValue={EXPORT_DATASETS[0]}>
-                {EXPORT_DATASETS.map((d) => (
-                  <option key={d}>{d}</option>
+      {!storage && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl bg-sky-50 px-5 py-4 text-sm text-sky-900 ring-1 ring-sky-200">
+          <FiInfo aria-hidden className="mt-0.5 size-5 shrink-0" />
+          <p>
+            <span className="font-semibold">Storage isn't set up.</span> Exports are kept in S3, so they need{" "}
+            <code>AWS_S3_BUCKET</code> and <code>AWS_REGION</code> in the backend's environment.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card title="Export data" description="Times are in store time; amounts are plain numbers.">
+          <form onSubmit={requestExport} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <Field label="Dataset" className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+              <Select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} disabled={!exports.data}>
+                {datasets.map((d) => (
+                  <option key={d.id} value={d.id}>{d.label}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="From" hint="Leave empty for all time.">
-              <Input name="from" type="date" />
-            </Field>
-            <Field label="To">
-              <Input name="to" type="date" />
-            </Field>
-            <div className="sm:col-span-2">
+            {dataset?.ranged ? (
+              <>
+                <Field label="From" hint="Leave empty for all time.">
+                  <Input name="from" type="date" />
+                </Field>
+                <Field label="To">
+                  <Input name="to" type="date" />
+                </Field>
+              </>
+            ) : (
+              <p className="text-xs text-(--admin-muted) sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+                {dataset ? `${dataset.label} are exported in full; there's no date range.` : ""}
+              </p>
+            )}
+            <div className="sm:col-span-2 xl:col-span-1 2xl:col-span-2">
               <p className="mb-1.5 text-xs font-medium">Format</p>
               <Tabs label="Export format" value={format} onChange={setFormat} options={FORMATS} />
             </div>
-            <div className="flex justify-end sm:col-span-2">
-              <Button type="submit" variant="primary" icon={FiUploadCloud}>
-                Start export
+            <div className="flex justify-end sm:col-span-2 xl:col-span-1 2xl:col-span-2">
+              <Button type="submit" variant="primary" icon={FiUploadCloud} disabled={!storage || create.isPending || !dataset}>
+                {create.isPending ? "Starting…" : "Start export"}
               </Button>
             </div>
           </form>
         </Card>
 
-        <Card title="Archiving" description="Archived records leave the live database but stay searchable and restorable.">
-          <div className="flex flex-col gap-5">
-            <Toggle
-              checked={autoArchive}
-              onChange={setAutoArchive}
-              label="Archive old orders automatically"
-              description="Runs on the 1st of every month at 2:00 AM."
-            />
-            <Field label="Archive orders older than">
-              <Select value={archiveAfter} onChange={(e) => setArchiveAfter(e.target.value)}>
-                <option value="6">6 months</option>
-                <option value="12">12 months</option>
-                <option value="24">2 years</option>
-              </Select>
-            </Field>
-            <dl className="grid grid-cols-2 gap-4 rounded-xl bg-(--admin-canvas) p-4 text-sm">
-              <div>
-                <dt className="text-xs text-(--admin-muted)">Last archived</dt>
-                <dd className="mt-0.5 font-medium">Sep 1, 2026</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-(--admin-muted)">Records in archive</dt>
-                <dd className="mt-0.5 font-medium tabular-nums">48,210</dd>
-              </div>
-            </dl>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button icon={FiArchive} onClick={() => setConfirmArchive(true)}>
-                Archive now
-              </Button>
-              <Button variant="primary" onClick={() => notify("Archive policy saved.")}>
-                Save policy
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-6">
-        <Card flush title="Recent exports" description="Download links expire after 7 days">
+        <Card className="xl:col-span-2" flush title="Recent exports" description="Files are deleted after 7 days">
           <Table>
             <thead>
               <tr>
@@ -148,46 +131,40 @@ export default function DataArchive() {
               </tr>
             </thead>
             <tbody>
+              {exports.isPending && <LoadingRow colSpan={6} label="Loading exports…" />}
+              {exports.isError && <ErrorRow colSpan={6} error={exports.error} onRetry={() => void exports.refetch()} />}
               {jobs.map((job) => (
                 <tr key={job.id}>
-                  <Td className="font-medium">{job.dataset}</Td>
-                  <Td className="text-(--admin-muted)">{job.range}</Td>
+                  <Td className="font-medium">{labelOf(job.dataset)}</Td>
+                  <Td className="text-(--admin-muted)">{rangeLabel(job)}</Td>
                   <Td className="text-(--admin-muted) uppercase">{job.format}</Td>
-                  <Td className="text-(--admin-muted)">{formatDateTime(job.requested_at)}</Td>
-                  <Td>
-                    <Badge tone={EXPORT_STATUS[job.status].tone} dot>{EXPORT_STATUS[job.status].label}</Badge>
+                  <Td className="text-(--admin-muted)">
+                    <p>{formatDateTime(job.requested_at)}</p>
+                    {job.requested_by_name && <p className="text-xs">by {job.requested_by_name}</p>}
+                  </Td>
+                  <Td wrap>
+                    <Badge tone={JOB_STATUS[job.status].tone} dot>{JOB_STATUS[job.status].label}</Badge>
+                    {job.error && <p className="mt-1 max-w-56 text-xs text-red-700">{job.error}</p>}
                   </Td>
                   <Td className="text-right">
                     <Button
                       size="sm"
                       icon={FiDownload}
-                      disabled={job.status !== "ready"}
-                      onClick={() => notify("Download will start once the export API is connected.", "info")}
+                      disabled={job.status !== "completed" || download.isPending}
+                      onClick={() => download.mutate(job, { onError: (error) => notify(errorMessage(error), "error") })}
                     >
-                      {job.size ?? "Download"}
+                      {job.status === "completed"
+                        ? `${formatNumber(job.row_count ?? 0)} rows · ${formatBytes(job.size_bytes)}`
+                        : "Download"}
                     </Button>
                   </Td>
                 </tr>
               ))}
-              {jobs.length === 0 && <EmptyRow colSpan={6}>No exports yet.</EmptyRow>}
+              {exports.isSuccess && jobs.length === 0 && <EmptyRow colSpan={6}>No exports yet.</EmptyRow>}
             </tbody>
           </Table>
         </Card>
       </div>
-
-      <Modal
-        open={confirmArchive}
-        onClose={() => setConfirmArchive(false)}
-        size="sm"
-        title="Archive old orders now?"
-        description={`Orders older than ${archiveAfter} months will move to the archive. Reports that cover that period will read from the archive instead.`}
-        footer={
-          <>
-            <Button onClick={() => setConfirmArchive(false)}>Cancel</Button>
-            <Button variant="primary" onClick={runArchive}>Archive</Button>
-          </>
-        }
-      />
     </>
   );
 }
