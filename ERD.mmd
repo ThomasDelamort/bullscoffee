@@ -1,0 +1,481 @@
+erDiagram
+    direction LR
+
+%% Bull's Coffee: physical ER diagram
+%% Source of truth: backend/init.sql (PostgreSQL), applied on every backend start.
+%% 31 tables, 26 foreign keys, 19 enum types, 10 secondary indexes.
+%% Update this file whenever init.sql changes.
+
+%% Notation
+%% - Entity and column names are the real table and column names, in the column
+%%   order a fresh database creates them.
+%% - Types are the PostgreSQL column types. serial / bigserial = auto-increment
+%%   int / bigint backed by a sequence. decimal_10_2 = DECIMAL(10,2), since a
+%%   Mermaid type can't contain a comma. Enum columns show their CREATE TYPE name
+%%   as the type, with the allowed values in parentheses.
+%% - PK = primary key, FK = foreign key, UK = UNIQUE constraint. Every PK and UK
+%%   is backed by a unique index; other indexes are listed above their table.
+%% - Solid line = identifying relationship (the FK is part of the child's PK).
+%%   Dashed line = non-identifying (the FK is an ordinary column).
+%% - Parent end: || = the FK is NOT NULL, |o = the FK is nullable.
+%%   Child end is always o{ because the schema never requires a parent to have children.
+%% - ON DELETE is NO ACTION (PostgreSQL's default: a referenced row can't be
+%%   deleted) unless the column says CASCADE or SET NULL.
+%% - Only real FOREIGN KEY constraints are drawn. A column that names another
+%%   table's row without one is marked "no FK".
+%% - Rows are retired with is_active / employee_status rather than deleted.
+%% - Colors group tables by module: staff, sales, menu, inventory, supply, system.
+
+    classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef salesBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
+    classDef menuBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
+    classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+    classDef supplyBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+    classDef systemBox fill:#f8d7da,stroke:#c62828,color:#1a1a1a
+
+%% ============================ STAFF ============================
+
+%% Cashiers, managers and admins share one table. An invited employee holds
+%% clerk_id = 'invite_<uuid>' until their first sign-in with the invited,
+%% verified email links the row to their Clerk account.
+    employees {
+        serial employee_id PK
+        varchar(255) clerk_id UK "NOT NULL"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(255) employee_email UK "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) profile_picture "NULLABLE"
+        employee_status employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
+        employee_role employee_role "NOT NULL, DEFAULT 'cashier' (cashier / manager / admin)"
+        varchar(50) work_schedule "NOT NULL"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+    attendance_logs {
+        serial log_id PK
+        int employee_id FK "NOT NULL"
+        timestamptz time_in "NOT NULL"
+        timestamptz time_out "NULLABLE, CHECK (time_out IS NULL OR time_out > time_in)"
+    }
+
+%% Which permissions managers and cashiers hold. Admins hold every permission and
+%% are never stored. Seeded at startup by seedRolePermissions(); the catalogue is
+%% backend/src/lib/permissions.ts. No FK: employees match it by employee_role.
+    role_permissions {
+        employee_role role PK "NOT NULL, CHECK (role <> 'admin') (cashier / manager)"
+        varchar(50) permission PK "NOT NULL"
+    }
+
+%% ============================ SALES ============================
+
+    customers {
+        serial customer_id PK
+        varchar(255) clerk_id UK "NOT NULL"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(50) university_id UK "NULLABLE"
+        varchar(255) customer_email UK "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) profile_picture "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% customer_id is NULL for a walk-in. employee_id is NULL for a kiosk order until
+%% someone at the counter completes or cancels it. discount_id is the preset that
+%% produced discount_amount, NULL for none or a custom amount.
+    orders {
+        serial order_id PK
+        int customer_id FK "NULLABLE"
+        int employee_id FK "NULLABLE"
+        timestamptz ordered_at "NOT NULL, DEFAULT now()"
+        decimal_10_2 discount_amount "NOT NULL, DEFAULT 0.00, CHECK (discount_amount >= 0)"
+        decimal_10_2 total_amount "NOT NULL, DEFAULT 0.00, CHECK (total_amount >= 0)"
+        order_status order_status "NOT NULL, DEFAULT 'pending' (pending / completed / cancelled)"
+        order_source order_source "NOT NULL, DEFAULT 'counter' (counter / kiosk)"
+        int discount_id FK "NULLABLE"
+    }
+
+%% INDEX order_items_order_id_idx (order_id)
+    order_items {
+        serial order_item_id PK
+        int order_id FK "NOT NULL, ON DELETE CASCADE"
+        int product_id FK "NOT NULL"
+        int quantity "NOT NULL, CHECK (quantity > 0)"
+        item_size size "NULLABLE (tall / grade / venti)"
+        decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
+        text special_instructions "NULLABLE"
+    }
+
+%% INDEX payments_order_id_idx (order_id)
+%% paymongo_payment_id is PayMongo's pay_... id for an online payment, NULL for
+%% one taken at the counter. UNIQUE, so a webhook PayMongo retries is recorded once.
+    payments {
+        serial payment_id PK
+        int order_id FK "NOT NULL"
+        decimal_10_2 amount_paid "NOT NULL, CHECK (amount_paid > 0)"
+        payment_method payment_method "NOT NULL (cash / card / e_wallet)"
+        timestamptz paid_at "NOT NULL, DEFAULT now()"
+        varchar(64) paymongo_payment_id UK "NULLABLE"
+    }
+
+%% A discount that has been used is switched off (is_active), not deleted, so
+%% past orders keep pointing at it.
+    discounts {
+        serial discount_id PK
+        varchar(100) discount_name UK "NOT NULL"
+        discount_kind kind "NOT NULL (percent / fixed)"
+        decimal_10_2 value "NOT NULL, CHECK (value > 0)"
+        discount_eligibility eligibility "NOT NULL, DEFAULT 'none' (none / university_id / government_id)"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
+    feedback {
+        serial feedback_id PK
+        int customer_id FK "NULLABLE"
+        int order_id FK "NULLABLE"
+        int rating "NOT NULL, CHECK (rating >= 1 AND rating <= 5)"
+        text comment "NOT NULL"
+        feedback_status status "NOT NULL, DEFAULT 'new' (new / reviewed)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% ============================ MENU =============================
+
+    categories {
+        serial category_id PK
+        varchar(50) category_name UK "NOT NULL"
+        varchar(255) image_url "NULLABLE"
+        varchar(255) category_banner "NULLABLE"
+    }
+
+%% price is the tall price; the grade / venti upcharges are applied in
+%% backend/src/lib/pricing.ts and frozen into order_items.selling_price.
+    products {
+        serial product_id PK
+        int category_id FK "NOT NULL"
+        varchar(100) product_name UK "NOT NULL"
+        text description "NULLABLE"
+        varchar(255) image_url "NULLABLE"
+        decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
+        boolean is_available "NOT NULL, DEFAULT TRUE"
+        boolean has_sizes "NOT NULL, DEFAULT FALSE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% A product's recipe: how much of each ingredient one unit uses.
+    product_ingredients {
+        int product_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        int ingredient_id PK, FK "NOT NULL"
+        decimal_10_2 quantity_required "NOT NULL, CHECK (quantity_required > 0)"
+    }
+
+%% ========================== INVENTORY ==========================
+
+    ingredients {
+        serial ingredient_id PK
+        varchar(100) ingredient_name UK "NOT NULL"
+        varchar(20) unit_of_measure "NOT NULL"
+        varchar(255) image_url "NULLABLE"
+        decimal_10_2 current_quantity "NOT NULL, DEFAULT 0.00, CHECK (current_quantity >= 0)"
+        decimal_10_2 minimum_stock_level "NOT NULL, DEFAULT 0.00, CHECK (minimum_stock_level >= 0)"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Positive quantity_change = stock in, negative = stock out.
+    stock_movements {
+        serial movement_id PK
+        int ingredient_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
+        decimal_10_2 quantity_change "NOT NULL, CHECK (quantity_change <> 0)"
+        stock_movement_reason reason "NOT NULL (delivery / sale / waste / adjustment)"
+        timestamptz moved_at "NOT NULL, DEFAULT now()"
+    }
+
+%% =========================== SUPPLY ============================
+
+    suppliers {
+        serial supplier_id PK
+        varchar(100) supplier_name UK "NOT NULL"
+        varchar(50) contact_person "NULLABLE"
+        varchar(255) supplier_email "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) image_url "NULLABLE"
+        varchar(150) supplier_address "NULLABLE"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% A supplier's price list.
+    supplier_ingredients {
+        int supplier_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        int ingredient_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        decimal_10_2 unit_price "NOT NULL, CHECK (unit_price >= 0)"
+    }
+
+    deliveries {
+        serial delivery_id PK
+        int supplier_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
+        date delivery_date "NOT NULL"
+    }
+
+    delivery_items {
+        int delivery_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        int ingredient_id PK, FK "NOT NULL"
+        decimal_10_2 quantity_received "NOT NULL, CHECK (quantity_received > 0)"
+        decimal_10_2 unit_cost "NOT NULL, CHECK (unit_cost >= 0)"
+    }
+
+%% =========================== SYSTEM ============================
+
+%% Tables a backup restore must leave alone (activity_logs, backups, export_jobs,
+%% notification_log, health_checks, request_metrics) hold no foreign keys to the
+%% tables a restore replaces, so they keep names and plain ids instead.
+
+%% Single row (settings_id = 1), inserted by init.sql. Which PayMongo methods
+%% checkout offers. The API keys live in backend/.env, never here.
+    payment_settings {
+        int settings_id PK "DEFAULT 1, CHECK (settings_id = 1)"
+        text[] enabled_methods "NOT NULL, DEFAULT ARRAY['gcash', 'paymaya', 'grab_pay', 'qrph', 'card']"
+        boolean send_email_receipt "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Single row (settings_id = 1), inserted by init.sql. maintenance_mode and
+%% online_ordering stop kiosk orders; store_name and support_email go on every email.
+%% maintenance_message DEFAULT 'We''re brewing some updates. Ordering will be back shortly!'
+    system_settings {
+        int settings_id PK "DEFAULT 1, CHECK (settings_id = 1)"
+        varchar(100) store_name "NOT NULL, DEFAULT 'Bull''s Coffee'"
+        varchar(255) support_email "NOT NULL, DEFAULT 'sup@bullscoffee.com'"
+        boolean online_ordering "NOT NULL, DEFAULT TRUE"
+        boolean maintenance_mode "NOT NULL, DEFAULT FALSE"
+        text maintenance_message "NOT NULL, DEFAULT set in init.sql"
+        boolean backup_enabled "NOT NULL, DEFAULT TRUE"
+        varchar(10) backup_frequency "NOT NULL, DEFAULT 'daily', CHECK (backup_frequency IN ('hourly', 'daily', 'weekly'))"
+        time backup_time "NOT NULL, DEFAULT '03:00'"
+        int backup_retention_days "NOT NULL, DEFAULT 30, CHECK (backup_retention_days IN (7, 30, 90, 365))"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+        int updated_by FK "NULLABLE, ON DELETE SET NULL"
+    }
+
+%% PDFs and CSV logs stored in S3 (bulls-coffee/pdfs/, bulls-coffee/logs/). This
+%% table is the index of what's stored. file_url is NULL for logs, which are
+%% private and only downloadable through the API.
+    documents {
+        serial document_id PK
+        document_kind kind "NOT NULL (pdf / log)"
+        varchar(255) file_name "NOT NULL"
+        varchar(512) s3_key UK "NOT NULL"
+        varchar(512) file_url "NULLABLE"
+        int size_bytes "NOT NULL, CHECK (size_bytes >= 0)"
+        int uploaded_by FK "NULLABLE, ON DELETE SET NULL"
+        timestamptz uploaded_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Activity log and audit trail. Insert-only apart from reviewing a flag; a row
+%% with a flag_reason is in the audit trail until it's reviewed. session_id is set
+%% only on sign-in rows, one per Clerk session.
+%% INDEX activity_logs_occurred_at_idx (occurred_at DESC)
+%% INDEX activity_logs_unreviewed_idx (log_id DESC) WHERE flag_reason IS NOT NULL AND flag_reviewed_at IS NULL
+    activity_logs {
+        bigserial log_id PK
+        timestamptz occurred_at "NOT NULL, DEFAULT now()"
+        varchar(255) actor_clerk_id "NULLABLE, no FK (staff, customer, or NULL for the system)"
+        varchar(120) actor_name "NOT NULL"
+        varchar(20) actor_role "NOT NULL, CHECK (actor_role IN ('admin', 'manager', 'cashier', 'customer', 'system'))"
+        text action "NOT NULL"
+        varchar(30) module "NOT NULL"
+        varchar(45) ip "NULLABLE"
+        log_severity severity "NOT NULL, DEFAULT 'info' (info / warning / critical)"
+        text flag_reason "NULLABLE"
+        varchar(120) flag_reviewed_by "NULLABLE"
+        timestamptz flag_reviewed_at "NULLABLE"
+        varchar(64) session_id UK "NULLABLE"
+    }
+
+%% One row per one-off data step that has run (e.g. a seed), so it never runs again.
+    app_migrations {
+        varchar(100) name PK
+        timestamptz applied_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Customer emails sent when something happens to an order. init.sql seeds four:
+%% order-placed, order-completed, order-cancelled, payment-received.
+    notification_templates {
+        varchar(50) template_id PK
+        varchar(50) event UK "NOT NULL"
+        varchar(100) name "NOT NULL"
+        varchar(200) subject "NOT NULL"
+        text body "NOT NULL"
+        boolean enabled "NOT NULL, DEFAULT TRUE"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Every attempt to send one of those emails.
+%% INDEX notification_log_sent_at_idx (sent_at DESC)
+    notification_log {
+        bigserial log_id PK
+        varchar(50) template_id "NULLABLE, no FK (notification_templates)"
+        int order_id "NULLABLE, no FK (orders)"
+        varchar(255) recipient "NULLABLE"
+        notification_status status "NOT NULL (sent / failed / skipped)"
+        text error "NULLABLE"
+        int latency_ms "NULLABLE"
+        timestamptz sent_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Complaints and bug reports from the storefront Contact form. customer_id is set
+%% when the reporter was signed in; order_id when they named an order that exists.
+%% INDEX support_tickets_status_idx (status, created_at DESC)
+    support_tickets {
+        serial ticket_id PK
+        ticket_kind kind "NOT NULL (complaint / bug)"
+        varchar(150) subject "NOT NULL"
+        text description "NOT NULL"
+        varchar(100) reporter_name "NOT NULL"
+        varchar(255) reporter_email "NOT NULL"
+        int customer_id FK "NULLABLE, ON DELETE SET NULL"
+        int order_id FK "NULLABLE, ON DELETE SET NULL"
+        ticket_priority priority "NOT NULL, DEFAULT 'medium' (low / medium / high / urgent)"
+        ticket_status status "NOT NULL, DEFAULT 'open' (open / in_progress / resolved / closed)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Staff replies, each also emailed to the reporter.
+%% INDEX ticket_messages_ticket_id_idx (ticket_id)
+    ticket_messages {
+        serial message_id PK
+        int ticket_id FK "NOT NULL, ON DELETE CASCADE"
+        int author_employee_id FK "NULLABLE, ON DELETE SET NULL"
+        varchar(120) author_name "NOT NULL"
+        text body "NOT NULL"
+        notification_status email_status "NOT NULL (sent / failed / skipped)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% One row per service per probe (each scheduler tick). Pruned after 30 days.
+%% INDEX health_checks_service_idx (service, checked_at DESC)
+    health_checks {
+        bigserial check_id PK
+        varchar(20) service "NOT NULL"
+        varchar(15) state "NOT NULL, CHECK (state IN ('operational', 'degraded', 'down', 'not_configured'))"
+        int latency_ms "NULLABLE"
+        text detail "NULLABLE"
+        timestamptz checked_at "NOT NULL, DEFAULT now()"
+    }
+
+%% API traffic per minute, summed across server instances. Pruned after 30 days.
+    request_metrics {
+        timestamptz minute PK
+        int requests "NOT NULL, DEFAULT 0"
+        bigint total_ms "NOT NULL, DEFAULT 0"
+        int errors_5xx "NOT NULL, DEFAULT 0"
+    }
+
+%% Index of database snapshots: gzipped JSON in private S3 under bulls-coffee/backups/.
+%% INDEX backups_created_at_idx (created_at DESC)
+    backups {
+        serial backup_id PK
+        backup_kind kind "NOT NULL (automatic / manual)"
+        job_status status "NOT NULL, DEFAULT 'in_progress' (in_progress / completed / failed)"
+        varchar(512) s3_key UK "NULLABLE"
+        bigint size_bytes "NULLABLE"
+        jsonb table_counts "NULLABLE"
+        text error "NULLABLE"
+        varchar(120) created_by_name "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz finished_at "NULLABLE"
+    }
+
+%% Data exports in private S3 under bulls-coffee/exports/, deleted with their row after 7 days.
+%% INDEX export_jobs_requested_at_idx (requested_at DESC)
+    export_jobs {
+        serial export_id PK
+        varchar(30) dataset "NOT NULL"
+        export_format format "NOT NULL (csv / json)"
+        date range_from "NULLABLE"
+        date range_to "NULLABLE"
+        job_status status "NOT NULL, DEFAULT 'in_progress' (in_progress / completed / failed)"
+        varchar(512) s3_key UK "NULLABLE"
+        int row_count "NULLABLE"
+        bigint size_bytes "NULLABLE"
+        text error "NULLABLE"
+        varchar(120) requested_by_name "NULLABLE"
+        timestamptz requested_at "NOT NULL, DEFAULT now()"
+        timestamptz finished_at "NULLABLE"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+%% One line per FOREIGN KEY constraint (26).
+
+%% Staff
+    employees ||..o{ attendance_logs : "clocks in via"
+
+%% Sales
+    customers |o..o{ orders : "places"
+    employees |o..o{ orders : "handles"
+    discounts |o..o{ orders : "applied to"
+    orders ||..o{ order_items : "contains"
+    products ||..o{ order_items : "ordered as"
+    orders ||..o{ payments : "paid by"
+    customers |o..o{ feedback : "leaves"
+    orders |o..o{ feedback : "reviewed in"
+
+%% Menu
+    categories ||..o{ products : "groups"
+    products ||--o{ product_ingredients : "made with"
+    ingredients ||--o{ product_ingredients : "used in"
+
+%% Inventory
+    ingredients ||..o{ stock_movements : "moved by"
+    employees ||..o{ stock_movements : "records"
+
+%% Supply
+    suppliers ||--o{ supplier_ingredients : "sells"
+    ingredients ||--o{ supplier_ingredients : "sold by"
+    suppliers ||..o{ deliveries : "delivers"
+    employees ||..o{ deliveries : "receives"
+    deliveries ||--o{ delivery_items : "contains"
+    ingredients ||--o{ delivery_items : "received as"
+
+%% System
+    employees |o..o{ system_settings : "last updated"
+    employees |o..o{ documents : "uploads"
+    customers |o..o{ support_tickets : "files"
+    orders |o..o{ support_tickets : "concerns"
+    support_tickets ||..o{ ticket_messages : "threads"
+    employees |o..o{ ticket_messages : "writes"
+
+    employees:::staffBox
+    attendance_logs:::staffBox
+    role_permissions:::staffBox
+    customers:::salesBox
+    orders:::salesBox
+    order_items:::salesBox
+    payments:::salesBox
+    discounts:::salesBox
+    feedback:::salesBox
+    categories:::menuBox
+    products:::menuBox
+    product_ingredients:::menuBox
+    ingredients:::inventoryBox
+    stock_movements:::inventoryBox
+    suppliers:::supplyBox
+    supplier_ingredients:::supplyBox
+    deliveries:::supplyBox
+    delivery_items:::supplyBox
+    payment_settings:::systemBox
+    system_settings:::systemBox
+    documents:::systemBox
+    activity_logs:::systemBox
+    app_migrations:::systemBox
+    notification_templates:::systemBox
+    notification_log:::systemBox
+    support_tickets:::systemBox
+    ticket_messages:::systemBox
+    health_checks:::systemBox
+    request_metrics:::systemBox
+    backups:::systemBox
+    export_jobs:::systemBox

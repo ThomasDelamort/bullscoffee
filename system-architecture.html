@@ -1,0 +1,527 @@
+<!doctype html>
+<!--
+  Source for system-architecture.png. To re-render after editing (Git Bash):
+    "/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --hide-scrollbars \
+      --force-device-scale-factor=1.5 --window-size=2560,1520 --virtual-time-budget=8000 \
+      --screenshot="C:\bullscoffee\system-architecture.png" "file:///C:/bullscoffee/system-architecture.html"
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bull's Coffee Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+  :root {
+    --bg: #121318;
+    --card: #1a1c23;
+    --card2: #15171d;
+    --line: #2d313d;
+    --text: #eceef2;
+    --soft: #b4b9c5;
+    --dim: #868c9a;
+    --wire: #c3c7d0;
+    --react: #61dafb;
+    --node: #8cc84b;
+    --clerk: #8f74ff;
+    --pay: #2fd3ad;
+    --s3: #f29b30;
+    --pg: #6fa8ec;
+    --planned: #e3a83c;
+    --drizzle: #c5f74f;
+    --tanstack: #ff4f64;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); }
+  body { font-family: Inter, "Segoe UI", sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+  #canvas {
+    position: relative; width: 2560px; height: 1520px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 900px 600px at 46% 52%, rgba(150, 90, 30, .16), transparent 70%),
+      radial-gradient(ellipse 700px 500px at 80% 20%, rgba(60, 90, 160, .08), transparent 70%),
+      var(--bg);
+  }
+  svg.wires { position: absolute; inset: 0; pointer-events: none; }
+
+  /* ---------- title ---------- */
+  .title { position: absolute; left: 0; right: 0; top: 30px; text-align: center; }
+  .title h1 { margin: 0; font-size: 70px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; }
+  .title p { margin: 14px 0 0; font-size: 22px; letter-spacing: 7px; color: var(--soft); font-weight: 500; }
+
+  /* ---------- cards ---------- */
+  .card {
+    position: absolute; border-radius: 16px; padding: 18px 22px;
+    background: linear-gradient(180deg, var(--card), var(--card2));
+    border: 2px solid var(--line);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  }
+  .card.dashed { border-style: dashed; background: rgba(26, 28, 35, .7); }
+  .hdr { display: flex; align-items: center; gap: 12px; }
+  .hdr .grow { flex: 1; }
+  .h2 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; }
+  .h3 { font-size: 21px; font-weight: 700; }
+  .sub { font-size: 15px; color: var(--soft); margin-top: 2px; }
+  .mono { font-family: var(--mono); font-size: 12.5px; color: var(--dim); }
+  .p { font-size: 15px; color: var(--soft); line-height: 1.55; }
+  .p b { color: var(--text); font-weight: 600; }
+  code { font-family: var(--mono); font-size: 12.5px; color: #d6d9e0; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 4px; }
+  .label { font-size: 11.5px; font-weight: 700; letter-spacing: 1.6px; color: var(--dim); text-transform: uppercase; margin: 14px 0 7px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+    border-radius: 7px; font-size: 13.5px; font-weight: 500; color: #dfe2e8;
+    background: #20232c; border: 1px solid #323745; white-space: nowrap;
+  }
+  .host {
+    display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px;
+    border-radius: 999px; font-size: 13.5px; font-weight: 600; color: #e8eaee;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+  }
+  .tag {
+    display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 1.4px; padding: 4px 9px;
+    border-radius: 6px; text-transform: uppercase;
+  }
+  .tag.teal { color: var(--pay); background: rgba(47, 211, 173, .12); }
+  .tag.amber { color: var(--planned); background: rgba(227, 168, 60, .14); }
+  .tag.blue { color: var(--pg); background: rgba(111, 168, 236, .13); }
+  .tag.gray { color: var(--soft); background: rgba(255,255,255,.07); }
+
+  .step {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 23px; height: 23px; border-radius: 50%; background: var(--pay); color: #06231c;
+    font-size: 13px; font-weight: 800; font-style: normal;
+  }
+  .icon { flex: none; }
+
+  /* ---------- actors ---------- */
+  .actor { position: absolute; left: 40px; width: 170px; text-align: center; }
+  .actor svg { display: block; margin: 0 auto; }
+  .actor .name { font-size: 19px; font-weight: 600; margin-top: 4px; }
+  .actor .who { font-size: 12.5px; color: var(--dim); margin-top: 1px; }
+
+  /* ---------- frontend ---------- */
+  .surfaces { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .surface { background: #13151b; border: 1px solid #2a2e3a; border-radius: 10px; padding: 9px 12px 10px; }
+  .surface .n { font-size: 16px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+  .surface .n code { color: var(--react); background: none; padding: 0; font-size: 12.5px; }
+  .surface .w { font-size: 13px; color: var(--dim); margin-top: 3px; }
+
+  /* ---------- backend ---------- */
+  .pipe { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+  .pipe .arrow { color: var(--dim); font-size: 14px; }
+  .mods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .mods .chip { justify-content: center; padding: 0 6px; font-size: 13px; }
+  .sched {
+    margin-top: 14px; padding: 11px 14px; border-radius: 10px;
+    background: rgba(242, 155, 48, .06); border: 1px solid rgba(242, 155, 48, .35);
+  }
+
+  /* ---------- data ---------- */
+  .tables { margin-top: 10px; }
+  .tables .g { margin-top: 11px; }
+  .tables .g .t { font-size: 15.5px; font-weight: 600; }
+  .tables .g .mono { margin-top: 2px; line-height: 1.55; color: #9aa0ad; }
+
+  /* ---------- labels on wires ---------- */
+  .wl { position: absolute; font-size: 15px; color: #dcdfe5; white-space: nowrap; line-height: 1.3; display: flex; flex-direction: column; }
+  .wl.r { transform: translateX(-100%); align-items: flex-end; text-align: right; }
+  .wl.c { transform: translateX(-50%); align-items: center; text-align: center; }
+  .wl .m { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  .wl .row { display: flex; align-items: center; gap: 7px; }
+
+  ul.ticks { list-style: none; margin: 10px 0 0; padding: 0; }
+  ul.ticks li { font-size: 15px; color: var(--soft); line-height: 1.6; display: flex; gap: 10px; align-items: baseline; }
+  ul.ticks li::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--pay); transform: translateY(-3px); }
+  ol.steps { list-style: none; margin: 12px 0 0; padding: 0; }
+  ol.steps li { font-size: 15px; color: var(--soft); line-height: 1.35; display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+  ol.steps li b { color: var(--text); font-weight: 600; }
+
+  .legend-row { display: flex; align-items: center; gap: 12px; font-size: 14.5px; color: var(--soft); margin-top: 11px; }
+  .legend-row svg { flex: none; }
+
+  .footer { position: absolute; left: 0; right: 0; bottom: 26px; text-align: center; font-size: 14.5px; color: var(--dim); }
+  .footer b { color: var(--soft); font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="canvas">
+
+  <svg class="wires" id="wires" width="2560" height="1520" viewBox="0 0 2560 1520"></svg>
+
+  <div class="title">
+    <h1>Bull's Coffee</h1>
+    <p>SYSTEM ARCHITECTURE</p>
+  </div>
+
+  <!-- ===================== ROW 1 ===================== -->
+
+  <div class="card" style="left:40px; top:180px; width:540px; height:220px; border-color:rgba(47,211,173,.45)">
+    <div class="hdr"><span class="h3">Online payment flow</span><span class="grow"></span><span class="tag teal">PayMongo</span></div>
+    <ol class="steps">
+      <li><i class="step">1</i><span><b>POS or kiosk</b> asks the API to take the payment online</span></li>
+      <li><i class="step">2</i><span>API opens a <b>Checkout Session</b> and gets a <code>checkout_url</code></span></li>
+      <li><i class="step">3</i><span>Customer pays on PayMongo's <b>hosted checkout</b> page</span></li>
+      <li><i class="step">4</i><span><b>Signed webhook</b> marks the order paid; receipt emailed</span></li>
+      <li><i class="step">5</i><span>Back to <code>/checkout/success</code>, which polls the status</span></li>
+    </ol>
+  </div>
+
+  <div class="card" style="left:640px; top:180px; width:520px; height:220px; border-color:var(--clerk)">
+    <div class="hdr">
+      <svg class="icon" width="46" height="46" viewBox="0 0 46 46"><rect x="1" y="1" width="44" height="44" rx="10" fill="rgba(143,116,255,.16)" stroke="#8f74ff" stroke-width="2"/><rect x="14" y="21" width="18" height="14" rx="3" fill="#eceef2"/><path d="M17 21v-4a6 6 0 0 1 12 0v4" fill="none" stroke="#eceef2" stroke-width="2.6"/><circle cx="23" cy="28" r="2" fill="#1a1c23"/></svg>
+      <div class="grow"><div class="h2">Clerk</div><div class="sub" style="margin-top:0">Identity, sign-in &amp; sessions</div></div>
+    </div>
+    <div class="p" style="margin-top:12px">
+      <b>Email / password · Google · Microsoft</b> sign-in<br>
+      Sign-up, password reset, short-lived <b>session JWTs</b><br>
+      Backend API: staff invites · lock / ban · revoke sessions
+    </div>
+    <div class="mono" style="margin-top:9px">@clerk/clerk-react · @clerk/express</div>
+  </div>
+
+  <div class="card" style="left:1300px; top:180px; width:600px; height:220px">
+    <div class="hdr">
+      <span class="h3">Hosting &amp; delivery</span><span class="grow"></span>
+      <span class="host"><svg width="15" height="15" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="2" fill="none" stroke="#e8eaee" stroke-width="1.6"/><circle cx="4" cy="12.5" r="2" fill="none" stroke="#e8eaee" stroke-width="1.6"/><circle cx="12" cy="6" r="2" fill="none" stroke="#e8eaee" stroke-width="1.6"/><path d="M4 5.5v5M12 8c0 2.5-4 2-7.5 3" fill="none" stroke="#e8eaee" stroke-width="1.6"/></svg>GitHub · main</span>
+    </div>
+    <div class="sub" style="margin-top:6px">Each push to <code>main</code> redeploys the app</div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:14px">
+      <div class="surface"><div class="n" style="justify-content:flex-start; gap:8px"><svg width="16" height="14" viewBox="0 0 16 14"><path d="M8 0l8 14H0z" fill="#fff"/></svg>Vercel</div><div class="w">Frontend<br>static Vite build</div></div>
+      <div class="surface"><div class="n" style="justify-content:flex-start; gap:8px"><svg width="15" height="15" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="4" fill="none" stroke="#fff" stroke-width="2"/><circle cx="8" cy="8" r="2.6" fill="#fff"/></svg>Render</div><div class="w">Backend API<br>Node web service</div></div>
+      <div class="surface"><div class="n" style="justify-content:flex-start; gap:8px"><svg width="15" height="15" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="3.5" fill="#00e599"/><path d="M5 11.5V4.5l6 7V4.5" fill="none" stroke="#062b1f" stroke-width="2"/></svg>Neon</div><div class="w">Database<br>managed PostgreSQL</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="left:1960px; top:180px; width:560px; height:220px">
+    <div class="hdr">
+      <svg class="icon" width="26" height="28" viewBox="0 0 26 28"><path d="M13 1l11 4v8c0 7-5 12-11 14C7 25 2 20 2 13V5z" fill="rgba(47,211,173,.14)" stroke="#2fd3ad" stroke-width="2"/><path d="M8 14l4 4 7-8" fill="none" stroke="#2fd3ad" stroke-width="2.4"/></svg>
+      <span class="h3">Security &amp; reliability</span>
+    </div>
+    <ul class="ticks">
+      <li>Clerk JWT verified on every API request</li>
+      <li>Role permissions (RBAC) checked per request</li>
+      <li>Rate limits on public kiosk &amp; payment-status routes</li>
+      <li>PayMongo webhooks verified by HMAC signature</li>
+      <li>Automatic backups, health probes &amp; audit log</li>
+    </ul>
+  </div>
+
+  <!-- ===================== ROW 2 ===================== -->
+
+  <!-- Actors: icon centres at y = 540 / 660 / 780 / 900 -->
+  <div class="actor" style="top:508px">
+    <svg width="96" height="64" viewBox="0 0 96 64" fill="none" stroke="#eceef2" stroke-width="3.2">
+      <circle cx="48" cy="18" r="11"/><path d="M28 62c0-13 9-22 20-22s20 9 20 22z"/>
+      <circle cx="22" cy="24" r="8"/><path d="M6 60c0-10 7-17 16-17 3 0 6 1 8 2"/>
+      <circle cx="74" cy="24" r="8"/><path d="M90 60c0-10-7-17-16-17-3 0-6 1-8 2"/>
+    </svg>
+    <div class="name">Customers</div>
+  </div>
+  <div class="actor" style="top:630px">
+    <svg width="64" height="60" viewBox="0 0 64 60" fill="none" stroke="#eceef2" stroke-width="3.2"><circle cx="32" cy="16" r="11"/><path d="M12 58c0-13 9-22 20-22s20 9 20 22z"/></svg>
+    <div class="name">Cashiers</div>
+  </div>
+  <div class="actor" style="top:750px">
+    <svg width="64" height="60" viewBox="0 0 64 60" fill="none" stroke="#eceef2" stroke-width="3.2"><circle cx="32" cy="16" r="11"/><path d="M12 58c0-13 9-22 20-22s20 9 20 22z"/></svg>
+    <div class="name">Managers</div>
+  </div>
+  <div class="actor" style="top:870px">
+    <svg width="64" height="60" viewBox="0 0 64 60" fill="none" stroke="#eceef2" stroke-width="3.2"><circle cx="32" cy="16" r="11"/><path d="M12 58c0-13 9-22 20-22s20 9 20 22z"/><path d="M50 36l4 2v4c0 3-2 5-4 6-2-1-4-3-4-6v-4z" fill="#eceef2" stroke-width="2"/></svg>
+    <div class="name">Admins</div>
+  </div>
+
+  <!-- Frontend -->
+  <div class="card" style="left:280px; top:480px; width:500px; height:500px; border-color:#35536a">
+    <div class="hdr">
+      <svg class="icon" width="38" height="38" viewBox="-12 -12 24 24" fill="none" stroke="#61dafb" stroke-width="1.15"><circle r="2.1" fill="#61dafb" stroke="none"/><ellipse rx="10.5" ry="4.1"/><ellipse rx="10.5" ry="4.1" transform="rotate(60)"/><ellipse rx="10.5" ry="4.1" transform="rotate(120)"/></svg>
+      <div class="grow"><div class="h2">Frontend</div></div>
+      <span class="host"><svg width="13" height="11" viewBox="0 0 16 14"><path d="M8 0l8 14H0z" fill="#fff"/></svg>Vercel</span>
+    </div>
+    <div class="sub" style="margin-top:6px">Single-page web app · Vite 8 · React 19 · TypeScript</div>
+
+    <div class="label">Surfaces</div>
+    <div class="surfaces">
+      <div class="surface"><div class="n">Storefront <code>/</code></div><div class="w">Menu, about, contact</div></div>
+      <div class="surface"><div class="n">Kiosk <code>/kiosk</code></div><div class="w">Self-order, no sign-in</div></div>
+      <div class="surface"><div class="n">POS <code>/pos</code></div><div class="w">Cashier register</div></div>
+      <div class="surface"><div class="n">Manager <code>/manager</code></div><div class="w">Orders, menu, inventory</div></div>
+      <div class="surface"><div class="n">Admin <code>/admin</code></div><div class="w">Users, roles, system</div></div>
+      <div class="surface"><div class="n">Checkout <code>/checkout</code></div><div class="w">Return from PayMongo</div></div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px; margin-top:14px">
+      <span class="chip" style="border-color:rgba(255,79,100,.45); background:rgba(255,79,100,.08)"><b style="color:var(--tanstack); font-weight:700">TanStack Query</b></span>
+      <span class="p" style="font-size:14px">fetches &amp; caches API data</span>
+    </div>
+    <div class="mono" style="margin-top:10px">React Router 7 · Tailwind CSS 4 · Motion · Clerk React</div>
+
+    <div style="margin-top:14px; border:1.5px dashed var(--planned); border-radius:10px; padding:8px 12px; display:flex; align-items:center; gap:12px">
+      <span class="tag amber">Planned</span>
+      <span style="font-size:15px; font-weight:600">Mobile app</span>
+      <span class="p" style="font-size:14px">React Native · Expo</span>
+    </div>
+  </div>
+
+  <!-- Backend -->
+  <div class="card" style="left:1020px; top:480px; width:560px; height:500px; border-color:#3e5068">
+    <div class="hdr">
+      <svg class="icon" width="36" height="40" viewBox="0 0 36 40"><path d="M18 1l16 9v20l-16 9-16-9V10z" fill="#3c873a"/><path d="M12 28V12l12 16V12" fill="none" stroke="#fff" stroke-width="3"/></svg>
+      <div class="grow"><div class="h2" style="color:var(--node)">Backend API</div></div>
+      <span class="host"><svg width="13" height="13" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="4" fill="none" stroke="#fff" stroke-width="2"/><circle cx="8" cy="8" r="2.6" fill="#fff"/></svg>Render</span>
+    </div>
+    <div class="sub" style="margin-top:6px">Express 5 · Node.js 24 · TypeScript · REST / JSON</div>
+    <div class="mono" style="margin-top:5px; color:#a3a9b6">routes → controllers → providers → lib</div>
+
+    <div class="label">Request pipeline</div>
+    <div class="pipe">
+      <span class="chip">CORS</span><span class="arrow">→</span>
+      <span class="chip" style="border-color:rgba(143,116,255,.55)">Clerk session</span><span class="arrow">→</span>
+      <span class="chip">Metrics</span><span class="arrow">→</span>
+      <span class="chip" style="border-color:rgba(143,116,255,.55)">Signed in?</span><span class="arrow">→</span>
+      <span class="chip" style="border-color:rgba(143,116,255,.55)">RBAC</span>
+    </div>
+    <div class="p" style="font-size:13.5px; margin-top:6px">+ express-rate-limit on public routes · raw-body webhook route</div>
+
+    <div class="label">Modules</div>
+    <div class="mods">
+      <span class="chip">Orders</span><span class="chip">Kiosk</span><span class="chip" style="border-color:rgba(47,211,173,.55)">Payments</span><span class="chip">Menu</span>
+      <span class="chip">Inventory</span><span class="chip">Supply</span><span class="chip">Discounts</span><span class="chip">Attendance</span>
+      <span class="chip">Reports</span><span class="chip">Users &amp; roles</span><span class="chip">Backups</span><span class="chip">Notifications</span>
+    </div>
+
+    <div class="sched">
+      <div style="display:flex; align-items:center; gap:10px">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#f29b30" stroke-width="2"><circle cx="10" cy="10" r="8.5"/><path d="M10 5v5l3.5 2"/></svg>
+        <span style="font-size:15.5px; font-weight:600">Background scheduler</span>
+        <span class="mono">1-min tick · Postgres advisory lock</span>
+      </div>
+      <div class="p" style="font-size:13.5px; margin-top:4px">Health probes · automatic backups · backup &amp; export pruning · metrics</div>
+    </div>
+    <div class="mono" style="margin-top:12px">pg · multer · @aws-sdk/client-s3 · @clerk/express · dotenv</div>
+  </div>
+
+  <!-- Raw SQL -->
+  <div class="card" style="left:1700px; top:480px; width:290px; height:230px; border-color:#3d6aa0">
+    <span class="tag blue">Data access</span>
+    <div class="h3" style="margin-top:10px">Raw SQL</div>
+    <div class="p" style="font-size:14px; margin-top:4px">Parameterized queries ($1, $2 …)<br>Transactions for orders, stock &amp; deliveries</div>
+    <div class="mono" style="margin-top:8px">pg (node-postgres) Pool</div>
+  </div>
+
+  <!-- Drizzle (planned) -->
+  <div class="card dashed" style="left:1700px; top:790px; width:290px; height:170px; border-color:var(--planned)">
+    <span class="tag amber">Planned</span>
+    <div class="h3" style="margin-top:10px; color:var(--drizzle)">Drizzle ORM</div>
+    <div class="p" style="font-size:14px; margin-top:4px">Typed schema &amp; queries, once the app is complete</div>
+  </div>
+
+  <!-- PostgreSQL -->
+  <div class="card" style="left:2080px; top:480px; width:440px; height:500px; border-color:#3d6aa0">
+    <div class="hdr">
+      <svg class="icon" width="40" height="44" viewBox="0 0 40 44" fill="none" stroke="#6fa8ec" stroke-width="2.6"><ellipse cx="20" cy="7" rx="17" ry="5.5"/><path d="M3 7v30c0 3 7.6 5.5 17 5.5S37 40 37 37V7"/><path d="M3 17c0 3 7.6 5.5 17 5.5S37 20 37 17M3 27c0 3 7.6 5.5 17 5.5S37 30 37 27"/></svg>
+      <div class="grow"><div class="h2" style="color:var(--pg)">PostgreSQL</div></div>
+      <span class="host"><svg width="13" height="13" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="3.5" fill="#00e599"/><path d="M5 11.5V4.5l6 7V4.5" fill="none" stroke="#062b1f" stroke-width="2"/></svg>Neon</span>
+    </div>
+    <div class="tables">
+      <div class="g"><div class="t">Staff &amp; access</div><div class="mono">employees · role_permissions · attendance_logs</div></div>
+      <div class="g"><div class="t">Sales</div><div class="mono">customers · orders · order_items · payments · discounts</div></div>
+      <div class="g"><div class="t">Menu</div><div class="mono">categories · products · product_ingredients</div></div>
+      <div class="g"><div class="t">Inventory &amp; supply</div><div class="mono">ingredients · stock_movements · suppliers · deliveries</div></div>
+      <div class="g"><div class="t">System</div><div class="mono">system_settings · payment_settings · activity_logs · backups · export_jobs · health_checks · request_metrics · notification_log · support_tickets</div></div>
+    </div>
+    <div class="mono" style="position:absolute; left:22px; bottom:16px">init.sql builds the schema on boot · dummy.sql seed</div>
+  </div>
+
+  <!-- ===================== ROW 3 ===================== -->
+
+  <!-- Legend -->
+  <div class="card" style="left:40px; top:1080px; width:320px; height:270px">
+    <div class="h3" style="font-size:18px">Legend</div>
+    <div class="legend-row"><svg width="46" height="10"><path d="M2 5h36" stroke="#c3c7d0" stroke-width="2.4"/><path d="M36 1l8 4-8 4z" fill="#c3c7d0"/></svg>API &amp; email</div>
+    <div class="legend-row"><svg width="46" height="10"><path d="M2 5h36" stroke="#8f74ff" stroke-width="2.4"/><path d="M36 1l8 4-8 4z" fill="#8f74ff"/></svg>Authentication</div>
+    <div class="legend-row"><svg width="46" height="10"><path d="M2 5h36" stroke="#2fd3ad" stroke-width="2.4"/><path d="M36 1l8 4-8 4z" fill="#2fd3ad"/></svg>Payments <i class="step" style="width:19px;height:19px;font-size:11px">1</i> = flow step</div>
+    <div class="legend-row"><svg width="46" height="10"><path d="M2 5h36" stroke="#6fa8ec" stroke-width="2.4"/><path d="M36 1l8 4-8 4z" fill="#6fa8ec"/></svg>Database</div>
+    <div class="legend-row"><svg width="46" height="10"><path d="M2 5h36" stroke="#f29b30" stroke-width="2.4"/><path d="M36 1l8 4-8 4z" fill="#f29b30"/></svg>File storage</div>
+    <div class="legend-row"><svg width="46" height="10"><path d="M2 5h36" stroke="#e3a83c" stroke-width="2.4" stroke-dasharray="7 5"/><path d="M36 1l8 4-8 4z" fill="#e3a83c"/></svg>Planned, not built yet</div>
+  </div>
+
+  <!-- PayMongo -->
+  <div class="card" style="left:640px; top:1080px; width:520px; height:270px; border-color:var(--pay)">
+    <div class="hdr">
+      <svg class="icon" width="46" height="46" viewBox="0 0 46 46"><rect x="1" y="1" width="44" height="44" rx="10" fill="rgba(47,211,173,.14)" stroke="#2fd3ad" stroke-width="2"/><rect x="10" y="14" width="26" height="18" rx="3" fill="none" stroke="#eceef2" stroke-width="2.2"/><path d="M10 20h26" stroke="#eceef2" stroke-width="3"/><path d="M14 27h7" stroke="#eceef2" stroke-width="2.2"/></svg>
+      <div class="grow"><div class="h2" style="color:var(--pay)">PayMongo</div><div class="sub" style="margin-top:0">Payment gateway · Checkout Session API</div></div>
+      <span class="tag gray">Test mode</span>
+    </div>
+    <div style="display:flex; gap:7px; margin-top:16px">
+      <span class="chip">GCash</span><span class="chip">Maya</span><span class="chip">GrabPay</span><span class="chip">QR Ph</span><span class="chip">Card</span>
+    </div>
+    <div class="p" style="margin-top:12px">
+      <b>Hosted checkout</b>: card details never reach our servers<br>
+      Webhook <code>checkout_session.payment.paid</code> → <code>/api/payments/webhook</code>
+    </div>
+    <div class="mono" style="margin-top:10px">api.paymongo.com/v1 · secret key over Basic auth</div>
+  </div>
+
+  <!-- Amazon S3 -->
+  <div class="card" style="left:1300px; top:1080px; width:540px; height:270px; border-color:var(--s3)">
+    <div class="hdr">
+      <svg class="icon" width="44" height="46" viewBox="0 0 44 46"><path d="M3 9l5 32c.5 3 6.5 4.5 14 4.5S35.5 44 36 41l5-32" fill="#d9761c" stroke="#f29b30" stroke-width="2"/><ellipse cx="22" cy="9" rx="19" ry="6.5" fill="#f5a845" stroke="#f29b30" stroke-width="2"/></svg>
+      <div class="grow"><div class="h2">Amazon S3</div><div class="sub" style="margin-top:0">Files &amp; media · one bucket, <code>bulls-coffee/</code></div></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px">
+      <div class="surface"><div class="n" style="font-size:15px">Public</div><div class="w" style="line-height:1.5">Product, category, ingredient, supplier &amp; staff images · PDFs</div></div>
+      <div class="surface"><div class="n" style="font-size:15px">Private · KMS-encrypted</div><div class="w" style="line-height:1.5">Backups · data exports · CSV logs · storage probe</div></div>
+    </div>
+    <div class="p" style="margin-top:10px">PostgreSQL keeps each file's URL or key</div>
+    <div class="mono" style="margin-top:6px">@aws-sdk/client-s3 · multer uploads (images ≤ 5 MB)</div>
+  </div>
+
+  <!-- Resend -->
+  <div class="card" style="left:1960px; top:1080px; width:560px; height:270px; border-color:#7d8496">
+    <div class="hdr">
+      <svg class="icon" width="46" height="46" viewBox="0 0 46 46"><rect x="1" y="1" width="44" height="44" rx="10" fill="rgba(255,255,255,.07)" stroke="#9aa0ad" stroke-width="2"/><rect x="9" y="13" width="28" height="20" rx="3" fill="none" stroke="#eceef2" stroke-width="2.2"/><path d="M10 15l13 10 13-10" fill="none" stroke="#eceef2" stroke-width="2.2"/></svg>
+      <div class="grow"><div class="h2">Resend</div><div class="sub" style="margin-top:0">Transactional email · HTTP API</div></div>
+      <span class="tag gray">Sandbox sender</span>
+    </div>
+    <div style="display:flex; gap:7px; margin-top:16px; flex-wrap:wrap">
+      <span class="chip">Order placed</span><span class="chip">Order completed</span><span class="chip">Order cancelled</span><span class="chip" style="border-color:rgba(47,211,173,.55)">Payment received</span>
+    </div>
+    <div class="p" style="margin-top:12px">
+      Admin-editable templates with <code>{{variables}}</code><br>
+      Sent after the order is saved, so a failed email never blocks it
+    </div>
+    <div class="mono" style="margin-top:8px">api.resend.com/emails · every send logged in notification_log</div>
+  </div>
+
+  <!-- ===================== WIRE LABELS ===================== -->
+
+  <!-- Clerk <-> Frontend -->
+  <div class="wl r" style="left:678px; top:414px">Sign in / sign up<span class="m">Google · Microsoft · email</span></div>
+  <div class="wl" style="left:762px; top:414px">Session<span class="m">JWT</span></div>
+  <!-- Clerk <-> Backend -->
+  <div class="wl r" style="left:1048px; top:414px">JWKS keys<span class="m">verify locally</span></div>
+  <div class="wl" style="left:1132px; top:414px">Backend API<span class="m">invite · lock · revoke</span></div>
+
+  <!-- Frontend <-> Backend -->
+  <div class="wl c" style="left:900px; top:546px">API requests</div>
+  <div class="wl c" style="left:900px; top:600px"><span class="m">Bearer &lt;Clerk JWT&gt;</span></div>
+  <div class="wl c" style="left:900px; top:646px">JSON responses</div>
+  <div class="wl c" style="left:900px; top:700px"><span class="m">cached by TanStack</span></div>
+  <div class="wl c" style="left:900px; top:776px"><span class="row"><i class="step">1</i>Pay online</span></div>
+  <div class="wl c" style="left:900px; top:830px"><span class="m">POST /payments/</span><span class="m">checkout-session</span></div>
+
+  <!-- Backend <-> Raw SQL <-> Postgres -->
+  <div class="wl c" style="left:1640px; top:516px">Queries</div>
+  <div class="wl c" style="left:1640px; top:650px">Results</div>
+  <div class="wl c" style="left:2035px; top:516px">SQL</div>
+  <div class="wl c" style="left:2035px; top:650px">Rows</div>
+  <div class="wl" style="left:1858px; top:735px; color:var(--planned); font-size:13.5px">migrate later</div>
+
+  <!-- Frontend <-> PayMongo -->
+  <div class="wl r" style="left:678px; top:1000px"><span class="row"><i class="step">3</i>Redirect to checkout</span><span class="m">checkout_url</span></div>
+  <div class="wl" style="left:762px; top:1000px"><span class="row"><i class="step">5</i>Return</span><span class="m">/checkout/success</span></div>
+  <!-- Backend <-> PayMongo -->
+  <div class="wl r" style="left:1048px; top:1000px"><span class="row"><i class="step">2</i>Create session</span></div>
+  <div class="wl" style="left:1132px; top:1000px"><span class="row"><i class="step">4</i>Webhook</span><span class="m">HMAC-signed</span></div>
+  <!-- Backend <-> S3 -->
+  <div class="wl r" style="left:1428px; top:1000px">Store &amp; read<span class="m">Put/GetObject</span></div>
+  <!-- Backend -> Resend -->
+  <div class="wl c" style="left:2000px; top:1000px">Order &amp; payment emails</div>
+  <!-- S3 -> browsers -->
+  <div class="wl c" style="left:985px; top:1412px">Public image URLs<span class="m">browsers load menu &amp; staff photos straight from S3</span></div>
+
+  <div class="footer">
+    Beta runs on <b>test credentials</b>: Clerk development instance · PayMongo test keys · Resend sandbox sender
+  </div>
+</div>
+
+<script>
+  // Wires: [points, colour, options]. Each wire ends in an arrowhead; `both`
+  // adds one at the start too, `dash` draws it dashed.
+  const C = { wire: "#c3c7d0", auth: "#8f74ff", pay: "#2fd3ad", db: "#6fa8ec", s3: "#f29b30", plan: "#e3a83c" };
+  const wires = [
+    // actors -> frontend
+    [[[205, 540], [276, 540]], C.wire],
+    [[[178, 660], [276, 660]], C.wire],
+    [[[178, 780], [276, 780]], C.wire],
+    [[[178, 900], [276, 900]], C.wire],
+    // clerk <-> frontend / backend
+    [[[690, 478], [690, 403]], C.auth],
+    [[[750, 403], [750, 478]], C.auth],
+    [[[1060, 403], [1060, 478]], C.auth],
+    [[[1120, 478], [1120, 403]], C.auth],
+    // frontend <-> backend
+    [[[782, 590], [1017, 590]], C.wire],
+    [[[1018, 690], [783, 690]], C.wire],
+    [[[782, 820], [1017, 820]], C.pay],
+    // backend <-> raw sql <-> postgres
+    [[[1582, 560], [1697, 560]], C.db],
+    [[[1698, 640], [1583, 640]], C.db],
+    [[[1992, 560], [2077, 560]], C.db],
+    [[[2078, 640], [1993, 640]], C.db],
+    [[[1845, 712], [1845, 787]], C.plan, { dash: true }],
+    // payments
+    [[[690, 982], [690, 1077]], C.pay],
+    [[[750, 1078], [750, 983]], C.pay],
+    [[[1060, 982], [1060, 1077]], C.pay],
+    [[[1120, 1078], [1120, 983]], C.pay],
+    // backend <-> s3
+    [[[1440, 983], [1440, 1077]], C.s3, { both: true }],
+    // backend -> resend
+    [[[1545, 982], [1545, 1036], [2240, 1036], [2240, 1077]], C.wire],
+    // s3 -> browsers (public image URLs)
+    [[[1570, 1352], [1570, 1400], [400, 1400], [400, 983]], C.s3],
+  ];
+  const svg = document.getElementById("wires");
+  const NS = "http://www.w3.org/2000/svg";
+  const defs = document.createElementNS(NS, "defs");
+  svg.appendChild(defs);
+  const markerFor = (colour) => {
+    const id = "m" + colour.slice(1);
+    if (!document.getElementById(id)) {
+      const m = document.createElementNS(NS, "marker");
+      m.setAttribute("id", id);
+      m.setAttribute("viewBox", "0 0 10 10");
+      m.setAttribute("refX", "9");
+      m.setAttribute("refY", "5");
+      m.setAttribute("markerWidth", "11");
+      m.setAttribute("markerHeight", "11");
+      m.setAttribute("markerUnits", "userSpaceOnUse");
+      m.setAttribute("orient", "auto-start-reverse");
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", "M0 0L10 5L0 10z");
+      p.setAttribute("fill", colour);
+      m.appendChild(p);
+      defs.appendChild(m);
+    }
+    return `url(#${id})`;
+  };
+  // Rounded elbows for multi-segment wires.
+  const pathFor = (pts, r = 14) => {
+    let d = `M${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+      const inX = Math.sign(x - px), inY = Math.sign(y - py);
+      const outX = Math.sign(nx - x), outY = Math.sign(ny - y);
+      d += ` L${x - inX * r} ${y - inY * r} Q${x} ${y} ${x + outX * r} ${y + outY * r}`;
+    }
+    const last = pts[pts.length - 1];
+    return d + ` L${last[0]} ${last[1]}`;
+  };
+  for (const [pts, colour, opts = {}] of wires) {
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", pathFor(pts));
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke", colour);
+    p.setAttribute("stroke-width", "2.4");
+    p.setAttribute("stroke-linecap", "round");
+    if (opts.dash) p.setAttribute("stroke-dasharray", "8 6");
+    p.setAttribute("marker-end", markerFor(colour));
+    if (opts.both) p.setAttribute("marker-start", markerFor(colour));
+    svg.appendChild(p);
+  }
+</script>
+</body>
+</html>

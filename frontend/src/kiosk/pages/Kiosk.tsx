@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { Link } from "react-router-dom";
 import { useCustomer, type Customer } from "../../auth/customerContext";
 import { goToCheckout, usePaymentOptions } from "../../checkout/api";
 import HeroImage from "../../Home/Hero/HeroImage";
@@ -16,7 +17,7 @@ import ProductSheet from "../components/ProductSheet";
 import { useMenu } from "../data/menu";
 import { placeOrderError, usePlaceKioskOrder } from "../data/orders";
 import { useCart, type CartChoice } from "../data/useCart";
-import { PRIMARY_BUTTON } from "../styles";
+import { FOCUS_RING, PRIMARY_BUTTON } from "../styles";
 import Confirmation, { type Receipt } from "./Confirmation";
 
 /**
@@ -127,11 +128,17 @@ export default function Kiosk() {
     <>
       <header className="sticky top-0 z-20 bg-(--k-canvas)/90 backdrop-blur-md">
         <div className="mx-auto flex h-20 max-w-7xl items-center gap-3 px-4 sm:px-6">
-          <HeroImage file={LOGO_MARK} alt="" placeholderShape="circle" className="size-11 shrink-0 object-contain" />
-          <div className="leading-none">
-            <p className="hero-display text-2xl tracking-wide uppercase">Bull's Coffee</p>
-            <p className="mt-1 text-[11px] font-bold tracking-[0.25em] text-(--k-muted) uppercase">Self-order</p>
-          </div>
+          <Link
+            to="/"
+            aria-label="Bull's Coffee, back to home"
+            className={`-m-1 flex items-center gap-3 rounded-2xl p-1 transition active:scale-[0.98] ${FOCUS_RING}`}
+          >
+            <HeroImage file={LOGO_MARK} alt="" placeholderShape="circle" className="size-11 shrink-0 object-contain" />
+            <div className="leading-none">
+              <p className="hero-display text-2xl tracking-wide uppercase">Bull's Coffee</p>
+              <p className="mt-1 text-[11px] font-bold tracking-[0.25em] text-(--k-muted) uppercase">Self-order</p>
+            </div>
+          </Link>
           <div className="ml-auto">
             {customer ? <Greeting customer={customer} /> : <PayAtCounter online={onlineMethods.length > 0} />}
           </div>
