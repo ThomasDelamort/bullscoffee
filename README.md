@@ -92,41 +92,41 @@ keys, Resend sandbox sender), so no real money moves. What exists today:
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Landing+Page" alt="Landing page (screenshot placeholder)" />
+      <img src="frontend/public/screenshots/landingpage.png" alt="Landing page (screenshot placeholder)" />
       <br><sub><b>Landing page</b> · <code>/</code></sub>
     </td>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Menu" alt="Menu page (screenshot placeholder)" />
+      <img src="frontend/public/screenshots/menu.png" alt="Menu page (screenshot placeholder)" />
       <br><sub><b>Menu</b> · <code>/menu</code></sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Sign+In" alt="Sign-in page (screenshot placeholder)" />
+      <img src="" alt="Sign-in page (screenshot placeholder)" />
       <br><sub><b>Sign in / sign up</b> · Clerk-backed auth page</sub>
     </td>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Self-Order+Kiosk" alt="Self-order kiosk (screenshot placeholder)" />
+      <img src="frontend/public/screenshots/kiosk.png" alt="Self-order kiosk (screenshot placeholder)" />
       <br><sub><b>Self-order kiosk</b> · <code>/kiosk</code></sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Point+of+Sale" alt="Point of sale (screenshot placeholder)" />
+      <img src="frontend/public/screenshots/pos.png" alt="Point of sale (screenshot placeholder)" />
       <br><sub><b>Register</b> · <code>/pos</code></sub>
     </td>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Checkout+Return" alt="Payment return page (screenshot placeholder)" />
+      <img src="" alt="Payment return page (screenshot placeholder)" />
       <br><sub><b>Payment return</b> · <code>/checkout/success</code></sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Manager+Dashboard" alt="Manager dashboard (screenshot placeholder)" />
+      <img src="frontend/public/screenshots/manager.png" alt="Manager dashboard (screenshot placeholder)" />
       <br><sub><b>Manager console</b> · <code>/manager</code></sub>
     </td>
     <td width="50%" align="center">
-      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Admin+Dashboard" alt="Admin dashboard (screenshot placeholder)" />
+      <img src="frontend/public/screenshots/admin.png" alt="Admin dashboard (screenshot placeholder)" />
       <br><sub><b>Admin console</b> · <code>/admin</code></sub>
     </td>
   </tr>
@@ -182,16 +182,16 @@ npm run dev
 The API starts on **http://localhost:3000** (see `PORT` in `.env`).
 [backend/.env.example](backend/.env.example) documents every variable:
 
-| Variable | Needed for | Without it |
-| -------- | ---------- | ---------- |
-| `DATABASE_URL` | Everything | The server exits on startup |
-| `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` | Sign-in and every protected route | Protected routes fail |
-| `ADMIN_EMAIL` | Reaching `/admin` on a fresh database | Nobody can open the admin console (see [First admin](#first-admin)) |
-| `APP_URL` | Where Clerk staff invitations send people (`$APP_URL/sign-up`) | Invitations carry no redirect URL, so people land on Clerk's default page instead of your sign-up |
-| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET` | Image and file uploads, backups, data exports | Server boots, but uploads fail with "S3 is not configured" |
-| `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, `PAYMONGO_SUCCESS_URL`, `PAYMONGO_CANCEL_URL` | Online payment | Online payment is switched off; cash at the counter still works |
-| `RESEND_API_KEY`, `NOTIFY_FROM` | Order and ticket emails | Orders still go through; the admin Notifications page says email isn't set up |
-| `PGSSL=true` | A hosted Postgres that requires SSL (`neon.tech` addresses get it automatically) | Connection fails |
+| Variable                                                                                        | Needed for                                                                       | Without it                                                                                        |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                                  | Everything                                                                       | The server exits on startup                                                                       |
+| `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`                                                     | Sign-in and every protected route                                                | Protected routes fail                                                                             |
+| `ADMIN_EMAIL`                                                                                   | Reaching `/admin` on a fresh database                                            | Nobody can open the admin console (see [First admin](#first-admin))                               |
+| `APP_URL`                                                                                       | Where Clerk staff invitations send people (`$APP_URL/sign-up`)                   | Invitations carry no redirect URL, so people land on Clerk's default page instead of your sign-up |
+| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`                     | Image and file uploads, backups, data exports                                    | Server boots, but uploads fail with "S3 is not configured"                                        |
+| `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, `PAYMONGO_SUCCESS_URL`, `PAYMONGO_CANCEL_URL` | Online payment                                                                   | Online payment is switched off; cash at the counter still works                                   |
+| `RESEND_API_KEY`, `NOTIFY_FROM`                                                                 | Order and ticket emails                                                          | Orders still go through; the admin Notifications page says email isn't set up                     |
+| `PGSSL=true`                                                                                    | A hosted Postgres that requires SSL (`neon.tech` addresses get it automatically) | Connection fails                                                                                  |
 
 ### 3. Frontend
 
@@ -243,39 +243,39 @@ From then on, invite everyone else from **Admin → Users**.
 
 ## ✨ Features
 
-|     | Feature                  | Details                                                                                    |
-| --- | ------------------------ | ------------------------------------------------------------------------------------------ |
-| 🔐  | **Sign-in**              | Custom Clerk-backed page: email/password, social buttons, password reset                   |
-| 🙋  | **Auto-registration**    | On first sign-in the frontend calls the backend to create a matching `customers` row from Clerk; if Clerk has no name, the customer is asked for one first |
-| 📱  | **Self-order kiosk**     | Guests browse categories, customize size and instructions, and pay online or at the counter. Orders are priced server-side and linked to the customer when a session is present |
-| 🧾  | **Register**             | Order entry, customer and discount pickers, cash or PayMongo payment, complete and cancel |
-| 💳  | **Online payments**      | GCash, Maya, GrabPay, QR Ph, and cards through PayMongo's hosted checkout; see [Payments](#-payments-paymongo) |
-| 📊  | **Manager console**      | 12 pages: dashboard, POS, orders, discounts, reports, feedback, products, staff, schedule, attendance, inventory, suppliers |
-| 📈  | **Sales reports**        | Daily and monthly reports, with CSV export                                                 |
-| 🥤  | **Menu & recipes**       | Categories, products with per-size pricing and availability, and recipes linking products to ingredients |
-| 📦  | **Inventory & supply**   | Ingredients, stock movements (sales and deliveries write their own; waste and adjustments are manual), suppliers with price lists, deliveries |
-| 🎓  | **Discounts**            | Percent or fixed, with an eligibility rule (none, university ID, or government ID)         |
-| 👥  | **Staff**                | Employees by role, work schedules, attendance with clock-out corrections, activate/deactivate |
-| 🛠️  | **Admin console**        | 11 pages: dashboard, users, roles, system health, activity logs, tickets, payment gateway, notifications, backups, data archive, settings |
-| 🕵️  | **Audit trail**          | Sign-ins and changes are logged; suspicious events (paid cancellations, full-value discounts, new admins, off-hours exports, restores) stay flagged until an admin reviews them |
-| 🩺  | **System health**        | Per-minute probes of the database, Clerk, S3, PayMongo, and email, with 30-day uptime and response times |
-| 💾  | **Backup & restore**     | Gzipped JSON snapshots in private S3, on a schedule and on demand; restore runs in one transaction |
-| 📤  | **Data export**          | Orders, payments, customers, employees, inventory, and the activity log as CSV or JSON, kept 7 days |
-| ✉️  | **Email notifications**  | Admin-editable templates (order placed, ready, cancelled, payment received) sent through Resend; optional |
-| 🎫  | **Support tickets**      | The storefront Contact form opens a ticket; admin replies are emailed to the reporter       |
-| ⚙️  | **Settings**             | Store name, support email, kiosk ordering on/off, maintenance mode                         |
-| ☁️  | **File uploads**         | S3 via multer: menu/supplier/staff images and PDFs (public), CSV logs and backups (private) |
+|     | Feature                 | Details                                                                                                                                                                         |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔐  | **Sign-in**             | Custom Clerk-backed page: email/password, social buttons, password reset                                                                                                        |
+| 🙋  | **Auto-registration**   | On first sign-in the frontend calls the backend to create a matching `customers` row from Clerk; if Clerk has no name, the customer is asked for one first                      |
+| 📱  | **Self-order kiosk**    | Guests browse categories, customize size and instructions, and pay online or at the counter. Orders are priced server-side and linked to the customer when a session is present |
+| 🧾  | **Register**            | Order entry, customer and discount pickers, cash or PayMongo payment, complete and cancel                                                                                       |
+| 💳  | **Online payments**     | GCash, Maya, GrabPay, QR Ph, and cards through PayMongo's hosted checkout; see [Payments](#-payments-paymongo)                                                                  |
+| 📊  | **Manager console**     | 12 pages: dashboard, POS, orders, discounts, reports, feedback, products, staff, schedule, attendance, inventory, suppliers                                                     |
+| 📈  | **Sales reports**       | Daily and monthly reports, with CSV export                                                                                                                                      |
+| 🥤  | **Menu & recipes**      | Categories, products with per-size pricing and availability, and recipes linking products to ingredients                                                                        |
+| 📦  | **Inventory & supply**  | Ingredients, stock movements (sales and deliveries write their own; waste and adjustments are manual), suppliers with price lists, deliveries                                   |
+| 🎓  | **Discounts**           | Percent or fixed, with an eligibility rule (none, university ID, or government ID)                                                                                              |
+| 👥  | **Staff**               | Employees by role, work schedules, attendance with clock-out corrections, activate/deactivate                                                                                   |
+| 🛠️  | **Admin console**       | 11 pages: dashboard, users, roles, system health, activity logs, tickets, payment gateway, notifications, backups, data archive, settings                                       |
+| 🕵️  | **Audit trail**         | Sign-ins and changes are logged; suspicious events (paid cancellations, full-value discounts, new admins, off-hours exports, restores) stay flagged until an admin reviews them |
+| 🩺  | **System health**       | Per-minute probes of the database, Clerk, S3, PayMongo, and email, with 30-day uptime and response times                                                                        |
+| 💾  | **Backup & restore**    | Gzipped JSON snapshots in private S3, on a schedule and on demand; restore runs in one transaction                                                                              |
+| 📤  | **Data export**         | Orders, payments, customers, employees, inventory, and the activity log as CSV or JSON, kept 7 days                                                                             |
+| ✉️  | **Email notifications** | Admin-editable templates (order placed, ready, cancelled, payment received) sent through Resend; optional                                                                       |
+| 🎫  | **Support tickets**     | The storefront Contact form opens a ticket; admin replies are emailed to the reporter                                                                                           |
+| ⚙️  | **Settings**            | Store name, support email, kiosk ordering on/off, maintenance mode                                                                                                              |
+| ☁️  | **File uploads**        | S3 via multer: menu/supplier/staff images and PDFs (public), CSV logs and backups (private)                                                                                     |
 
 ## 👥 Roles & Permissions
 
 There are four kinds of user:
 
-| Who | How they're identified | What they can do |
-| --- | ---------------------- | ---------------- |
-| **Customer** | A Clerk account with a `customers` row | Sign in; orders at the kiosk can be linked to them |
-| **Cashier** | An `employees` row with role `cashier` | Takes orders and payments, views orders and ingredients |
-| **Manager** | An `employees` row with role `manager` | Everything a cashier does, plus menu, inventory, suppliers, staff, and reports |
-| **Admin** | An `employees` row with role `admin` | Every permission, plus the admin console |
+| Who          | How they're identified                 | What they can do                                                               |
+| ------------ | -------------------------------------- | ------------------------------------------------------------------------------ |
+| **Customer** | A Clerk account with a `customers` row | Sign in; orders at the kiosk can be linked to them                             |
+| **Cashier**  | An `employees` row with role `cashier` | Takes orders and payments, views orders and ingredients                        |
+| **Manager**  | An `employees` row with role `manager` | Everything a cashier does, plus menu, inventory, suppliers, staff, and reports |
+| **Admin**    | An `employees` row with role `admin`   | Every permission, plus the admin console                                       |
 
 Staff access is a **permission matrix**, not hard-coded roles. Admins edit it
 on **Admin → Roles & Permissions**, and `requirePermission()` reads it on
@@ -285,14 +285,14 @@ sign-in. [permissions.ts](backend/src/lib/permissions.ts) is the catalogue:
 documents) with the defaults below, and 7 admin-only system permissions that
 can never be granted to another role.
 
-| Permission | Cashier | Manager |
-| ---------- | :-----: | :-----: |
-| `orders.view`, `orders.process`, `orders.cancel` | ✅ | ✅ |
-| `inventory.view` | ✅ | ✅ |
-| `menu.manage`, `discounts.manage` | | ✅ |
-| `inventory.manage`, `suppliers.manage` | | ✅ |
-| `staff.manage`, `staff.attendance` | | ✅ |
-| `reports.view`, `reports.export`, `documents.manage` | | ✅ |
+| Permission                                           | Cashier | Manager |
+| ---------------------------------------------------- | :-----: | :-----: |
+| `orders.view`, `orders.process`, `orders.cancel`     |   ✅    |   ✅    |
+| `inventory.view`                                     |   ✅    |   ✅    |
+| `menu.manage`, `discounts.manage`                    |         |   ✅    |
+| `inventory.manage`, `suppliers.manage`               |         |   ✅    |
+| `staff.manage`, `staff.attendance`                   |         |   ✅    |
+| `reports.view`, `reports.export`, `documents.manage` |         |   ✅    |
 
 Guards keep the system from locking itself out: an admin can't demote, lock,
 or deactivate themselves, and the last active admin can't be demoted or
@@ -306,18 +306,18 @@ what to show. The backend is what enforces access.
 
 ## 🧱 Tech Stack
 
-| Layer      | Tech                                                          |
-| ---------- | ------------------------------------------------------------- |
-| Frontend   | React 19, TypeScript, Vite, Tailwind CSS 4, React Router 7, TanStack Query, `react-icons`, `motion` (animation) |
-| Backend    | Express 5, TypeScript (native `.ts` execution via Node 24's `--watch`; `tsc` builds to `dist/`) |
-| Database   | PostgreSQL via `pg`, schema applied from a plain `init.sql`   |
-| Auth       | Clerk (`@clerk/express` on the backend, `@clerk/clerk-react` on the frontend) |
-| Payments   | PayMongo Checkout Sessions with a signed webhook              |
-| File storage | AWS S3 (`@aws-sdk/client-s3`) via `multer`, under `bulls-coffee/` in the bucket |
-| Email      | Resend over plain `fetch`, optional                           |
-| Tooling    | oxlint (frontend), `express-rate-limit`, `http-status-codes` for consistent API responses |
-| Hosting    | Vercel (frontend), Render (backend), Neon (PostgreSQL)        |
-| CI         | GitHub Actions: backend typecheck, frontend lint and build ([ci.yml](.github/workflows/ci.yml)) |
+| Layer        | Tech                                                                                                            |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| Frontend     | React 19, TypeScript, Vite, Tailwind CSS 4, React Router 7, TanStack Query, `react-icons`, `motion` (animation) |
+| Backend      | Express 5, TypeScript (native `.ts` execution via Node 24's `--watch`; `tsc` builds to `dist/`)                 |
+| Database     | PostgreSQL via `pg`, schema applied from a plain `init.sql`                                                     |
+| Auth         | Clerk (`@clerk/express` on the backend, `@clerk/clerk-react` on the frontend)                                   |
+| Payments     | PayMongo Checkout Sessions with a signed webhook                                                                |
+| File storage | AWS S3 (`@aws-sdk/client-s3`) via `multer`, under `bulls-coffee/` in the bucket                                 |
+| Email        | Resend over plain `fetch`, optional                                                                             |
+| Tooling      | oxlint (frontend), `express-rate-limit`, `http-status-codes` for consistent API responses                       |
+| Hosting      | Vercel (frontend), Render (backend), Neon (PostgreSQL)                                                          |
+| CI           | GitHub Actions: backend typecheck, frontend lint and build ([ci.yml](.github/workflows/ci.yml))                 |
 
 ## 🔐 Authentication (Clerk)
 
@@ -340,7 +340,7 @@ flowchart LR
    - `requireEmployee` allows any active employee.
    - `requirePermission(id)` allows an active employee whose role holds that permission (admins hold all).
    - `requireAdmin` allows active admins only.
-4. **Staff sign-in is invite-based.** An admin invites someone from **Admin → Users**, which creates an `employees` row and a Clerk invitation. The first call to `GET /api/manager/me` after signing in with the invited, *verified* email links the Clerk account to that row.
+4. **Staff sign-in is invite-based.** An admin invites someone from **Admin → Users**, which creates an `employees` row and a Clerk invitation. The first call to `GET /api/manager/me` after signing in with the invited, _verified_ email links the Clerk account to that row.
 5. A signed-in user with no `employees` row is a customer and gets `403` from every staff route.
 
 ## 💳 Payments (PayMongo)
@@ -377,44 +377,44 @@ screens' view of them is in [frontend/ManagerRoutes.md](frontend/ManagerRoutes.m
 
 ### Public
 
-| Method | Path | Notes |
-| ------ | ---- | ----- |
-| GET | `/products`, `/products/:id` | The menu |
-| GET | `/categories`, `/categories/:id` | |
-| GET | `/settings/public` | The public slice of settings: store name, support email, kiosk ordering, maintenance mode |
-| GET | `/payments/options` | Which PayMongo methods checkout currently offers |
-| GET | `/payments/orders/:id/status` | Polled by the payment return page. 600 requests per 5 minutes per IP |
-| POST | `/kiosk/orders` | Self-order from `/kiosk`: `{ items: [{ product_id, quantity, size?, special_instructions? }], pay_online? }`. Priced server-side and saved as pending with no cashier until it's paid; linked to the customer when a Clerk session is sent. 30 requests per 5 minutes per IP. Answers with a `checkout_url` for online payment |
-| POST | `/support/tickets` | The Contact form. 5 requests per hour per IP |
-| POST | `/payments/webhook` | PayMongo only; the signature is verified against the raw body |
+| Method | Path                             | Notes                                                                                                                                                                                                                                                                                                                          |
+| ------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/products`, `/products/:id`     | The menu                                                                                                                                                                                                                                                                                                                       |
+| GET    | `/categories`, `/categories/:id` |                                                                                                                                                                                                                                                                                                                                |
+| GET    | `/settings/public`               | The public slice of settings: store name, support email, kiosk ordering, maintenance mode                                                                                                                                                                                                                                      |
+| GET    | `/payments/options`              | Which PayMongo methods checkout currently offers                                                                                                                                                                                                                                                                               |
+| GET    | `/payments/orders/:id/status`    | Polled by the payment return page. 600 requests per 5 minutes per IP                                                                                                                                                                                                                                                           |
+| POST   | `/kiosk/orders`                  | Self-order from `/kiosk`: `{ items: [{ product_id, quantity, size?, special_instructions? }], pay_online? }`. Priced server-side and saved as pending with no cashier until it's paid; linked to the customer when a Clerk session is sent. 30 requests per 5 minutes per IP. Answers with a `checkout_url` for online payment |
+| POST   | `/support/tickets`               | The Contact form. 5 requests per hour per IP                                                                                                                                                                                                                                                                                   |
+| POST   | `/payments/webhook`              | PayMongo only; the signature is verified against the raw body                                                                                                                                                                                                                                                                  |
 
 `GET /` and `GET /health-check` are unauthenticated liveness endpoints (outside `/api`).
 
 ### Any signed-in user
 
-| Method | Path | Notes |
-| ------ | ---- | ----- |
-| POST | `/customers` | Idempotent. Returns the existing row if already registered |
-| GET | `/manager/me` | The caller's staff record. Also claims a pending staff invite |
+| Method | Path          | Notes                                                         |
+| ------ | ------------- | ------------------------------------------------------------- |
+| POST   | `/customers`  | Idempotent. Returns the existing row if already registered    |
+| GET    | `/manager/me` | The caller's staff record. Also claims a pending staff invite |
 
 ### Staff, by permission
 
-| Permission | Routes |
-| ---------- | ------ |
-| *(any active employee)* | `PATCH /attendance/:id/time-out` |
-| `orders.view` | `GET /orders`, `GET /orders/:id` |
-| `orders.process` | `POST /orders`, `POST /orders/:id/payments`, `PATCH /orders/:id/complete`, `POST /payments/checkout-session`, `GET /customers/search`, `GET /discounts` |
-| `orders.cancel` | `PATCH /orders/:id/cancel` |
-| `menu.manage` | `POST /products`, `PUT/DELETE /products/:id`, `GET/PUT /products/:id/ingredients` (recipes), `POST /categories`, `PUT/DELETE /categories/:id` |
-| `discounts.manage` | `POST /discounts`, `PATCH/DELETE /discounts/:id` |
-| `inventory.view` | `GET /ingredients`, `GET /ingredients/:id` |
-| `inventory.manage` | `POST /ingredients`, `PUT /ingredients/:id`, `GET/POST /stock-movements` |
-| `suppliers.manage` | `GET/POST /suppliers`, `GET/PUT /suppliers/:id`, `GET/PUT /suppliers/:id/ingredients`, `GET/POST /deliveries`, `GET /deliveries/:id` |
-| `staff.manage` | `GET/POST /employees`, `GET/PUT /employees/:id` |
-| `staff.attendance` | `GET /attendance` |
-| `reports.view` | `GET /reports/sales` |
-| `reports.export` | `GET /reports/sales/export` |
-| `documents.manage` | `GET/POST /logs`, `GET /logs/:id/download`, `GET/POST /pdfs`, `DELETE /pdfs/:id` |
+| Permission              | Routes                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(any active employee)_ | `PATCH /attendance/:id/time-out`                                                                                                                        |
+| `orders.view`           | `GET /orders`, `GET /orders/:id`                                                                                                                        |
+| `orders.process`        | `POST /orders`, `POST /orders/:id/payments`, `PATCH /orders/:id/complete`, `POST /payments/checkout-session`, `GET /customers/search`, `GET /discounts` |
+| `orders.cancel`         | `PATCH /orders/:id/cancel`                                                                                                                              |
+| `menu.manage`           | `POST /products`, `PUT/DELETE /products/:id`, `GET/PUT /products/:id/ingredients` (recipes), `POST /categories`, `PUT/DELETE /categories/:id`           |
+| `discounts.manage`      | `POST /discounts`, `PATCH/DELETE /discounts/:id`                                                                                                        |
+| `inventory.view`        | `GET /ingredients`, `GET /ingredients/:id`                                                                                                              |
+| `inventory.manage`      | `POST /ingredients`, `PUT /ingredients/:id`, `GET/POST /stock-movements`                                                                                |
+| `suppliers.manage`      | `GET/POST /suppliers`, `GET/PUT /suppliers/:id`, `GET/PUT /suppliers/:id/ingredients`, `GET/POST /deliveries`, `GET /deliveries/:id`                    |
+| `staff.manage`          | `GET/POST /employees`, `GET/PUT /employees/:id`                                                                                                         |
+| `staff.attendance`      | `GET /attendance`                                                                                                                                       |
+| `reports.view`          | `GET /reports/sales`                                                                                                                                    |
+| `reports.export`        | `GET /reports/sales/export`                                                                                                                             |
+| `documents.manage`      | `GET/POST /logs`, `GET /logs/:id/download`, `GET/POST /pdfs`, `DELETE /pdfs/:id`                                                                        |
 
 Image uploads (`products`, `categories`, `ingredients`, `suppliers`,
 `employees`) are `multipart/form-data` through
@@ -426,30 +426,30 @@ Image uploads (`products`, `categories`, `ingredients`, `suppliers`,
 (plus `POST /payments/gateway/test`) need an active admin. So does everything
 under `/api/admin`:
 
-| Area | Routes under `/api/admin` |
-| ---- | ------------------------- |
-| Activity | `GET /activity`, `/activity/modules`, `/activity/stats/sign-ins`; `PATCH /activity/:id/review` |
-| Users | `GET /users`; `POST /users` (invite); `PATCH /users/employees/:id`; `POST /users/:clerkId/{lock,unlock,deactivate,reactivate,sign-out}` |
-| Roles | `GET/PUT /permissions` |
-| Settings | `GET/PUT /settings` |
-| Notifications | `GET /notifications/templates`; `PUT /notifications/templates/:id`; `POST /notifications/templates/:id/test`; `GET /notifications/log` |
-| Tickets | `GET /tickets`, `/tickets/:id`; `PATCH /tickets/:id`; `POST /tickets/:id/replies` |
-| Health | `GET /health`; `POST /health/diagnostics` |
-| Backups | `GET/POST /backups`; `PUT /backups/schedule`; `GET /backups/:id/download`; `POST /backups/:id/restore`; `DELETE /backups/:id` |
-| Exports | `GET/POST /exports`; `GET /exports/:id/download` |
+| Area          | Routes under `/api/admin`                                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Activity      | `GET /activity`, `/activity/modules`, `/activity/stats/sign-ins`; `PATCH /activity/:id/review`                                          |
+| Users         | `GET /users`; `POST /users` (invite); `PATCH /users/employees/:id`; `POST /users/:clerkId/{lock,unlock,deactivate,reactivate,sign-out}` |
+| Roles         | `GET/PUT /permissions`                                                                                                                  |
+| Settings      | `GET/PUT /settings`                                                                                                                     |
+| Notifications | `GET /notifications/templates`; `PUT /notifications/templates/:id`; `POST /notifications/templates/:id/test`; `GET /notifications/log`  |
+| Tickets       | `GET /tickets`, `/tickets/:id`; `PATCH /tickets/:id`; `POST /tickets/:id/replies`                                                       |
+| Health        | `GET /health`; `POST /health/diagnostics`                                                                                               |
+| Backups       | `GET/POST /backups`; `PUT /backups/schedule`; `GET /backups/:id/download`; `POST /backups/:id/restore`; `DELETE /backups/:id`           |
+| Exports       | `GET/POST /exports`; `GET /exports/:id/download`                                                                                        |
 
 ## 🗄️ Database Schema
 
 [init.sql](backend/init.sql) is the source of truth: 31 tables, applied
 idempotently on every start. They fall into these groups:
 
-| Group | Tables |
-| ----- | ------ |
-| Staff & access | `employees`, `attendance_logs`, `role_permissions` |
-| Sales | `customers`, `orders`, `order_items`, `payments`, `payment_settings`, `discounts`, `feedback` |
-| Menu | `categories`, `products`, `product_ingredients` |
-| Inventory & supply | `ingredients`, `stock_movements`, `suppliers`, `supplier_ingredients`, `deliveries`, `delivery_items` |
-| System | `system_settings`, `activity_logs`, `notification_templates`, `notification_log`, `support_tickets`, `ticket_messages`, `health_checks`, `request_metrics`, `backups`, `export_jobs`, `documents`, `app_migrations` |
+| Group              | Tables                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Staff & access     | `employees`, `attendance_logs`, `role_permissions`                                                                                                                                                                  |
+| Sales              | `customers`, `orders`, `order_items`, `payments`, `payment_settings`, `discounts`, `feedback`                                                                                                                       |
+| Menu               | `categories`, `products`, `product_ingredients`                                                                                                                                                                     |
+| Inventory & supply | `ingredients`, `stock_movements`, `suppliers`, `supplier_ingredients`, `deliveries`, `delivery_items`                                                                                                               |
+| System             | `system_settings`, `activity_logs`, `notification_templates`, `notification_log`, `support_tickets`, `ticket_messages`, `health_checks`, `request_metrics`, `backups`, `export_jobs`, `documents`, `app_migrations` |
 
 - Employees and customers are linked to Clerk via a unique `clerk_id`. No
   passwords are stored here.
@@ -460,7 +460,7 @@ idempotently on every start. They fall into these groups:
 - Records are retired with `is_active` / `employee_status` flags rather than
   hard-deleted, except where cascades are explicit (e.g. deleting an order
   removes its `order_items`).
-- `products.price` is the *tall* price. Sizes (`tall`, `grade`, `venti`) add a
+- `products.price` is the _tall_ price. Sizes (`tall`, `grade`, `venti`) add a
   fixed upcharge, and `order_items` carries free-text `special_instructions`.
 - The backup job covers every table and warns at startup about any table added
   to the schema but missing from [backup.ts](backend/src/lib/backup.ts).
@@ -559,13 +559,13 @@ email on your own Resend account.
 
 ## 📚 More Docs
 
-| File | What it covers |
-| ---- | -------------- |
-| [DEPLOY.md](DEPLOY.md) | Beta deploy on Neon, Render, and Vercel with test credentials |
-| [PAYMONGO_SETUP.md](PAYMONGO_SETUP.md) | PayMongo account, keys, webhook, and what's implemented |
-| [Admin.md](Admin.md) | What the admin and manager consoles can do, with status |
-| [AdminExecution.md](AdminExecution.md) | The plan the admin console was built from |
-| [frontend/ManagerRoutes.md](frontend/ManagerRoutes.md) | The API contract behind the Manager screens |
+| File                                                   | What it covers                                                |
+| ------------------------------------------------------ | ------------------------------------------------------------- |
+| [DEPLOY.md](DEPLOY.md)                                 | Beta deploy on Neon, Render, and Vercel with test credentials |
+| [PAYMONGO_SETUP.md](PAYMONGO_SETUP.md)                 | PayMongo account, keys, webhook, and what's implemented       |
+| [Admin.md](Admin.md)                                   | What the admin and manager consoles can do, with status       |
+| [AdminExecution.md](AdminExecution.md)                 | The plan the admin console was built from                     |
+| [frontend/ManagerRoutes.md](frontend/ManagerRoutes.md) | The API contract behind the Manager screens                   |
 
 ## 🩺 Troubleshooting
 
