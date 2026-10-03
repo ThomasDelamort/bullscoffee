@@ -25,6 +25,7 @@ menu, inventory, sales, and suppliers end to end.
 ## Contents
 
 - [Project Status](#-project-status)
+- [Screenshots](#-screenshots)
 - [Quick Start](#-quick-start)
 - [Features](#-features)
 - [Tech Stack](#-tech-stack)
@@ -81,6 +82,57 @@ This is an active student project, not a finished product. What exists today:
   [auth.middleware.ts](backend/src/middleware/auth.middleware.ts) but
   unused). The `/admin` and `/manager` frontend routes are likewise not
   gated behind a role check yet — anyone with the URL can open them.
+
+## 📸 Screenshots
+
+<!--
+  Placeholders. To swap one in: save the capture as
+  docs/screenshots/<name>.png (1280×720 works well) and point the
+  matching <img src> at that path instead of placehold.co.
+-->
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Landing+Page" alt="Landing page (screenshot placeholder)" />
+      <br><sub><b>Landing page</b> · <code>/</code></sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Menu" alt="Menu page (screenshot placeholder)" />
+      <br><sub><b>Menu</b> · <code>/menu</code></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Sign+In" alt="Sign-in page (screenshot placeholder)" />
+      <br><sub><b>Sign in / sign up</b> · Clerk-backed auth page</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Self-Order+Kiosk" alt="Self-order kiosk (screenshot placeholder)" />
+      <br><sub><b>Self-order kiosk</b> · <code>/kiosk</code></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Point+of+Sale" alt="Point of sale (screenshot placeholder)" />
+      <br><sub><b>Point of sale</b> · <code>/pos</code></sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Checkout" alt="Checkout (screenshot placeholder)" />
+      <br><sub><b>Checkout</b> · <code>/checkout</code></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Manager+Dashboard" alt="Manager dashboard (screenshot placeholder)" />
+      <br><sub><b>Manager dashboard</b> · <code>/manager</code></sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://placehold.co/1280x720/2b1d14/f5e6d3/png?text=Admin+Dashboard" alt="Admin dashboard (screenshot placeholder)" />
+      <br><sub><b>Admin dashboard</b> · <code>/admin</code></sub>
+    </td>
+  </tr>
+</table>
 
 ## ⚡ Quick Start
 

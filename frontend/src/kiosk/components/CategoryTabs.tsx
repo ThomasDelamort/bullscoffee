@@ -10,7 +10,7 @@ interface CategoryTabsProps {
   onChange: (categoryId: number) => void;
 }
 
-/** One pill per category; scrolls sideways when they don't all fit. */
+/** One pill per category, led by its photo (or icon); scrolls sideways when they don't all fit. */
 export default function CategoryTabs({ categories, active, onChange }: CategoryTabsProps) {
   return (
     // Vertical padding keeps the selected pill's shadow inside the scroll box, which would clip it.
@@ -31,13 +31,24 @@ export default function CategoryTabs({ categories, active, onChange }: CategoryT
                     : "bg-(--k-surface) text-(--k-ink) ring-1 ring-(--k-line) hover:ring-(--k-ink)/30"
                 }`}
               >
-                <span
-                  aria-hidden
-                  className="grid size-11 place-items-center rounded-full"
-                  style={{ background: color, color: inkOn(color) }}
-                >
-                  <CategoryIcon category={c} className="size-5" strokeWidth={1.75} />
-                </span>
+                {c.image_url ? (
+                  <img
+                    src={c.image_url}
+                    alt=""
+                    draggable={false}
+                    decoding="async"
+                    className="size-11 shrink-0 rounded-full object-cover"
+                    style={{ background: color }}
+                  />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="grid size-11 place-items-center rounded-full"
+                    style={{ background: color, color: inkOn(color) }}
+                  >
+                    <CategoryIcon category={c} className="size-5" strokeWidth={1.75} />
+                  </span>
+                )}
                 {c.category_name}
               </button>
             </li>
