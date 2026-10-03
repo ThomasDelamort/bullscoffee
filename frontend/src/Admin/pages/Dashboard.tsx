@@ -3,6 +3,7 @@ import { FiAlertTriangle, FiArrowRight, FiClock, FiDatabase, FiLifeBuoy, FiUsers
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../lib/api";
 import { useActivity, useSignIns } from "../api/activity";
+import { useBackups } from "../api/backups";
 import { averageUptime, responseSeries, useSystemHealth } from "../api/health";
 import { useTickets } from "../api/tickets";
 import { useAdminUsers } from "../api/users";
@@ -16,10 +17,9 @@ import { ErrorNotice, Loading } from "../components/QueryState";
 import StatCard from "../components/StatCard";
 import { SERVICE_STATE, SEVERITY } from "../components/status";
 import { buttonClass } from "../components/styles";
-import { BACKUPS } from "../data/mock";
 import { adminPath } from "../routes";
 import type { SeriesPoint } from "../types";
-import { formatDateTime, formatNumber, ticketNumber } from "../utils/format";
+import { formatBytes, formatDateTime, formatNumber, ticketNumber } from "../utils/format";
 
 const ms = (v: number) => `${formatNumber(v)} ms`;
 const WEEKDAY = new Intl.DateTimeFormat("en-PH", { weekday: "short", timeZone: "UTC" });
@@ -141,12 +141,17 @@ function UptimeStat() {
 }
 
 function BackupStat() {
-  const lastBackup = BACKUPS.find((b) => b.status === "completed");
+  const backups = useBackups();
+  const last = backups.data?.backups.find((b) => b.status === "completed");
   return (
     <StatCard
       label="Last backup"
-      value={lastBackup ? formatDateTime(lastBackup.created_at) : "Never"}
-      hint={lastBackup ? `${lastBackup.size} · ${lastBackup.kind}` : undefined}
+      value={statValue(backups, () => (last ? formatDateTime(last.created_at) : "Never"))}
+      hint={
+        backups.isError
+          ? errorMessage(backups.error)
+          : last && `${formatBytes(last.size_bytes)} · ${last.kind}`
+      }
       icon={FiDatabase}
     />
   );

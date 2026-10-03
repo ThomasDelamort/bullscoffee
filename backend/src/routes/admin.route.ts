@@ -11,6 +11,14 @@ import {
   listUsersHandler,
   updateStaffHandler,
 } from "../controllers/admin-users.controller.ts";
+import {
+  createBackupHandler,
+  deleteBackupHandler,
+  downloadBackupHandler,
+  listBackupsHandler,
+  restoreBackupHandler,
+  saveScheduleHandler,
+} from "../controllers/backups.controller.ts";
 import { getHealthHandler, runDiagnosticsHandler } from "../controllers/health.controller.ts";
 import {
   getNotificationLogHandler,
@@ -87,5 +95,15 @@ router.post("/tickets/:id/replies", replyToTicketHandler);
 */
 router.get("/health", getHealthHandler);
 router.post("/health/diagnostics", runDiagnosticsHandler);
+
+/*
+    BACKUP & RESTORE
+*/
+router.get("/backups", listBackupsHandler);
+router.put("/backups/schedule", saveScheduleHandler);
+router.post("/backups", createBackupHandler);
+router.get("/backups/:id/download", downloadBackupHandler);
+router.post("/backups/:id/restore", restoreBackupHandler);
+router.delete("/backups/:id", deleteBackupHandler);
 
 export default router;

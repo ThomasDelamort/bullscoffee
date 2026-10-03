@@ -1,8 +1,8 @@
 /** Status → badge tone + label, so every screen describes a state the same way. */
 import type {
   AccountStatus,
-  Backup,
   ExportJob,
+  JobStatus,
   ServiceState,
   Severity,
   TicketPriority,
@@ -47,10 +47,10 @@ export const SERVICE_STATE: StatusMap<ServiceState> = {
   unknown: { tone: "neutral", label: "Not checked yet" },
 };
 
-export const BACKUP_STATUS: StatusMap<Backup["status"]> = {
+export const JOB_STATUS: StatusMap<JobStatus> = {
   completed: { tone: "success", label: "Completed" },
   failed: { tone: "danger", label: "Failed" },
-  "in-progress": { tone: "info", label: "In progress" },
+  in_progress: { tone: "info", label: "In progress" },
 };
 
 export const EXPORT_STATUS: StatusMap<ExportJob["status"]> = {

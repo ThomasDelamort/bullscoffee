@@ -4,6 +4,7 @@ import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import type { Request, Response } from "express";
 import { runInitSql } from "./lib/init.ts";
+import { checkBackupCoverage, registerBackupJobs } from "./lib/backup.ts";
 import { registerHealthJobs } from "./lib/health.ts";
 import { startScheduler } from "./lib/scheduler.ts";
 import { requestMetrics } from "./middleware/requestMetrics.middleware.ts";
@@ -94,7 +95,9 @@ app.use("/api", supportRoutes);
 async function startServer() {
   try {
     await runInitSql();
+    await checkBackupCoverage();
     registerHealthJobs();
+    registerBackupJobs();
     startScheduler();
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err: any) {

@@ -35,3 +35,16 @@ export function fillTemplate(text: string, values: Record<string, string>): stri
 
 /** A support ticket's display number: 12 → "T-12". */
 export const ticketNumber = (id: number): string => `T-${id}`;
+
+/** 2_345_678 → "2.2 MB" */
+export function formatBytes(bytes: number | null): string {
+  if (bytes === null) return "—";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${unit === 0 ? value : value.toFixed(1)} ${units[unit]}`;
+}

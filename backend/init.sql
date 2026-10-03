@@ -475,3 +475,29 @@ CREATE TABLE IF NOT EXISTS request_metrics (
     total_ms BIGINT NOT NULL DEFAULT 0,
     errors_5xx INT NOT NULL DEFAULT 0
 );
+
+DO $$ BEGIN CREATE TYPE job_status AS ENUM ('in_progress', 'completed', 'failed');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE backup_kind AS ENUM ('automatic', 'manual');
+EXCEPTION
+WHEN duplicate_object THEN null;
+END $$;
+
+-- The index of database snapshots: gzipped JSON in S3 under
+-- bulls-coffee/backups/ (see lib/backup.ts). A restore never touches this
+-- table, so the history survives the restore it records.
+CREATE TABLE IF NOT EXISTS backups (
+    backup_id SERIAL PRIMARY KEY,
+    kind backup_kind NOT NULL,
+    status job_status NOT NULL DEFAULT 'in_progress',
+    s3_key VARCHAR(512) UNIQUE,
+    size_bytes BIGINT,
+    table_counts JSONB,
+    error TEXT,
+    created_by_name VARCHAR(120),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS backups_created_at_idx ON backups (created_at DESC);

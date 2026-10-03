@@ -181,12 +181,33 @@ export interface HealthReport {
   process_uptime_s: number;
 }
 
+export type JobStatus = "in_progress" | "completed" | "failed";
+
+/** One database snapshot (gzipped JSON in private S3). */
 export interface Backup {
-  id: string;
-  created_at: string;
-  size: string;
+  id: number;
   kind: "automatic" | "manual";
-  status: "completed" | "failed" | "in-progress";
+  status: JobStatus;
+  size_bytes: number | null;
+  table_counts: Record<string, number> | null;
+  error: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  finished_at: string | null;
+}
+
+export type BackupSchedule = Pick<
+  SystemSettings,
+  "backup_enabled" | "backup_frequency" | "backup_time" | "backup_retention_days"
+>;
+
+/** GET /admin/backups */
+export interface BackupsResponse {
+  schedule: BackupSchedule;
+  /** When the next automatic backup is due; null while they're off. */
+  next_run: string | null;
+  storage_configured: boolean;
+  backups: Backup[];
 }
 
 /** An email sent to the order's customer when `event` happens. */
