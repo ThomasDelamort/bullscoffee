@@ -147,15 +147,38 @@ export interface TicketReply {
   email: { status: TicketMessage["email_status"]; error: string | null };
 }
 
-export type ServiceState = "operational" | "degraded" | "down" | "restarting";
+export type ServiceState = "operational" | "degraded" | "down" | "not_configured" | "unknown";
 
+/** One service on System Health, from the latest probe. */
 export interface ServiceStatus {
   id: string;
   name: string;
   description: string;
   state: ServiceState;
-  latency_ms: number;
-  uptime: number;
+  latency_ms: number | null;
+  /** Percent of checks in the last 30 days that were up; null with no checks. */
+  uptime: number | null;
+  detail: string | null;
+  checked_at: string | null;
+}
+
+export interface Resource {
+  label: string;
+  /** null where the host doesn't report it. */
+  percent: number | null;
+  detail: string;
+}
+
+/** GET /admin/health */
+export interface HealthReport {
+  services: ServiceStatus[];
+  /** Oldest first; avg_ms is null for an hour with no traffic. */
+  response_time_24h: { hour: string; avg_ms: number | null }[];
+  requests_1h: number;
+  error_rate_1h: number;
+  active_sessions: number;
+  resources: Resource[];
+  process_uptime_s: number;
 }
 
 export interface Backup {

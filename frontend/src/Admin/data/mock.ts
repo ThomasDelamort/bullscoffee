@@ -5,30 +5,7 @@
 import type {
   Backup,
   ExportJob,
-  SeriesPoint,
-  ServiceStatus,
 } from "../types";
-
-export const SERVICES: ServiceStatus[] = [
-  { id: "web", name: "Storefront", description: "Customer web app", state: "operational", latency_ms: 142, uptime: 99.98 },
-  { id: "api", name: "API server", description: "Express backend", state: "operational", latency_ms: 88, uptime: 99.95 },
-  { id: "db", name: "Database", description: "PostgreSQL primary", state: "operational", latency_ms: 12, uptime: 100 },
-  { id: "auth", name: "Authentication", description: "Clerk sign-in", state: "operational", latency_ms: 210, uptime: 99.99 },
-  { id: "payments", name: "Payment webhooks", description: "GCash, Maya, cards", state: "degraded", latency_ms: 1840, uptime: 98.72 },
-  { id: "notify", name: "Notifications", description: "Email & SMS delivery", state: "operational", latency_ms: 320, uptime: 99.9 },
-];
-
-export const RESPONSE_TIME_24H: SeriesPoint[] = [
-  118, 112, 104, 98, 96, 101, 124, 168, 212, 236, 228, 251,
-  274, 262, 231, 219, 226, 244, 197, 172, 150, 139, 131, 142,
-].map((value, i) => ({ label: `${String(i).padStart(2, "0")}:00`, value }));
-
-export const RESOURCES = [
-  { label: "CPU", value: 38, detail: "4 vCPU" },
-  { label: "Memory", value: 64, detail: "5.1 of 8 GB" },
-  { label: "Disk", value: 71, detail: "71 of 100 GB" },
-  { label: "DB connections", value: 22, detail: "22 of 100" },
-] as const;
 
 export const BACKUPS: Backup[] = [
   { id: "bk-0929", created_at: "2026-09-29T03:00:04+08:00", size: "1.84 GB", kind: "automatic", status: "completed" },

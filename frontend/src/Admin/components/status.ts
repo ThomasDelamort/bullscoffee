@@ -43,7 +43,8 @@ export const SERVICE_STATE: StatusMap<ServiceState> = {
   operational: { tone: "success", label: "Operational" },
   degraded: { tone: "warning", label: "Degraded" },
   down: { tone: "danger", label: "Down" },
-  restarting: { tone: "info", label: "Restarting" },
+  not_configured: { tone: "neutral", label: "Not set up" },
+  unknown: { tone: "neutral", label: "Not checked yet" },
 };
 
 export const BACKUP_STATUS: StatusMap<Backup["status"]> = {

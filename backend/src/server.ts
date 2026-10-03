@@ -4,7 +4,9 @@ import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import type { Request, Response } from "express";
 import { runInitSql } from "./lib/init.ts";
+import { registerHealthJobs } from "./lib/health.ts";
 import { startScheduler } from "./lib/scheduler.ts";
+import { requestMetrics } from "./middleware/requestMetrics.middleware.ts";
 import responseFormatter from "./middleware/responseFormatter.ts";
 import { StatusCodes } from "http-status-codes";
 
@@ -48,6 +50,9 @@ app.post(
 );
 app.use(express.json());
 app.use(clerkMiddleware());
+// Counts every API response for System Health; after clerkMiddleware so it
+// can tell who is signed in.
+app.use(requestMetrics);
 app.use(responseFormatter);
 
 app.get("/", (_req: Request, res: Response) => {
@@ -89,6 +94,7 @@ app.use("/api", supportRoutes);
 async function startServer() {
   try {
     await runInitSql();
+    registerHealthJobs();
     startScheduler();
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err: any) {

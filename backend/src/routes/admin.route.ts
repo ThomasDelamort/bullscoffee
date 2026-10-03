@@ -11,6 +11,7 @@ import {
   listUsersHandler,
   updateStaffHandler,
 } from "../controllers/admin-users.controller.ts";
+import { getHealthHandler, runDiagnosticsHandler } from "../controllers/health.controller.ts";
 import {
   getNotificationLogHandler,
   listTemplatesHandler,
@@ -80,5 +81,11 @@ router.get("/tickets", listTicketsHandler);
 router.get("/tickets/:id", getTicketHandler);
 router.patch("/tickets/:id", updateTicketHandler);
 router.post("/tickets/:id/replies", replyToTicketHandler);
+
+/*
+    SYSTEM HEALTH
+*/
+router.get("/health", getHealthHandler);
+router.post("/health/diagnostics", runDiagnosticsHandler);
 
 export default router;

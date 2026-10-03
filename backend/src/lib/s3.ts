@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -212,6 +213,12 @@ export async function readFile(key: string): Promise<Uint8Array> {
   );
   if (!result.Body) throw new Error(`S3 object ${key} has no body`);
   return result.Body.transformToByteArray();
+}
+
+// Whether `key` exists, without downloading it: the System Health storage
+// probe. (HeadBucket would need list permission, which the app's user lacks.)
+export async function headFile(key: string): Promise<void> {
+  await getS3().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
 }
 
 export async function deleteFile(key: string): Promise<void> {

@@ -3,6 +3,7 @@ import { FiAlertTriangle, FiArrowRight, FiClock, FiDatabase, FiLifeBuoy, FiUsers
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../lib/api";
 import { useActivity, useSignIns } from "../api/activity";
+import { averageUptime, responseSeries, useSystemHealth } from "../api/health";
 import { useTickets } from "../api/tickets";
 import { useAdminUsers } from "../api/users";
 import Badge from "../components/Badge";
@@ -15,7 +16,7 @@ import { ErrorNotice, Loading } from "../components/QueryState";
 import StatCard from "../components/StatCard";
 import { SERVICE_STATE, SEVERITY } from "../components/status";
 import { buttonClass } from "../components/styles";
-import { BACKUPS, RESPONSE_TIME_24H, SERVICES } from "../data/mock";
+import { BACKUPS } from "../data/mock";
 import { adminPath } from "../routes";
 import type { SeriesPoint } from "../types";
 import { formatDateTime, formatNumber, ticketNumber } from "../utils/format";
@@ -119,13 +120,21 @@ function TicketsStat() {
 }
 
 function UptimeStat() {
-  const avgUptime = SERVICES.reduce((sum, s) => sum + s.uptime, 0) / SERVICES.length;
-  const degraded = SERVICES.filter((s) => s.state !== "operational");
+  const health = useSystemHealth();
+  const issues = health.data?.services.filter((s) => s.state === "degraded" || s.state === "down").length ?? 0;
   return (
     <StatCard
       label="Uptime (30 days)"
-      value={`${avgUptime.toFixed(2)}%`}
-      hint={degraded.length ? `${degraded.length} service degraded` : "All services operational"}
+      value={statValue(health, (data) => {
+        const uptime = averageUptime(data);
+        return uptime === null ? "—" : `${uptime.toFixed(2)}%`;
+      })}
+      hint={
+        health.isError
+          ? errorMessage(health.error)
+          : health.data &&
+            (issues ? `${issues} service${issues === 1 ? "" : "s"} not fully operational` : "No services down or degraded")
+      }
       icon={FiClock}
     />
   );
@@ -144,15 +153,28 @@ function BackupStat() {
 }
 
 function ResponseTimeChart() {
+  const health = useSystemHealth();
+  if (!health.isSuccess) {
+    return (
+      <Card title="API response time" description="Average per hour, last 24 hours">
+        {health.isPending ? (
+          <Loading />
+        ) : (
+          <ErrorNotice error={health.error} onRetry={() => void health.refetch()} />
+        )}
+      </Card>
+    );
+  }
+  const series = responseSeries(health.data);
   return (
     <ChartCard
       title="API response time"
       description="Average per hour, last 24 hours"
-      data={RESPONSE_TIME_24H}
+      data={series}
       columns={["Hour", "Response time"]}
       format={ms}
     >
-      <LineChart data={RESPONSE_TIME_24H} label="API response time over the last 24 hours" format={ms} />
+      <LineChart data={series} label="API response time over the last 24 hours" format={ms} />
     </ChartCard>
   );
 }
@@ -224,10 +246,17 @@ function RecentActivity() {
 }
 
 function ServicesCard() {
+  const health = useSystemHealth();
   return (
     <Card title="Services" flush actions={<ViewAll to={adminPath("health")} />}>
+      {health.isPending && <Loading />}
+      {health.isError && (
+        <div className="p-4">
+          <ErrorNotice error={health.error} onRetry={() => void health.refetch()} />
+        </div>
+      )}
       <ul className="divide-y divide-(--admin-line)">
-        {SERVICES.map((service) => (
+        {(health.data?.services ?? []).map((service) => (
           <li key={service.id} className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
             <span>{service.name}</span>
             <Badge tone={SERVICE_STATE[service.state].tone} dot>

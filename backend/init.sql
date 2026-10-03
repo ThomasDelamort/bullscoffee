@@ -453,3 +453,25 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ticket_messages_ticket_id_idx ON ticket_messages (ticket_id);
+
+-- One row per service per probe (a scheduler tick), for System Health's
+-- current state and 30-day uptime. Pruned after 30 days. A degraded check
+-- (slow, or recent email failures) still counts as up.
+CREATE TABLE IF NOT EXISTS health_checks (
+    check_id BIGSERIAL PRIMARY KEY,
+    service VARCHAR(20) NOT NULL,
+    state VARCHAR(15) NOT NULL CHECK (state IN ('operational', 'degraded', 'down', 'not_configured')),
+    latency_ms INT,
+    detail TEXT,
+    checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS health_checks_service_idx ON health_checks (service, checked_at DESC);
+
+-- API traffic per minute, summed across server instances. Each instance
+-- counts in memory and adds its counts here every minute. Pruned after 30 days.
+CREATE TABLE IF NOT EXISTS request_metrics (
+    minute TIMESTAMPTZ PRIMARY KEY,
+    requests INT NOT NULL DEFAULT 0,
+    total_ms BIGINT NOT NULL DEFAULT 0,
+    errors_5xx INT NOT NULL DEFAULT 0
+);
