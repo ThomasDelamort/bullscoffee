@@ -39,10 +39,11 @@ function App() {
               </HomeLoader>
             }
           >
-            <Route path="/" />
-            <Route path="/menu" />
-            <Route path="/about" />
-            <Route path="/contact" />
+            {/* Paths only: Home picks the section from the URL, so these render nothing themselves. */}
+            <Route path="/" element={null} />
+            <Route path="/menu" element={null} />
+            <Route path="/about" element={null} />
+            <Route path="/contact" element={null} />
           </Route>
           <Route path={AUTH_PATHS['sign-in']} element={<AuthPage mode="sign-in" />} />
           <Route path={AUTH_PATHS['sign-up']} element={<AuthPage mode="sign-up" />} />

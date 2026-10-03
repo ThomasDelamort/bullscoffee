@@ -20,7 +20,12 @@ interface LeftSideBarProps {
   onToggleCollapsed: () => void;
 }
 
-export default function LeftSideBar({ open, onClose, collapsed, onToggleCollapsed }: LeftSideBarProps) {
+export default function LeftSideBar({
+  open,
+  onClose,
+  collapsed,
+  onToggleCollapsed,
+}: LeftSideBarProps) {
   // Rail-only classes; every one is lg-prefixed so the mobile drawer is unaffected.
   const rail = (classes: string) => (collapsed ? classes : "");
 
@@ -46,10 +51,12 @@ export default function LeftSideBar({ open, onClose, collapsed, onToggleCollapse
       <aside
         id="admin-sidebar"
         className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-(--admin-ink) text-(--admin-cream) transition-[translate,width] duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
-          collapsed ? "lg:w-[4.5rem]" : "lg:w-64"
+          collapsed ? "lg:w-18" : "lg:w-64"
         } ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <div className={`flex items-center justify-between gap-2 px-5 pt-5 pb-4 ${rail("lg:justify-center lg:px-0")}`}>
+        <div
+          className={`flex items-center justify-between gap-2 px-5 pt-5 pb-4 ${rail("lg:justify-center lg:px-0")}`}
+        >
           <Link
             to={adminPath("dashboard")}
             onClick={onClose}
@@ -62,7 +69,10 @@ export default function LeftSideBar({ open, onClose, collapsed, onToggleCollapse
               className="size-9 shrink-0 object-contain"
             />
             <span className="leading-tight whitespace-nowrap">
-              <span className="hero-display block text-lg tracking-wide uppercase" style={{ color: BRAND_GOLD }}>
+              <span
+                className="hero-display block text-lg tracking-wide uppercase"
+                style={{ color: BRAND_GOLD }}
+              >
                 Bull's Coffee
               </span>
               <span className="block text-[11px] font-medium tracking-[0.2em] uppercase opacity-60">
@@ -95,13 +105,23 @@ export default function LeftSideBar({ open, onClose, collapsed, onToggleCollapse
           </button>
         </div>
 
-        <nav aria-label="Admin" className={`flex-1 overflow-y-auto px-3 pb-4 ${rail("lg:overflow-visible")}`}>
+        <nav
+          aria-label="Admin"
+          className={`flex-1 overflow-y-auto px-3 pb-4 ${rail("lg:overflow-visible")}`}
+        >
           {ADMIN_NAV.map((group, i) => (
             <div key={group.label} className="mt-4 first:mt-1">
-              <p className={`px-3 pb-1.5 text-[11px] font-semibold tracking-wider uppercase opacity-45 ${rail("lg:hidden")}`}>
+              <p
+                className={`px-3 pb-1.5 text-[11px] font-semibold tracking-wider uppercase opacity-45 ${rail("lg:hidden")}`}
+              >
                 {group.label}
               </p>
-              {collapsed && i > 0 && <div aria-hidden className="mx-2 mb-3 hidden h-px bg-white/10 lg:block" />}
+              {collapsed && i > 0 && (
+                <div
+                  aria-hidden
+                  className="mx-2 mb-3 hidden h-px bg-white/10 lg:block"
+                />
+              )}
               <ul className="flex flex-col gap-0.5">
                 {group.items.map(({ page, label, icon: Icon }) => (
                   <li key={page}>
@@ -122,13 +142,20 @@ export default function LeftSideBar({ open, onClose, collapsed, onToggleCollapse
                       {({ isActive }) => (
                         <>
                           {isActive && (
-                            <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-(--admin-gold)" />
+                            <span
+                              aria-hidden
+                              className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-(--admin-gold)"
+                            />
                           )}
                           <Icon
                             aria-hidden
                             className={`size-4 shrink-0 ${isActive ? "text-(--admin-gold)" : ""}`}
                           />
-                          <span className={`whitespace-nowrap ${rail("lg:sr-only")}`}>{label}</span>
+                          <span
+                            className={`whitespace-nowrap ${rail("lg:sr-only")}`}
+                          >
+                            {label}
+                          </span>
                           {collapsed && <RailTooltip label={label} />}
                         </>
                       )}
@@ -177,12 +204,20 @@ function RailTooltip({ label }: { label: string }) {
 function AccountFooter({ collapsed }: { collapsed: boolean }) {
   const { user } = useUser();
   const { signOut } = useClerk();
-  const name = user?.fullName || user?.primaryEmailAddress?.emailAddress || "Admin";
+  const name =
+    user?.fullName || user?.primaryEmailAddress?.emailAddress || "Admin";
 
   return (
-    <div className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${collapsed ? "lg:flex-col lg:gap-2 lg:px-0" : ""}`}>
+    <div
+      className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${collapsed ? "lg:flex-col lg:gap-2 lg:px-0" : ""}`}
+    >
       {user?.imageUrl ? (
-        <img src={user.imageUrl} alt="" title={collapsed ? name : undefined} className="size-9 shrink-0 rounded-full object-cover" />
+        <img
+          src={user.imageUrl}
+          alt=""
+          title={collapsed ? name : undefined}
+          className="size-9 shrink-0 rounded-full object-cover"
+        />
       ) : (
         <span
           title={collapsed ? name : undefined}
