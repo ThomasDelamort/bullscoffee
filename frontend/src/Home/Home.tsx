@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import About from './About/About';
 import { sectionFromPath, setActiveSection } from './activeSection';
 import Contact from './Contact/Contact';
+import MaintenanceBanner from './MaintenanceBanner';
 import Hero from './Hero/Hero';
 import Menu from './Menu/Menu';
 import OrderFlow from './Order/OrderFlow';
@@ -45,6 +46,7 @@ export default function Home() {
         <About />
         <Contact />
       </main>
+      <MaintenanceBanner />
     </MotionConfig>
   );
 }

@@ -1,176 +1,141 @@
 import { useState, type ReactNode } from "react";
-import { FiAlertTriangle } from "react-icons/fi";
+import { FiAlertTriangle, FiExternalLink, FiShield } from "react-icons/fi";
+import { errorMessage } from "../../lib/api";
+import { useSaveSettings, useSettings } from "../api/settings";
 import Button from "../components/Button";
 import Card from "../components/Card";
-import { Field, Input, Select, TextArea } from "../components/Field";
+import { Field, Input, TextArea } from "../components/Field";
 import PageHeader from "../components/PageHeader";
+import { ErrorNotice, Loading } from "../components/QueryState";
+import { buttonClass } from "../components/styles";
 import { useToast } from "../components/toastContext";
 import Toggle from "../components/Toggle";
+import type { GeneralSettings } from "../types";
+import { formatDateTime } from "../utils/format";
 
-interface SystemSettings {
-  storeName: string;
-  supportEmail: string;
-  timezone: string;
-  currency: string;
-  onlineOrdering: boolean;
-  orderTypes: { dineIn: boolean; takeout: boolean; pickup: boolean };
-  ordersPerSlot: number;
-  loyaltyPointsPerPeso: number;
-  sessionTimeout: string;
-  lockoutAttempts: number;
-  passwordMinLength: number;
-  staffTwoFactor: boolean;
-  maintenanceMode: boolean;
-  maintenanceMessage: string;
-}
+const CLERK_DASHBOARD = "https://dashboard.clerk.com";
 
-const DEFAULTS: SystemSettings = {
-  storeName: "Bull's Coffee",
-  supportEmail: "support@bullscoffee.ph",
-  timezone: "Asia/Manila",
-  currency: "PHP",
-  onlineOrdering: true,
-  orderTypes: { dineIn: true, takeout: true, pickup: true },
-  ordersPerSlot: 12,
-  loyaltyPointsPerPeso: 0.1,
-  sessionTimeout: "30",
-  lockoutAttempts: 5,
-  passwordMinLength: 8,
-  staffTwoFactor: true,
-  maintenanceMode: false,
-  maintenanceMessage: "We're brewing some updates. Online ordering will be back shortly!",
-};
+const pickGeneral = (s: GeneralSettings): GeneralSettings => ({
+  store_name: s.store_name,
+  support_email: s.support_email,
+  online_ordering: s.online_ordering,
+  maintenance_mode: s.maintenance_mode,
+  maintenance_message: s.maintenance_message,
+});
 
 export default function Settings() {
   const notify = useToast();
-  const [saved, setSaved] = useState(DEFAULTS);
-  const [draft, setDraft] = useState(DEFAULTS);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const settings = useSettings();
+  const save = useSaveSettings();
+  // null: no unsaved edits, so the form shows what's saved.
+  const [draft, setDraft] = useState<GeneralSettings | null>(null);
 
-  const set = <K extends keyof SystemSettings>(key: K, value: SystemSettings[K]) =>
-    setDraft((d) => ({ ...d, [key]: value }));
-  const setOrderType = (key: keyof SystemSettings["orderTypes"], value: boolean) =>
-    setDraft((d) => ({ ...d, orderTypes: { ...d.orderTypes, [key]: value } }));
+  if (settings.isPending) return <Loading label="Loading settings…" />;
+  if (settings.isError) {
+    return <ErrorNotice title="Couldn't load settings" error={settings.error} onRetry={() => void settings.refetch()} />;
+  }
 
-  const save = () => {
-    setSaved(draft);
-    notify("Settings saved.");
+  const saved = pickGeneral(settings.data);
+  const form = draft ?? saved;
+  const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
+
+  const set = <K extends keyof GeneralSettings>(key: K, value: GeneralSettings[K]) =>
+    setDraft({ ...form, [key]: value });
+
+  const submit = () => {
+    if (!draft) return;
+    save.mutate(draft, {
+      onSuccess: () => {
+        setDraft(null);
+        notify("Settings saved.");
+      },
+      onError: (error) => notify(errorMessage(error), "error"),
+    });
   };
 
   return (
     <>
-      <PageHeader title="Settings" description="Store-wide configuration, ordering rules and security policies." />
+      <PageHeader
+        title="Settings"
+        description="Store-wide settings the system enforces."
+      />
+      {settings.data.updated_by_name && (
+        <p className="-mt-4 mb-6 text-xs text-(--admin-muted)">
+          Last changed by {settings.data.updated_by_name}, {formatDateTime(settings.data.updated_at)}.
+        </p>
+      )}
 
       <div className="flex flex-col gap-6 pb-20">
         <Section title="General" description="How the store identifies itself to customers.">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Store name">
-              <Input value={draft.storeName} onChange={(e) => set("storeName", e.target.value)} />
+            <Field label="Store name" hint="Used in emails, as the sender's name and {{store_name}}.">
+              <Input maxLength={100} value={form.store_name} onChange={(e) => set("store_name", e.target.value)} />
             </Field>
-            <Field label="Support email" hint="Customers reply to this address.">
-              <Input type="email" value={draft.supportEmail} onChange={(e) => set("supportEmail", e.target.value)} />
-            </Field>
-            <Field label="Time zone">
-              <Select value={draft.timezone} onChange={(e) => set("timezone", e.target.value)}>
-                <option value="Asia/Manila">Asia/Manila (GMT+8)</option>
-                <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
-                <option value="UTC">UTC</option>
-              </Select>
-            </Field>
-            <Field label="Currency">
-              <Select value={draft.currency} onChange={(e) => set("currency", e.target.value)}>
-                <option value="PHP">Philippine peso (₱)</option>
-                <option value="USD">US dollar ($)</option>
-              </Select>
+            <Field label="Support email" hint="Shown on the Contact page. Customer replies to emails go here.">
+              <Input
+                type="email"
+                maxLength={255}
+                value={form.support_email}
+                onChange={(e) => set("support_email", e.target.value)}
+              />
             </Field>
           </div>
         </Section>
 
-        <Section title="Ordering" description="What customers can do in the app.">
-          <div className="flex flex-col gap-5">
-            <Toggle
-              checked={draft.onlineOrdering}
-              onChange={(v) => set("onlineOrdering", v)}
-              label="Online ordering"
-              description="When off, customers can browse the menu but not check out."
-            />
-            <fieldset disabled={!draft.onlineOrdering} className="disabled:opacity-60">
-              <legend className="mb-2 text-xs font-medium">Order types offered</legend>
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                {(
-                  [
-                    ["dineIn", "Dine-in"],
-                    ["takeout", "Takeout"],
-                    ["pickup", "Scheduled pickup"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={draft.orderTypes[key]}
-                      onChange={(e) => setOrderType(key, e.target.checked)}
-                      className="size-4 accent-(--admin-ink)"
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Max orders per 15-minute slot" hint="Stops the queue from overwhelming baristas.">
-                <Input type="number" min={1} value={draft.ordersPerSlot} onChange={(e) => set("ordersPerSlot", Number(e.target.value))} />
-              </Field>
-              <Field label="Loyalty points per ₱1 spent">
-                <Input type="number" min={0} step={0.05} value={draft.loyaltyPointsPerPeso} onChange={(e) => set("loyaltyPointsPerPeso", Number(e.target.value))} />
-              </Field>
-            </div>
-          </div>
+        <Section title="Ordering" description="What customers can do without a cashier.">
+          <Toggle
+            checked={form.online_ordering}
+            onChange={(v) => set("online_ordering", v)}
+            label="Kiosk ordering"
+            description="When off, the kiosk asks customers to order at the counter and stops taking orders. The POS isn't affected."
+          />
         </Section>
 
-        <Section title="Security" description="Applies to every account type.">
-          <div className="flex flex-col gap-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Session timeout">
-                <Select value={draft.sessionTimeout} onChange={(e) => set("sessionTimeout", e.target.value)}>
-                  <option value="15">15 minutes</option>
-                  <option value="30">30 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="480">8 hours</option>
-                </Select>
-              </Field>
-              <Field label="Lock account after" hint="Failed sign-in attempts">
-                <Input type="number" min={3} max={10} value={draft.lockoutAttempts} onChange={(e) => set("lockoutAttempts", Number(e.target.value))} />
-              </Field>
-              <Field label="Minimum password length">
-                <Input type="number" min={8} max={64} value={draft.passwordMinLength} onChange={(e) => set("passwordMinLength", Number(e.target.value))} />
-              </Field>
-            </div>
-            <Toggle
-              checked={draft.staffTwoFactor}
-              onChange={(v) => set("staffTwoFactor", v)}
-              label="Require two-factor authentication for staff"
-              description="Admins, managers and cashiers must confirm sign-ins with a second factor."
-            />
-          </div>
-        </Section>
-
-        <Section title="Maintenance" description="Take the storefront offline while you work on it.">
+        <Section title="Maintenance" description="Pause self-ordering while you work on the store.">
           <div className="flex flex-col gap-5">
             <Toggle
-              checked={draft.maintenanceMode}
-              onChange={(v) => set("maintenanceMode", v)}
+              checked={form.maintenance_mode}
+              onChange={(v) => set("maintenance_mode", v)}
               label="Maintenance mode"
-              description="Customers see the message below instead of the store. Staff and admins can still sign in."
+              description="The kiosk shows the message below instead of the menu, and the storefront shows it as a banner. Staff can still sign in and use the POS."
             />
-            {draft.maintenanceMode && (
+            {form.maintenance_mode && !saved.maintenance_mode && (
               <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
                 <FiAlertTriangle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-                Online orders stop being accepted as soon as you save.
+                The kiosk stops accepting orders as soon as you save.
               </p>
             )}
             <Field label="Message shown to customers">
-              <TextArea rows={3} value={draft.maintenanceMessage} onChange={(e) => set("maintenanceMessage", e.target.value)} />
+              <TextArea
+                rows={3}
+                maxLength={500}
+                value={form.maintenance_message}
+                onChange={(e) => set("maintenance_message", e.target.value)}
+              />
             </Field>
+          </div>
+        </Section>
+
+        <Section title="Sign-in & security" description="Managed in Clerk, which handles every sign-in.">
+          <div className="flex items-start gap-3 rounded-xl bg-(--admin-canvas) p-4">
+            <FiShield aria-hidden className="mt-0.5 size-5 shrink-0 text-(--admin-muted)" />
+            <div className="min-w-0 text-sm">
+              <p>These are set in the Clerk dashboard, not here:</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-(--admin-muted)">
+                <li>Session lifetime and inactivity timeout</li>
+                <li>Account lockout after failed sign-ins</li>
+                <li>Password rules</li>
+                <li>Two-factor authentication</li>
+              </ul>
+              <a
+                href={CLERK_DASHBOARD}
+                target="_blank"
+                rel="noreferrer"
+                className={`${buttonClass("secondary", "sm")} mt-4`}
+              >
+                Open the Clerk dashboard <FiExternalLink aria-hidden className="size-3.5" />
+              </a>
+            </div>
           </div>
         </Section>
       </div>
@@ -180,8 +145,10 @@ export default function Settings() {
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
             <p className="text-sm font-medium">You have unsaved changes.</p>
             <div className="flex gap-2">
-              <Button onClick={() => setDraft(saved)}>Discard</Button>
-              <Button variant="primary" onClick={save}>Save settings</Button>
+              <Button onClick={() => setDraft(null)} disabled={save.isPending}>Discard</Button>
+              <Button variant="primary" onClick={submit} disabled={save.isPending}>
+                {save.isPending ? "Saving…" : "Save settings"}
+              </Button>
             </div>
           </div>
         </div>

@@ -4,8 +4,10 @@ import Reveal from "../Reveal";
 import ContactForm from "./ContactForm";
 import { CONTACT_ADDRESS, CONTACT_EMAIL, CONTACT_HOURS, CONTACT_PHONE } from "./contact.config";
 import InfoCard from "./InfoCard";
+import { useSupportEmail } from "../../lib/publicSettings";
 
 export default function Contact() {
+  const supportEmail = useSupportEmail(CONTACT_EMAIL);
   return (
     <section id="contact" className="relative py-20 sm:py-28" style={{ backgroundColor: INK_ON_DARK }}>
       {/* The hero's hill again, rising out of the section above. */}
@@ -59,10 +61,10 @@ export default function Contact() {
             <Reveal delay={0.26}>
               <InfoCard label="Email">
                 <a
-                  href={`mailto:${CONTACT_EMAIL}`}
+                  href={`mailto:${supportEmail}`}
                   className="font-bold text-stone-900 underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
                 >
-                  {CONTACT_EMAIL}
+                  {supportEmail}
                 </a>
                 <a
                   href={CONTACT_PHONE.href}

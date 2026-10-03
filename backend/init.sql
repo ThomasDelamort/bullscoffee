@@ -343,3 +343,24 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     permission VARCHAR(50) NOT NULL,
     PRIMARY KEY (role, permission)
 );
+
+-- One row of store-wide settings, edited on the admin Settings page (and
+-- the backup schedule on Backup & Restore). Only what the system enforces:
+-- maintenance_mode and online_ordering stop kiosk orders, store_name and
+-- support_email go on every email. Defaults are what the store ran with
+-- before these were editable.
+CREATE TABLE IF NOT EXISTS system_settings (
+    settings_id INT PRIMARY KEY DEFAULT 1 CHECK (settings_id = 1),
+    store_name VARCHAR(100) NOT NULL DEFAULT 'Bull''s Coffee',
+    support_email VARCHAR(255) NOT NULL DEFAULT 'sup@bullscoffee.com',
+    online_ordering BOOLEAN NOT NULL DEFAULT TRUE,
+    maintenance_mode BOOLEAN NOT NULL DEFAULT FALSE,
+    maintenance_message TEXT NOT NULL DEFAULT 'We''re brewing some updates. Ordering will be back shortly!',
+    backup_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    backup_frequency VARCHAR(10) NOT NULL DEFAULT 'daily' CHECK (backup_frequency IN ('hourly', 'daily', 'weekly')),
+    backup_time TIME NOT NULL DEFAULT '03:00',
+    backup_retention_days INT NOT NULL DEFAULT 30 CHECK (backup_retention_days IN (7, 30, 90, 365)),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by INT REFERENCES employees(employee_id) ON DELETE SET NULL
+);
+INSERT INTO system_settings (settings_id) VALUES (1) ON CONFLICT DO NOTHING;

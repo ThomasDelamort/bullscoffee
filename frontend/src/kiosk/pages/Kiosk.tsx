@@ -5,6 +5,7 @@ import HeroImage from "../../Home/Hero/HeroImage";
 import { LOGO_MARK } from "../../Home/Hero/hero.config";
 import type { Product } from "../../POS/types";
 import { initials } from "../../POS/utils/format";
+import { usePublicSettings } from "../../lib/publicSettings";
 import CartBar from "../components/CartBar";
 import CartSheet from "../components/CartSheet";
 import CategoryBanner from "../components/CategoryBanner";
@@ -25,6 +26,8 @@ import Confirmation, { type Receipt } from "./Confirmation";
  */
 export default function Kiosk() {
   const menu = useMenu();
+  // Polled like the menu: an admin can close the kiosk from Settings at any time.
+  const settings = usePublicSettings({ refetchInterval: 60_000 }).data;
   const cart = useCart();
   const placeOrder = usePlaceKioskOrder();
   const paymentOptions = usePaymentOptions();
@@ -52,6 +55,13 @@ export default function Kiosk() {
   }, []);
 
   if (receipt) return <Confirmation receipt={receipt} notice={notice} onDone={startOver} />;
+
+  if (settings?.maintenance_mode) {
+    return <MenuStatus title="We'll be right back" detail={settings.maintenance_message} />;
+  }
+  if (settings && !settings.online_ordering) {
+    return <MenuStatus title="Kiosk ordering is paused" detail="Please order at the counter." />;
+  }
 
   if (menu.status === "loading") return <MenuStatus title="Loading the menu" />;
   if (menu.status === "error") {

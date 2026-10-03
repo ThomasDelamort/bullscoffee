@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, isClientError } from "../../lib/api";
 import { useApi } from "../../lib/apiContext";
+import { publicSettingsKey } from "../../lib/publicSettings";
 import type { ItemSize, OrderItem } from "../../POS/types";
 import { kioskKeys } from "./menu";
 
@@ -56,13 +57,17 @@ export function usePlaceKioskOrder() {
       if (error instanceof ApiError && error.status === 409) {
         void queryClient.invalidateQueries({ queryKey: kioskKeys.menu });
       }
+      // 503: an admin closed the kiosk. Refresh the settings so it shows the closed screen.
+      if (error instanceof ApiError && error.status === 503) {
+        void queryClient.invalidateQueries({ queryKey: publicSettingsKey });
+      }
     },
   });
 }
 
 /** The backend's own words when it turned the order down; a generic line when it couldn't be reached. */
 export function placeOrderError(error: unknown): string {
-  return isClientError(error) && error instanceof Error
+  return (isClientError(error) || (error instanceof ApiError && error.status === 503)) && error instanceof Error
     ? error.message
     : "We couldn't send your order. Please try again, or order at the counter.";
 }

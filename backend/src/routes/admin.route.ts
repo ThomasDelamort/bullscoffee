@@ -12,6 +12,7 @@ import {
   updateStaffHandler,
 } from "../controllers/admin-users.controller.ts";
 import { getPermissionsHandler, savePermissionsHandler } from "../controllers/permissions.controller.ts";
+import { getSettingsHandler, updateSettingsHandler } from "../controllers/settings.controller.ts";
 import { protectRoute, requireAdmin } from "../middleware/auth.middleware.ts";
 
 // Mounted at /api/admin. Every route below is for active admins only: the
@@ -45,5 +46,11 @@ router.post("/users/:clerkId/sign-out", accountActionHandler("sign-out"));
 */
 router.get("/permissions", getPermissionsHandler);
 router.put("/permissions", savePermissionsHandler);
+
+/*
+    SETTINGS
+*/
+router.get("/settings", getSettingsHandler);
+router.put("/settings", updateSettingsHandler);
 
 export default router;

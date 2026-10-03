@@ -7,6 +7,7 @@ import { getCustomerByClerkId } from "../providers/customer.provider.ts";
 import { createOrder } from "../providers/order.provider.ts";
 import { createCheckoutSession } from "../providers/payment.provider.ts";
 import { getProductsByIds } from "../providers/product.provider.ts";
+import { getPublicSettings } from "../providers/settings.provider.ts";
 import type {
   ItemSize,
   NewOrderItem,
@@ -138,6 +139,21 @@ export const createKioskOrderHandler = async (
   res: Response,
 ): Promise<void> => {
   try {
+    // The admin Settings page can close the kiosk: for maintenance, or just
+    // to stop self-ordering. The kiosk shows the same message on its own
+    // (from /settings/public); this catches an order already on its way.
+    const settings = await getPublicSettings();
+    if (settings.maintenance_mode) {
+      res.status(StatusCodes.SERVICE_UNAVAILABLE).json({ error: settings.maintenance_message });
+      return;
+    }
+    if (!settings.online_ordering) {
+      res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+        error: "Kiosk ordering is paused. Please order at the counter.",
+      });
+      return;
+    }
+
     const items = parseKioskItems(req.body?.items);
     if (!items) {
       res.status(StatusCodes.BAD_REQUEST).json({

@@ -171,3 +171,26 @@ export interface SeriesPoint {
   label: string;
   value: number;
 }
+
+/** GET /admin/settings: the one row of store-wide settings. */
+export interface SystemSettings {
+  store_name: string;
+  support_email: string;
+  /** Kiosk self-ordering on or off. */
+  online_ordering: boolean;
+  maintenance_mode: boolean;
+  maintenance_message: string;
+  backup_enabled: boolean;
+  backup_frequency: "hourly" | "daily" | "weekly";
+  /** HH:MM, store time. */
+  backup_time: string;
+  backup_retention_days: 7 | 30 | 90 | 365;
+  updated_at: string;
+  updated_by_name: string | null;
+}
+
+/** What the Settings page edits; the backup schedule is saved from Backup & Restore. */
+export type GeneralSettings = Pick<
+  SystemSettings,
+  "store_name" | "support_email" | "online_ordering" | "maintenance_mode" | "maintenance_message"
+>;

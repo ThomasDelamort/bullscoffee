@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useSupportEmail } from "../lib/publicSettings";
 import { ADMIN_BASE_PATH } from "../Admin/routes";
 import HeroImage from "../Home/Hero/HeroImage";
 import {
@@ -30,9 +31,11 @@ type contact = {
 };
 
 // Kept in step with the Contact section's info via contact.config.ts.
-const CONTACT: contact[] = [
+// The email is the support address from the admin Settings page, when it
+// has loaded; see useSupportEmail.
+const contactList = (email: string): contact[] => [
   { label: CONTACT_ADDRESS.join(", "), href: undefined },
-  { label: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` },
+  { label: email, href: `mailto:${email}` },
   { label: CONTACT_PHONE.label, href: CONTACT_PHONE.href },
 ];
 
@@ -45,6 +48,7 @@ const SOCIALS: socials[] = [
 
 export default function Footer(): React.JSX.Element {
   const year: number = new Date().getFullYear();
+  const CONTACT = contactList(useSupportEmail(CONTACT_EMAIL));
 
   const scrollToSection = (id: string) => (e: React.MouseEvent) => {
     e.preventDefault();
