@@ -11,10 +11,16 @@ erDiagram
 %% ----
 %% Updated to match the expanded use case diagram:
 %% - Login / Logout / Register Account / Reset Password are handled by Clerk (clerk_id);
-%%   no password columns are stored here. Failed logins are written to AUDIT_LOGS.
-%% - Backup & Restore, Monitor Performance, Generate / Export Reports are operational
-%%   features or queries over existing tables, so they have no tables of their own.
+%%   no password columns are stored here. Failed sign-ins happen inside Clerk and are
+%%   not logged; each successful sign-in is one ACTIVITY_LOGS row per Clerk session.
+%% - Backup & Restore = BACKUPS, Monitor Performance = HEALTH_CHECKS + REQUEST_METRICS,
+%%   Export Reports = EXPORT_JOBS. Backup and export files live in private S3
+%%   (bulls-coffee/backups/, bulls-coffee/exports/); these tables only index them.
 %% - Payment gateway API keys live in environment secrets, never in SYSTEM_SETTINGS.
+%% - The SYSTEM module and RBAC below match backend/init.sql as built. Tables a restore
+%%   keeps (ACTIVITY_LOGS, BACKUPS, EXPORT_JOBS, NOTIFICATION_LOG, HEALTH_CHECKS,
+%%   REQUEST_METRICS, APP_MIGRATIONS) hold no foreign keys into restored tables, so
+%%   their links are names or plain ids, drawn as dotted lines.
 
     classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
     classDef salesBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
@@ -26,21 +32,12 @@ erDiagram
 %% ============================ STAFF ============================
 
 %% Assign Roles & Permissions (RBAC): admin / manager / cashier
-    ROLES {
-        int role_id PK "IDENTITY"
-        varchar(30) role_name UK "NOT NULL (e.g. admin / manager / cashier)"
-        text description "NULLABLE"
-    }
-
-    PERMISSIONS {
-        int permission_id PK "IDENTITY"
-        varchar(100) permission_key UK "NOT NULL, e.g. orders.void, discounts.approve"
-        text description "NULLABLE"
-    }
-
+%% The permission catalogue (ids, labels, what each gates) lives in
+%% backend/src/lib/permissions.ts. Admins hold every permission and are never stored;
+%% system.* permissions are admin-only. Checked on every request by requirePermission().
     ROLE_PERMISSIONS {
-        int role_id PK,FK "ON DELETE CASCADE"
-        int permission_id PK,FK "ON DELETE CASCADE"
+        enum role PK "manager / cashier; CHECK (role <> 'admin')"
+        varchar(50) permission PK "e.g. orders.cancel, menu.manage"
     }
 
 %% Manage Branches; store hours are per branch
@@ -55,19 +52,21 @@ erDiagram
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }
 
-%% Cashiers, managers and admins share one entity; role comes from ROLES
-%% Create / Deactivate / Lock Accounts = employee_status
+%% Cashiers, managers and admins share one entity
+%% Invited staff hold clerk_id = invite_<uuid> until their first sign-in with the
+%% invited, verified email links the row to their Clerk account
+%% Create / Deactivate Accounts = employee_status; Lock Accounts is done in Clerk
     EMPLOYEES {
         int employee_id PK "IDENTITY"
         varchar(255) clerk_id UK "NOT NULL"
-        int role_id FK "NOT NULL"
+        enum employee_role "NOT NULL, DEFAULT 'cashier' (admin / manager / cashier)"
         int branch_id FK "NOT NULL"
         varchar(50) first_name "NOT NULL"
         varchar(50) last_name "NOT NULL"
         varchar(100) employee_email UK "NOT NULL"
         varchar(20) contact_number "NULLABLE"
         varchar(255) profile_picture "NULLABLE"
-        enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive / locked)"
+        enum employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }
 
@@ -131,7 +130,7 @@ erDiagram
         varchar(20) contact_number "NULLABLE"
         varchar(150) profile_picture "NULLABLE"
         int loyalty_points "NOT NULL, DEFAULT 0, CHECK (loyalty_points >= 0)"
-        enum customer_status "NOT NULL, DEFAULT 'active' (active / inactive / locked)"
+        enum customer_status "NOT NULL, DEFAULT 'active' (active / inactive); locking is done in Clerk"
         timestamptz created_at "NOT NULL, DEFAULT now()"
     }
 
@@ -503,77 +502,159 @@ erDiagram
 %% =========================== SYSTEM ============================
 
 %% Tracks logs / View Logs / Audit Trail / Detect Suspicious Activity
-%% Insert-only; no FK because the actor may be an employee, customer, supplier or the system
-    AUDIT_LOGS {
-        bigint audit_id PK "IDENTITY"
-        enum actor_type "NOT NULL (employee / customer / supplier / system)"
-        varchar(255) actor_clerk_id "NULLABLE"
-        varchar(100) action "NOT NULL, e.g. login_failed, item_voided"
-        varchar(50) entity_name "NULLABLE"
-        varchar(50) entity_id "NULLABLE"
-        jsonb details "NULLABLE"
-        inet ip_address "NULLABLE"
-        boolean is_suspicious "NOT NULL, DEFAULT FALSE"
-        timestamptz created_at "NOT NULL, DEFAULT now()"
+%% Insert-only apart from reviewing a flag; a row with a flag_reason is in the audit
+%% trail until reviewed. session_id is set only on sign-in rows (one per Clerk session).
+%% No FKs: the actor may be staff, a customer or the system, and the log must survive a restore
+    ACTIVITY_LOGS {
+        bigint log_id PK "IDENTITY"
+        timestamptz occurred_at "NOT NULL, DEFAULT now()"
+        varchar(255) actor_clerk_id "NULLABLE, NULL for the system"
+        varchar(120) actor_name "NOT NULL"
+        varchar(20) actor_role "NOT NULL (admin / manager / cashier / customer / system)"
+        text action "NOT NULL, e.g. Cancelled order #12 after P140.00 was paid"
+        varchar(30) module "NOT NULL, e.g. Orders, Users, Backups"
+        varchar(45) ip "NULLABLE"
+        enum severity "NOT NULL, DEFAULT 'info' (info / warning / critical)"
+        text flag_reason "NULLABLE, set = in the audit trail"
+        varchar(120) flag_reviewed_by "NULLABLE, reviewer's name"
+        timestamptz flag_reviewed_at "NULLABLE"
+        varchar(64) session_id UK "NULLABLE, sign-in rows only"
     }
 
-%% Configure System Settings (tax rate, currency, receipt format, loyalty rules),
-%% Manage Payment Gateway Settings (enabled methods only)
+%% Configure System Settings: one row (settings_id = 1), only what the system enforces
+%% maintenance_mode / online_ordering close the kiosk; store_name / support_email go on emails
     SYSTEM_SETTINGS {
-        varchar(100) setting_key PK
-        enum setting_group "NOT NULL (general / tax / receipt / loyalty / payment_gateway)"
-        text setting_value "NOT NULL"
-        int updated_by FK "NULLABLE"
+        int settings_id PK "DEFAULT 1, CHECK (settings_id = 1)"
+        varchar(100) store_name "NOT NULL"
+        varchar(255) support_email "NOT NULL, Reply-To on every email"
+        boolean online_ordering "NOT NULL, DEFAULT TRUE (kiosk ordering)"
+        boolean maintenance_mode "NOT NULL, DEFAULT FALSE"
+        text maintenance_message "NOT NULL"
+        boolean backup_enabled "NOT NULL, DEFAULT TRUE"
+        varchar(10) backup_frequency "NOT NULL, DEFAULT 'daily' (hourly / daily / weekly)"
+        time backup_time "NOT NULL, DEFAULT 03:00, store time"
+        int backup_retention_days "NOT NULL, DEFAULT 30, CHECK IN (7, 30, 90, 365)"
         timestamptz updated_at "NOT NULL, DEFAULT now()"
+        int updated_by FK "NULLABLE, ON DELETE SET NULL"
     }
 
-%% Manage Notification Templates
+%% Manage Payment Gateway Settings: one row; which PayMongo methods checkout offers
+    PAYMENT_SETTINGS {
+        int settings_id PK "DEFAULT 1, CHECK (settings_id = 1)"
+        text_array enabled_methods "NOT NULL, gcash / paymaya / grab_pay / qrph / card"
+        boolean send_email_receipt "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Manage Notification Templates: email only, one per event, {{variable}} placeholders
     NOTIFICATION_TEMPLATES {
-        int template_id PK "IDENTITY"
-        varchar(50) template_key UK "NOT NULL, e.g. order_ready"
-        enum channel "NOT NULL (email / sms / push)"
-        varchar(150) subject "NULLABLE"
+        varchar(50) template_id PK "e.g. order-placed"
+        varchar(50) event UK "NOT NULL (order.placed / order.completed / order.cancelled / payment.received)"
+        varchar(100) name "NOT NULL"
+        varchar(200) subject "NOT NULL"
         text body "NOT NULL"
-        boolean is_active "NOT NULL, DEFAULT TRUE"
-        int updated_by FK "NULLABLE"
+        boolean enabled "NOT NULL, DEFAULT TRUE"
         timestamptz updated_at "NOT NULL, DEFAULT now()"
     }
 
-%% Order status updates notify customers
-%% CHECK (num_nonnulls(customer_id, employee_id, supplier_id) = 1)
-    NOTIFICATIONS {
-        int notification_id PK "IDENTITY"
-        int template_id FK "NOT NULL"
-        int customer_id FK "NULLABLE"
-        int employee_id FK "NULLABLE"
-        int supplier_id FK "NULLABLE"
-        int order_id FK "NULLABLE"
-        enum delivery_status "NOT NULL, DEFAULT 'queued' (queued / sent / failed)"
-        timestamptz created_at "NOT NULL, DEFAULT now()"
-        timestamptz sent_at "NULLABLE"
+%% Order status updates notify customers: every send attempt (sent / failed / skipped)
+%% template_id and order_id are plain values, not FKs (kept through a restore)
+    NOTIFICATION_LOG {
+        bigint log_id PK "IDENTITY"
+        varchar(50) template_id "NULLABLE, or 'ticket-reply'"
+        int order_id "NULLABLE"
+        varchar(255) recipient "NULLABLE"
+        enum status "NOT NULL (sent / failed / skipped)"
+        text error "NULLABLE, why it failed or was skipped"
+        int latency_ms "NULLABLE"
+        timestamptz sent_at "NOT NULL, DEFAULT now()"
     }
 
-%% Handle Bug Reports / Support Tickets, Troubleshoot System
-%% CHECK (feedback_id IS NOT NULL OR reported_by IS NOT NULL)
+%% Handle Bug Reports / Support Tickets, Submit Feedback or Complaint (storefront Contact form)
     SUPPORT_TICKETS {
-        int ticket_id PK "IDENTITY"
-        int feedback_id FK "NULLABLE, customer complaint that raised it"
-        int reported_by FK "NULLABLE, staff reporter"
-        int assigned_to FK "NULLABLE, admin"
-        varchar(150) title "NOT NULL"
+        int ticket_id PK "IDENTITY, shown as T-<id>"
+        enum kind "NOT NULL (complaint / bug)"
+        varchar(150) subject "NOT NULL"
         text description "NOT NULL"
-        enum priority "NOT NULL, DEFAULT 'medium' (low / medium / high / critical)"
-        enum ticket_status "NOT NULL, DEFAULT 'open' (open / in_progress / resolved / closed)"
+        varchar(100) reporter_name "NOT NULL"
+        varchar(255) reporter_email "NOT NULL"
+        int customer_id FK "NULLABLE, set when signed in, ON DELETE SET NULL"
+        int order_id FK "NULLABLE, set when the order exists, ON DELETE SET NULL"
+        enum priority "NOT NULL, DEFAULT 'medium' (low / medium / high / urgent)"
+        enum status "NOT NULL, DEFAULT 'open' (open / in_progress / resolved / closed)"
         timestamptz created_at "NOT NULL, DEFAULT now()"
-        timestamptz resolved_at "NULLABLE"
+        timestamptz updated_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Responds to customer complaints: staff replies, each emailed to the reporter
+    TICKET_MESSAGES {
+        int message_id PK "IDENTITY"
+        int ticket_id FK "NOT NULL, ON DELETE CASCADE"
+        int author_employee_id FK "NULLABLE, ON DELETE SET NULL"
+        varchar(120) author_name "NOT NULL"
+        text body "NOT NULL"
+        enum email_status "NOT NULL (sent / failed / skipped)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Monitor Performance: one row per service per probe (each minute); pruned after 30 days
+    HEALTH_CHECKS {
+        bigint check_id PK "IDENTITY"
+        varchar(20) service "NOT NULL (api / database / auth / storage / payments / email)"
+        varchar(15) state "NOT NULL (operational / degraded / down / not_configured)"
+        int latency_ms "NULLABLE"
+        text detail "NULLABLE"
+        timestamptz checked_at "NOT NULL, DEFAULT now()"
+    }
+
+%% Monitor Performance: API traffic per minute, summed across server instances
+    REQUEST_METRICS {
+        timestamptz minute PK
+        int requests "NOT NULL, DEFAULT 0"
+        bigint total_ms "NOT NULL, DEFAULT 0"
+        int errors_5xx "NOT NULL, DEFAULT 0"
+    }
+
+%% Backup & Restore: index of gzipped JSON snapshots in private S3
+    BACKUPS {
+        int backup_id PK "IDENTITY"
+        enum kind "NOT NULL (automatic / manual)"
+        enum status "NOT NULL, DEFAULT 'in_progress' (in_progress / completed / failed)"
+        varchar(512) s3_key UK "NULLABLE until completed"
+        bigint size_bytes "NULLABLE"
+        jsonb table_counts "NULLABLE, rows per table"
+        text error "NULLABLE"
+        varchar(120) created_by_name "NULLABLE, NULL for automatic"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+        timestamptz finished_at "NULLABLE"
+    }
+
+%% Generate / Export Reports: CSV or JSON in private S3, deleted with the row after 7 days
+    EXPORT_JOBS {
+        int export_id PK "IDENTITY"
+        varchar(30) dataset "NOT NULL (orders / payments / customers / employees / inventory / activity)"
+        enum format "NOT NULL (csv / json)"
+        date range_from "NULLABLE"
+        date range_to "NULLABLE"
+        enum status "NOT NULL, DEFAULT 'in_progress' (in_progress / completed / failed)"
+        varchar(512) s3_key UK "NULLABLE until completed"
+        int row_count "NULLABLE"
+        bigint size_bytes "NULLABLE"
+        text error "NULLABLE"
+        varchar(120) requested_by_name "NULLABLE"
+        timestamptz requested_at "NOT NULL, DEFAULT now()"
+        timestamptz finished_at "NULLABLE"
+    }
+
+%% One row per one-off data step that has run (e.g. seeding ROLE_PERMISSIONS)
+    APP_MIGRATIONS {
+        varchar(100) name PK
+        timestamptz applied_at "NOT NULL, DEFAULT now()"
     }
 
 %% ======================== RELATIONSHIPS ========================
 
 %% Staff
-    ROLES ||--o{ ROLE_PERMISSIONS : "grants"
-    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "granted via"
-    ROLES ||--o{ EMPLOYEES : "assigned to"
+    EMPLOYEES }o..o{ ROLE_PERMISSIONS : "role holds (by employee_role, no FK)"
     BRANCHES ||--o{ EMPLOYEES : "employs"
     EMPLOYEES ||--o{ STAFF_SCHEDULES : "scheduled in"
     EMPLOYEES ||--o{ STAFF_SCHEDULES : "creates"
@@ -662,20 +743,17 @@ erDiagram
     SUPPLIERS ||--o{ SUPPLIER_NOTICES : "sends"
     PURCHASE_ORDERS |o--o{ SUPPLIER_NOTICES : "concerns"
 
-%% System
+%% System (dotted = a name or plain id, not a foreign key)
     EMPLOYEES |o--o{ SYSTEM_SETTINGS : "updates"
-    EMPLOYEES |o--o{ NOTIFICATION_TEMPLATES : "edits"
-    NOTIFICATION_TEMPLATES ||--o{ NOTIFICATIONS : "renders"
-    CUSTOMERS |o--o{ NOTIFICATIONS : "notified by"
-    EMPLOYEES |o--o{ NOTIFICATIONS : "notified by"
-    SUPPLIERS |o--o{ NOTIFICATIONS : "notified by"
-    ORDERS |o--o{ NOTIFICATIONS : "triggers"
-    FEEDBACK |o--o{ SUPPORT_TICKETS : "escalated to"
-    EMPLOYEES |o--o{ SUPPORT_TICKETS : "reports"
-    EMPLOYEES |o--o{ SUPPORT_TICKETS : "handles"
+    NOTIFICATION_TEMPLATES |o..o{ NOTIFICATION_LOG : "sent as"
+    ORDERS |o..o{ NOTIFICATION_LOG : "emailed about"
+    CUSTOMERS |o--o{ SUPPORT_TICKETS : "files"
+    ORDERS |o--o{ SUPPORT_TICKETS : "concerns"
+    SUPPORT_TICKETS ||--o{ TICKET_MESSAGES : "threads"
+    EMPLOYEES |o--o{ TICKET_MESSAGES : "replies in"
+    EMPLOYEES |o..o{ ACTIVITY_LOGS : "acts in (actor_clerk_id)"
+    CUSTOMERS |o..o{ ACTIVITY_LOGS : "acts in (actor_clerk_id)"
 
-    ROLES:::staffBox
-    PERMISSIONS:::staffBox
     ROLE_PERMISSIONS:::staffBox
     BRANCHES:::staffBox
     EMPLOYEES:::staffBox
@@ -716,8 +794,15 @@ erDiagram
     SUPPLIER_INVOICES:::supplyBox
     SUPPLIER_RETURNS:::supplyBox
     SUPPLIER_NOTICES:::supplyBox
-    AUDIT_LOGS:::systemBox
+    ACTIVITY_LOGS:::systemBox
     SYSTEM_SETTINGS:::systemBox
+    PAYMENT_SETTINGS:::systemBox
     NOTIFICATION_TEMPLATES:::systemBox
-    NOTIFICATIONS:::systemBox
+    NOTIFICATION_LOG:::systemBox
     SUPPORT_TICKETS:::systemBox
+    TICKET_MESSAGES:::systemBox
+    HEALTH_CHECKS:::systemBox
+    REQUEST_METRICS:::systemBox
+    BACKUPS:::systemBox
+    EXPORT_JOBS:::systemBox
+    APP_MIGRATIONS:::systemBox
