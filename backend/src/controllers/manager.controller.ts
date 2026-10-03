@@ -6,12 +6,18 @@ import {
   getEmployeeByClerkId,
 } from "../providers/employee.provider.ts";
 
-// The signed-in user's verified email addresses, from Clerk.
-const verifiedEmails = async (clerk_id: string): Promise<string[]> => {
+// Links an invite to the signed-in user: matched on their verified Clerk
+// addresses, with their Clerk name for any name the invite left blank.
+const claimInvite = async (clerk_id: string) => {
   const user = await clerkClient.users.getUser(clerk_id);
-  return user.emailAddresses
+  const verified = user.emailAddresses
     .filter((address) => address.verification?.status === "verified")
     .map((address) => address.emailAddress);
+  const email = user.primaryEmailAddress?.emailAddress ?? verified[0] ?? "";
+  return claimInvitedEmployee(clerk_id, verified, {
+    first_name: user.firstName?.trim() || email.split("@")[0] || "Admin",
+    last_name: user.lastName?.trim() ?? "",
+  });
 };
 
 // Resolves the signed-in Clerk user (set on res.locals by protectRoute) to
@@ -26,7 +32,7 @@ export const getCurrentEmployeeHandler = async (
     const clerk_id: string = res.locals["clerkId"];
     const employee =
       (await getEmployeeByClerkId(clerk_id)) ??
-      (await claimInvitedEmployee(clerk_id, await verifiedEmails(clerk_id)));
+      (await claimInvite(clerk_id));
     if (!employee) {
       res
         .status(StatusCodes.FORBIDDEN)

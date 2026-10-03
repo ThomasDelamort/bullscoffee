@@ -32,8 +32,9 @@ export async function runInitSql(): Promise<void> {
 // make one, so a fresh database (or one whose last admin was lost) needs a
 // way in. With ADMIN_EMAIL set and no active admin, that address becomes the
 // admin: an existing employee with it is promoted, otherwise an invite row
-// is added that their first sign-in claims (see claimInvitedEmployee). Once
-// any admin exists this does nothing.
+// is added that their first sign-in claims (see claimInvitedEmployee), with
+// blank names that their Clerk profile fills in then. Once any admin exists
+// this does nothing.
 async function bootstrapAdmin(): Promise<void> {
   const email = process.env["ADMIN_EMAIL"]?.trim().toLowerCase();
   if (!email) return;
@@ -58,7 +59,7 @@ async function bootstrapAdmin(): Promise<void> {
     await client.query(
       `
         INSERT INTO employees (clerk_id, first_name, last_name, employee_email, employee_role, work_schedule)
-        VALUES ($1, 'Store', 'Admin', $2, 'admin', 'Admin console')
+        VALUES ($1, '', '', $2, 'admin', 'Admin console')
       `,
       [`invite_${randomUUID()}`, email],
     );

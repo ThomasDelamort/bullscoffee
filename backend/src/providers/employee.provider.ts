@@ -41,14 +41,20 @@ export async function getEmployeeById(
 // whose email matches one of their *verified* Clerk addresses is claimed for
 // their real Clerk id. Verified only: otherwise anyone could add a staff
 // member's address to a new account, unverified, and take over the row.
+// Names left blank on the invite (the ADMIN_EMAIL bootstrap) are filled in
+// from the Clerk profile; names an admin typed are kept.
 export async function claimInvitedEmployee(
   clerk_id: string,
   verifiedEmails: string[],
+  profile: { first_name: string; last_name: string },
 ): Promise<Employee | void> {
   if (verifiedEmails.length === 0) return;
   const result = await pool.query(
     `
-      UPDATE employees SET clerk_id = $1
+      UPDATE employees
+      SET clerk_id = $1,
+          first_name = CASE WHEN first_name = '' THEN $3 ELSE first_name END,
+          last_name = CASE WHEN last_name = '' THEN $4 ELSE last_name END
       WHERE employee_id = (
         SELECT employee_id FROM employees
         WHERE clerk_id LIKE 'invite\\_%'
@@ -58,7 +64,12 @@ export async function claimInvitedEmployee(
       )
       RETURNING *
     `,
-    [clerk_id, verifiedEmails.map((email) => email.toLowerCase())],
+    [
+      clerk_id,
+      verifiedEmails.map((email) => email.toLowerCase()),
+      profile.first_name.slice(0, 50),
+      profile.last_name.slice(0, 50),
+    ],
   );
   return result.rows[0];
 }

@@ -140,6 +140,8 @@ export default function Users() {
             {users.isPending && <LoadingRow colSpan={COLUMNS} label="Loading users…" />}
             {users.isError && <ErrorRow colSpan={COLUMNS} error={users.error} onRetry={() => void users.refetch()} />}
             {visible.map((user) => {
+              // An invite from ADMIN_EMAIL has no name until its first sign-in.
+              const name = fullName(user).trim() || user.email;
               const status = ACCOUNT_STATUS[user.status];
               const self = user.clerk_id === me.data?.clerk_id;
               const deactivated = user.status === "deactivated";
@@ -150,11 +152,11 @@ export default function Users() {
                   <Td>
                     <div className="flex items-center gap-3">
                       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-(--admin-gold)/20 text-xs font-semibold">
-                        {initials(fullName(user))}
+                        {initials(name)}
                       </span>
                       <div>
                         <p className="font-medium">
-                          {fullName(user)}
+                          {name}
                           {self && <span className="ml-1.5 text-xs font-normal text-(--admin-muted)">(you)</span>}
                         </p>
                         <p className="text-xs text-(--admin-muted)">{user.email}</p>
