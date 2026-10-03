@@ -264,6 +264,11 @@ export async function restoreBackup(
       );
     }
 
+    // The one-row settings tables must have their row, even when restoring
+    // a snapshot that somehow lacks it; the app reads them on every order.
+    await client.query(`INSERT INTO system_settings (settings_id) VALUES (1) ON CONFLICT DO NOTHING`);
+    await client.query(`INSERT INTO payment_settings (settings_id) VALUES (1) ON CONFLICT DO NOTHING`);
+
     // Serial columns carry on after the highest restored id.
     const serials = await client.query(
       `
