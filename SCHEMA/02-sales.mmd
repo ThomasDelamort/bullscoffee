@@ -1,0 +1,169 @@
+erDiagram
+    direction LR
+
+%% Bull's Coffee ER diagram, part 2 of 6: sales
+%% A breakdown of ERD.mmd. Source of truth: backend/init.sql.
+%% Update the SCHEMA/ files whenever ERD.mmd changes.
+
+%% Shows every relationship that touches a sales table. Sales tables have all
+%% their columns. Tables from other modules show only their key columns; the file
+%% named on their PK has the full table. Notation and colors are as in ERD.mmd.
+%% ON DELETE is NO ACTION (a referenced row can't be deleted) unless the column
+%% says CASCADE or SET NULL.
+
+%% 10 relationships. orders is the hub: a child of customers, employees and
+%% discounts, and the parent of order_items, payments, feedback and support_tickets.
+%% customers is never a child and has 3 children: orders, feedback, support_tickets.
+
+    classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef salesBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
+    classDef menuBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
+    classDef systemBox fill:#f8d7da,stroke:#c62828,color:#1a1a1a
+
+%% ============================ SALES ============================
+
+    customers {
+        serial customer_id PK
+        varchar(255) clerk_id UK "NOT NULL"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(50) university_id UK "NULLABLE"
+        varchar(255) customer_email UK "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) profile_picture "NULLABLE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% customer_id is NULL for a walk-in. employee_id is NULL for a kiosk order until
+%% someone at the counter completes or cancels it. discount_id is the preset that
+%% produced discount_amount, NULL for none or a custom amount.
+    orders {
+        serial order_id PK
+        int customer_id FK "NULLABLE"
+        int employee_id FK "NULLABLE"
+        timestamptz ordered_at "NOT NULL, DEFAULT now()"
+        decimal_10_2 discount_amount "NOT NULL, DEFAULT 0.00, CHECK (discount_amount >= 0)"
+        decimal_10_2 total_amount "NOT NULL, DEFAULT 0.00, CHECK (total_amount >= 0)"
+        order_status order_status "NOT NULL, DEFAULT 'pending' (pending / completed / cancelled)"
+        order_source order_source "NOT NULL, DEFAULT 'counter' (counter / kiosk)"
+        int discount_id FK "NULLABLE"
+    }
+
+%% INDEX order_items_order_id_idx (order_id)
+    order_items {
+        serial order_item_id PK
+        int order_id FK "NOT NULL, ON DELETE CASCADE"
+        int product_id FK "NOT NULL"
+        int quantity "NOT NULL, CHECK (quantity > 0)"
+        item_size size "NULLABLE (tall / grade / venti)"
+        decimal_10_2 selling_price "NOT NULL, CHECK (selling_price >= 0)"
+        text special_instructions "NULLABLE"
+    }
+
+%% INDEX payments_order_id_idx (order_id)
+%% paymongo_payment_id is PayMongo's pay_... id for an online payment, NULL for
+%% one taken at the counter. UNIQUE, so a webhook PayMongo retries is recorded once.
+    payments {
+        serial payment_id PK
+        int order_id FK "NOT NULL"
+        decimal_10_2 amount_paid "NOT NULL, CHECK (amount_paid > 0)"
+        payment_method payment_method "NOT NULL (cash / card / e_wallet)"
+        timestamptz paid_at "NOT NULL, DEFAULT now()"
+        varchar(64) paymongo_payment_id UK "NULLABLE"
+    }
+
+%% A discount that has been used is switched off (is_active), not deleted, so
+%% past orders keep pointing at it.
+    discounts {
+        serial discount_id PK
+        varchar(100) discount_name UK "NOT NULL"
+        discount_kind kind "NOT NULL (percent / fixed)"
+        decimal_10_2 value "NOT NULL, CHECK (value > 0)"
+        discount_eligibility eligibility "NOT NULL, DEFAULT 'none' (none / university_id / government_id)"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
+    feedback {
+        serial feedback_id PK
+        int customer_id FK "NULLABLE"
+        int order_id FK "NULLABLE"
+        int rating "NOT NULL, CHECK (rating >= 1 AND rating <= 5)"
+        text comment "NOT NULL"
+        feedback_status status "NOT NULL, DEFAULT 'new' (new / reviewed)"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% ======================= OTHER MODULES =========================
+
+    employees {
+        serial employee_id PK "full table in 01-staff.mmd"
+    }
+
+    products {
+        serial product_id PK "full table in 03-menu.mmd"
+    }
+
+    support_tickets {
+        serial ticket_id PK "full table in 06-system.mmd"
+        int customer_id FK "NULLABLE, ON DELETE SET NULL"
+        int order_id FK "NULLABLE, ON DELETE SET NULL"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+
+%% customers 0..1 : 0..N orders. customer_id nullable, NO ACTION.
+%% NULL for a walk-in.
+    customers |o..o{ orders : "places"
+
+%% employees 0..1 : 0..N orders. employee_id nullable, NO ACTION.
+%% The cashier who handled the order; NULL for a kiosk order until someone at the
+%% counter completes or cancels it.
+    employees |o..o{ orders : "handles"
+
+%% discounts 0..1 : 0..N orders. discount_id nullable, NO ACTION.
+%% The preset that produced discount_amount; NULL for no discount or a custom
+%% amount. A used discount can't be deleted, so it's switched off with is_active.
+    discounts |o..o{ orders : "applied to"
+
+%% orders 1 : 0..N order_items. order_id NOT NULL, ON DELETE CASCADE.
+%% An order's line items are deleted with it.
+    orders ||..o{ order_items : "contains"
+
+%% products 1 : 0..N order_items. product_id NOT NULL, NO ACTION.
+%% A product that has been sold can't be deleted; is_available hides it instead.
+%% selling_price freezes the price, size upcharge included, at the time of sale.
+%% With the line above, order_items is the many-to-many between orders and
+%% products. It has its own serial PK, so one order can list the same product
+%% twice with a different size or special_instructions.
+    products ||..o{ order_items : "ordered as"
+
+%% orders 1 : 0..N payments. order_id NOT NULL, NO ACTION.
+%% An order can take several payments. Because this is NO ACTION, an order with a
+%% payment can't be deleted, even though its order_items would cascade.
+    orders ||..o{ payments : "paid by"
+
+%% customers 0..1 : 0..N feedback. customer_id nullable, NO ACTION.
+%% Nullable, so feedback can be anonymous.
+    customers |o..o{ feedback : "leaves"
+
+%% orders 0..1 : 0..N feedback. order_id nullable, NO ACTION.
+%% NULL for feedback that isn't about one order.
+    orders |o..o{ feedback : "reviewed in"
+
+%% customers 0..1 : 0..N support_tickets. customer_id nullable, ON DELETE SET NULL.
+%% Set when the reporter was signed in.
+    customers |o..o{ support_tickets : "files"
+
+%% orders 0..1 : 0..N support_tickets. order_id nullable, ON DELETE SET NULL.
+%% Set when the reporter named an order that exists.
+    orders |o..o{ support_tickets : "concerns"
+
+    customers:::salesBox
+    orders:::salesBox
+    order_items:::salesBox
+    payments:::salesBox
+    discounts:::salesBox
+    feedback:::salesBox
+    employees:::staffBox
+    products:::menuBox
+    support_tickets:::systemBox

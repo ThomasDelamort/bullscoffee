@@ -1,0 +1,87 @@
+erDiagram
+    direction LR
+
+%% Bull's Coffee ER diagram, part 3 of 6: menu
+%% A breakdown of ERD.mmd. Source of truth: backend/init.sql.
+%% Update the SCHEMA/ files whenever ERD.mmd changes.
+
+%% Shows every relationship that touches a menu table. Menu tables have all
+%% their columns. Tables from other modules show only their key columns; the file
+%% named on their PK has the full table. Notation and colors are as in ERD.mmd.
+%% ON DELETE is NO ACTION (a referenced row can't be deleted) unless the column
+%% says CASCADE or SET NULL.
+
+%% 4 relationships. categories -> products -> order_items is the path from the
+%% menu to sales. product_ingredients is the many-to-many between products and
+%% ingredients (the recipe), and both of its relationships are identifying.
+
+    classDef salesBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
+    classDef menuBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
+    classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+
+%% ============================ MENU =============================
+
+    categories {
+        serial category_id PK
+        varchar(50) category_name UK "NOT NULL"
+        varchar(255) image_url "NULLABLE"
+        varchar(255) category_banner "NULLABLE"
+    }
+
+%% price is the tall price; the grade / venti upcharges are applied in
+%% backend/src/lib/pricing.ts and frozen into order_items.selling_price.
+    products {
+        serial product_id PK
+        int category_id FK "NOT NULL"
+        varchar(100) product_name UK "NOT NULL"
+        text description "NULLABLE"
+        varchar(255) image_url "NULLABLE"
+        decimal_10_2 price "NOT NULL, CHECK (price >= 0)"
+        boolean is_available "NOT NULL, DEFAULT TRUE"
+        boolean has_sizes "NOT NULL, DEFAULT FALSE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% A product's recipe: how much of each ingredient one unit uses.
+    product_ingredients {
+        int product_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        int ingredient_id PK, FK "NOT NULL"
+        decimal_10_2 quantity_required "NOT NULL, CHECK (quantity_required > 0)"
+    }
+
+%% ======================= OTHER MODULES =========================
+
+    ingredients {
+        serial ingredient_id PK "full table in 04-inventory.mmd"
+    }
+
+    order_items {
+        serial order_item_id PK "full table in 02-sales.mmd"
+        int product_id FK "NOT NULL"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+
+%% categories 1 : 0..N products. category_id NOT NULL, NO ACTION.
+%% Every product is in exactly one category. A category that still has products
+%% can't be deleted.
+    categories ||..o{ products : "groups"
+
+%% products 1 : 0..N product_ingredients. Identifying, ON DELETE CASCADE.
+%% Deleting a product deletes its recipe.
+    products ||--o{ product_ingredients : "made with"
+
+%% ingredients 1 : 0..N product_ingredients. Identifying, NO ACTION.
+%% An ingredient used in any recipe can't be deleted. The PK
+%% (product_id, ingredient_id) lists each ingredient once per product.
+    ingredients ||--o{ product_ingredients : "used in"
+
+%% products 1 : 0..N order_items. product_id NOT NULL, NO ACTION.
+%% A product that has been sold can't be deleted; is_available hides it instead.
+    products ||..o{ order_items : "ordered as"
+
+    categories:::menuBox
+    products:::menuBox
+    product_ingredients:::menuBox
+    ingredients:::inventoryBox
+    order_items:::salesBox

@@ -1,0 +1,133 @@
+erDiagram
+    direction LR
+
+%% Bull's Coffee ER diagram, part 1 of 6: staff
+%% A breakdown of ERD.mmd. Source of truth: backend/init.sql.
+%% Update the SCHEMA/ files whenever ERD.mmd changes.
+
+%% Shows every relationship that touches a staff table. Staff tables have all
+%% their columns. Tables from other modules show only their key columns; the file
+%% named on their PK has the full table. Notation and colors are as in ERD.mmd.
+%% ON DELETE is NO ACTION (a referenced row can't be deleted) unless the column
+%% says CASCADE or SET NULL.
+
+%% 7 relationships, all with employees as the parent; employees is never a child.
+%% 4 are NO ACTION (attendance_logs, orders, stock_movements, deliveries), so an
+%% employee with any of those rows can't be deleted and is set to
+%% employee_status = 'inactive' instead. The other 3 are SET NULL.
+
+    classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef salesBox fill:#dbe9fa,stroke:#1565c0,color:#1a1a1a
+    classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+    classDef supplyBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+    classDef systemBox fill:#f8d7da,stroke:#c62828,color:#1a1a1a
+
+%% ============================ STAFF ============================
+
+%% Cashiers, managers and admins share one table. An invited employee holds
+%% clerk_id = 'invite_<uuid>' until their first sign-in with the invited,
+%% verified email links the row to their Clerk account.
+    employees {
+        serial employee_id PK
+        varchar(255) clerk_id UK "NOT NULL"
+        varchar(50) first_name "NOT NULL"
+        varchar(50) last_name "NOT NULL"
+        varchar(255) employee_email UK "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) profile_picture "NULLABLE"
+        employee_status employee_status "NOT NULL, DEFAULT 'active' (active / inactive)"
+        employee_role employee_role "NOT NULL, DEFAULT 'cashier' (cashier / manager / admin)"
+        varchar(50) work_schedule "NOT NULL"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+    attendance_logs {
+        serial log_id PK
+        int employee_id FK "NOT NULL"
+        timestamptz time_in "NOT NULL"
+        timestamptz time_out "NULLABLE, CHECK (time_out IS NULL OR time_out > time_in)"
+    }
+
+%% Which permissions managers and cashiers hold. Admins hold every permission and
+%% are never stored. Seeded at startup by seedRolePermissions(); the catalogue is
+%% backend/src/lib/permissions.ts. No FK: employees match it by employee_role, so
+%% no line is drawn.
+    role_permissions {
+        employee_role role PK "NOT NULL, CHECK (role <> 'admin') (cashier / manager)"
+        varchar(50) permission PK "NOT NULL"
+    }
+
+%% ======================= OTHER MODULES =========================
+
+    orders {
+        serial order_id PK "full table in 02-sales.mmd"
+        int employee_id FK "NULLABLE"
+    }
+
+    stock_movements {
+        serial movement_id PK "full table in 04-inventory.mmd"
+        int employee_id FK "NOT NULL"
+    }
+
+    deliveries {
+        serial delivery_id PK "full table in 05-supply.mmd"
+        int employee_id FK "NOT NULL"
+    }
+
+    system_settings {
+        int settings_id PK "full table in 06-system.mmd"
+        int updated_by FK "NULLABLE, ON DELETE SET NULL"
+    }
+
+    documents {
+        serial document_id PK "full table in 06-system.mmd"
+        int uploaded_by FK "NULLABLE, ON DELETE SET NULL"
+    }
+
+    ticket_messages {
+        serial message_id PK "full table in 06-system.mmd"
+        int author_employee_id FK "NULLABLE, ON DELETE SET NULL"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+
+%% employees 1 : 0..N attendance_logs. employee_id NOT NULL, NO ACTION.
+%% Every clock-in belongs to one employee; time_out stays NULL while they're clocked in.
+    employees ||..o{ attendance_logs : "clocks in via"
+
+%% employees 0..1 : 0..N orders. orders.employee_id nullable, NO ACTION.
+%% The cashier who handled the order; NULL for a kiosk order until someone at the
+%% counter completes or cancels it.
+    employees |o..o{ orders : "handles"
+
+%% employees 1 : 0..N stock_movements. employee_id NOT NULL, NO ACTION.
+%% Every stock change is recorded by a staff member.
+    employees ||..o{ stock_movements : "records"
+
+%% employees 1 : 0..N deliveries. employee_id NOT NULL, NO ACTION.
+%% The staff member who received the delivery.
+    employees ||..o{ deliveries : "receives"
+
+%% employees 0..1 : 0..N system_settings. updated_by nullable, ON DELETE SET NULL.
+%% The last staff member to change the settings. system_settings holds a single
+%% row, so in practice this is 0..1 : 0..1.
+    employees |o..o{ system_settings : "last updated"
+
+%% employees 0..1 : 0..N documents. uploaded_by nullable, ON DELETE SET NULL.
+%% The document's record stays when its uploader is removed.
+    employees |o..o{ documents : "uploads"
+
+%% employees 0..1 : 0..N ticket_messages. author_employee_id nullable, ON DELETE SET NULL.
+%% author_name is copied onto each message, so a reply keeps its author's name
+%% after the employee row is gone.
+    employees |o..o{ ticket_messages : "writes"
+
+    employees:::staffBox
+    attendance_logs:::staffBox
+    role_permissions:::staffBox
+    orders:::salesBox
+    stock_movements:::inventoryBox
+    deliveries:::supplyBox
+    system_settings:::systemBox
+    documents:::systemBox
+    ticket_messages:::systemBox

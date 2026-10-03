@@ -1,0 +1,98 @@
+erDiagram
+    direction LR
+
+%% Bull's Coffee ER diagram, part 4 of 6: inventory
+%% A breakdown of ERD.mmd. Source of truth: backend/init.sql.
+%% Update the SCHEMA/ files whenever ERD.mmd changes.
+
+%% Shows every relationship that touches an inventory table. Inventory tables have
+%% all their columns. Tables from other modules show only their key columns; the
+%% file named on their PK has the full table. Notation and colors are as in ERD.mmd.
+%% ON DELETE is NO ACTION (a referenced row can't be deleted) unless the column
+%% says CASCADE or SET NULL.
+
+%% 5 relationships. ingredients is never a child and has 4 children: one per
+%% module that uses stock (menu recipes, stock movements, supplier price lists,
+%% deliveries). Only supplier_ingredients cascades, so an ingredient that is in a
+%% recipe, a stock movement or a delivery can't be deleted and is retired with
+%% is_active instead.
+%% stock_movements doesn't reference the order or delivery behind a 'sale' or
+%% 'delivery' row; only the reason is stored.
+
+    classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef menuBox fill:#fff6c4,stroke:#f9a825,color:#1a1a1a
+    classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+    classDef supplyBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+
+%% ========================== INVENTORY ==========================
+
+    ingredients {
+        serial ingredient_id PK
+        varchar(100) ingredient_name UK "NOT NULL"
+        varchar(20) unit_of_measure "NOT NULL"
+        varchar(255) image_url "NULLABLE"
+        decimal_10_2 current_quantity "NOT NULL, DEFAULT 0.00, CHECK (current_quantity >= 0)"
+        decimal_10_2 minimum_stock_level "NOT NULL, DEFAULT 0.00, CHECK (minimum_stock_level >= 0)"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+    }
+
+%% Positive quantity_change = stock in, negative = stock out.
+    stock_movements {
+        serial movement_id PK
+        int ingredient_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
+        decimal_10_2 quantity_change "NOT NULL, CHECK (quantity_change <> 0)"
+        stock_movement_reason reason "NOT NULL (delivery / sale / waste / adjustment)"
+        timestamptz moved_at "NOT NULL, DEFAULT now()"
+    }
+
+%% ======================= OTHER MODULES =========================
+
+    employees {
+        serial employee_id PK "full table in 01-staff.mmd"
+    }
+
+    product_ingredients {
+        int product_id PK, FK "full table in 03-menu.mmd"
+        int ingredient_id PK, FK "NOT NULL"
+    }
+
+    supplier_ingredients {
+        int supplier_id PK, FK "full table in 05-supply.mmd"
+        int ingredient_id PK, FK "NOT NULL, ON DELETE CASCADE"
+    }
+
+    delivery_items {
+        int delivery_id PK, FK "full table in 05-supply.mmd"
+        int ingredient_id PK, FK "NOT NULL"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+
+%% ingredients 1 : 0..N stock_movements. ingredient_id NOT NULL, NO ACTION.
+%% The record of every stock change; ingredients.current_quantity is the running
+%% balance.
+    ingredients ||..o{ stock_movements : "moved by"
+
+%% employees 1 : 0..N stock_movements. employee_id NOT NULL, NO ACTION.
+%% Every stock change is recorded by a staff member.
+    employees ||..o{ stock_movements : "records"
+
+%% ingredients 1 : 0..N product_ingredients. Identifying, NO ACTION.
+%% An ingredient used in any recipe can't be deleted.
+    ingredients ||--o{ product_ingredients : "used in"
+
+%% ingredients 1 : 0..N supplier_ingredients. Identifying, ON DELETE CASCADE.
+%% Deleting an ingredient removes it from every supplier's price list.
+    ingredients ||--o{ supplier_ingredients : "sold by"
+
+%% ingredients 1 : 0..N delivery_items. Identifying, NO ACTION.
+%% An ingredient that has been delivered can't be deleted.
+    ingredients ||--o{ delivery_items : "received as"
+
+    ingredients:::inventoryBox
+    stock_movements:::inventoryBox
+    employees:::staffBox
+    product_ingredients:::menuBox
+    supplier_ingredients:::supplyBox
+    delivery_items:::supplyBox

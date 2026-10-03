@@ -1,0 +1,103 @@
+erDiagram
+    direction LR
+
+%% Bull's Coffee ER diagram, part 5 of 6: supply
+%% A breakdown of ERD.mmd. Source of truth: backend/init.sql.
+%% Update the SCHEMA/ files whenever ERD.mmd changes.
+
+%% Shows every relationship that touches a supply table. Supply tables have all
+%% their columns. Tables from other modules show only their key columns; the file
+%% named on their PK has the full table. Notation and colors are as in ERD.mmd.
+%% ON DELETE is NO ACTION (a referenced row can't be deleted) unless the column
+%% says CASCADE or SET NULL.
+
+%% 6 relationships, making two many-to-manys with ingredients:
+%% - suppliers <-> ingredients through supplier_ingredients: who sells what, at what price.
+%% - deliveries <-> ingredients through delivery_items: what actually arrived.
+%% delivery_items has no supplier_id, so nothing checks that a delivered
+%% ingredient is on that supplier's price list (supplier_ingredients).
+
+    classDef staffBox fill:#e6d9f7,stroke:#6a1b9a,color:#1a1a1a
+    classDef inventoryBox fill:#d4f5d4,stroke:#2e7d32,color:#1a1a1a
+    classDef supplyBox fill:#ffe0b2,stroke:#e65100,color:#1a1a1a
+
+%% =========================== SUPPLY ============================
+
+    suppliers {
+        serial supplier_id PK
+        varchar(100) supplier_name UK "NOT NULL"
+        varchar(50) contact_person "NULLABLE"
+        varchar(255) supplier_email "NOT NULL"
+        varchar(20) contact_number "NULLABLE"
+        varchar(255) image_url "NULLABLE"
+        varchar(150) supplier_address "NULLABLE"
+        boolean is_active "NOT NULL, DEFAULT TRUE"
+        timestamptz created_at "NOT NULL, DEFAULT now()"
+    }
+
+%% A supplier's price list.
+    supplier_ingredients {
+        int supplier_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        int ingredient_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        decimal_10_2 unit_price "NOT NULL, CHECK (unit_price >= 0)"
+    }
+
+    deliveries {
+        serial delivery_id PK
+        int supplier_id FK "NOT NULL"
+        int employee_id FK "NOT NULL"
+        date delivery_date "NOT NULL"
+    }
+
+    delivery_items {
+        int delivery_id PK, FK "NOT NULL, ON DELETE CASCADE"
+        int ingredient_id PK, FK "NOT NULL"
+        decimal_10_2 quantity_received "NOT NULL, CHECK (quantity_received > 0)"
+        decimal_10_2 unit_cost "NOT NULL, CHECK (unit_cost >= 0)"
+    }
+
+%% ======================= OTHER MODULES =========================
+
+    ingredients {
+        serial ingredient_id PK "full table in 04-inventory.mmd"
+    }
+
+    employees {
+        serial employee_id PK "full table in 01-staff.mmd"
+    }
+
+%% ======================== RELATIONSHIPS ========================
+
+%% suppliers 1 : 0..N supplier_ingredients. Identifying, ON DELETE CASCADE.
+%% Deleting a supplier deletes its price list.
+    suppliers ||--o{ supplier_ingredients : "sells"
+
+%% ingredients 1 : 0..N supplier_ingredients. Identifying, ON DELETE CASCADE.
+%% The only junction table that cascades from both sides. The PK
+%% (supplier_id, ingredient_id) allows one unit_price per supplier per ingredient.
+    ingredients ||--o{ supplier_ingredients : "sold by"
+
+%% suppliers 1 : 0..N deliveries. supplier_id NOT NULL, NO ACTION.
+%% Every delivery comes from one supplier. A supplier with deliveries can't be
+%% deleted, so it's retired with is_active.
+    suppliers ||..o{ deliveries : "delivers"
+
+%% employees 1 : 0..N deliveries. employee_id NOT NULL, NO ACTION.
+%% The staff member who received the delivery.
+    employees ||..o{ deliveries : "receives"
+
+%% deliveries 1 : 0..N delivery_items. Identifying, ON DELETE CASCADE.
+%% A delivery's items are deleted with it.
+    deliveries ||--o{ delivery_items : "contains"
+
+%% ingredients 1 : 0..N delivery_items. Identifying, NO ACTION.
+%% An ingredient that has been delivered can't be deleted. The PK
+%% (delivery_id, ingredient_id) lists each ingredient once per delivery.
+    ingredients ||--o{ delivery_items : "received as"
+
+    suppliers:::supplyBox
+    supplier_ingredients:::supplyBox
+    deliveries:::supplyBox
+    delivery_items:::supplyBox
+    ingredients:::inventoryBox
+    employees:::staffBox
