@@ -1,59 +1,48 @@
-# Admin Use Cases — Bull's Coffee
+# Admin & management use cases
 
-Grounded in [backend/init.sql](backend/init.sql) (schema) and [TODO.md](TODO.md) (roadmap).
+What the back office can do, and where. Grounded in [backend/init.sql](backend/init.sql) (schema) and the routes under [backend/src/routes](backend/src/routes).
 
 Status tags: ✅ done, 🟡 partial, ❌ not built yet.
 
-## Staff management
+Two consoles share one API:
+- **Manager console** (`/manager`): runs the shop. Every route it calls checks a permission from the Roles & Permissions matrix (`requirePermission`).
+- **Admin console** (`/admin`): runs the system. Every `/api/admin/*` route needs an active admin (`requireAdmin`).
 
-- ✅ Create / view / list / delete employees
-- ❌ Update an employee's role, status, or work schedule (e.g. promote cashier → manager, deactivate on termination)
-- ❌ View/manage attendance (`attendance_logs`) — clock-in/out, hours worked
-- ❌ Restrict staff-management actions to managers only via `requireManager` (middleware already written in `auth.middleware.ts`, just unused)
+## Access
+- ✅ Admin console gate: only an active admin can open `/admin` ([AdminGate.tsx](frontend/src/Admin/layout/AdminGate.tsx))
+- ✅ First admin: set `ADMIN_EMAIL` in `backend/.env`. While no admin is active, that address is made one at startup.
+- ✅ Invite staff (Clerk invitation); the first sign-in with the invited, verified email links the account
+- ✅ Users: list employees and customers with their Clerk state, change role or schedule, lock / unlock, deactivate / reactivate, sign out everywhere
+- ✅ Guards: an admin can't demote, lock or deactivate themselves, and the last active admin can't be demoted or deactivated
+- ✅ Roles & Permissions: a manager/cashier permission matrix, enforced on every request ([lib/permissions.ts](backend/src/lib/permissions.ts) is the catalogue)
 
-## Customer management
+## Staff (Manager console)
+- ✅ Add and edit cashiers, set work schedules, activate / deactivate
+- ✅ Attendance logs, with clock-out corrections
 
-- ✅ Create / view / list / delete customers
-- ❌ Update customer details (contact info, `university_id` for student discount)
-- ❌ Look up a customer's order history (depends on orders API)
+## Menu & pricing (Manager console)
+- ✅ Categories, products (price, image, availability, sizes) and recipes (`product_ingredients`)
+- ✅ Discounts (percent / fixed, eligibility checks)
 
-## Menu management
+## Inventory & supply (Manager console)
+- ✅ Ingredients, stock movements (waste, adjustments; sales and deliveries write their own)
+- ✅ Suppliers, price lists and deliveries
 
-- ❌ CRUD for `categories`
-- ❌ CRUD for `products` — name, price, description, image, availability toggle
-- ❌ Manage `product_ingredients` (recipe/BOM: which ingredients + quantities a product consumes)
+## Orders & reports
+- ✅ POS (`/pos`) and kiosk (`/kiosk`) ordering; counter and PayMongo payments
+- ✅ Orders list and detail, complete / cancel
+- ✅ Daily / monthly sales reports and CSV export
+- ❌ Customer feedback: the Manager page exists, but no `/api/feedback` route serves it yet
 
-> Core gap per `TODO.md` — 0% built, blocks the real menu page.
+## System (Admin console)
+- ✅ Activity log and audit trail: sign-ins and changes; suspicious events (paid cancellations, full-value discounts, new admins, maintenance on, off-hours exports, restores) are flagged until reviewed
+- ✅ Support tickets from the storefront Contact form; replies are emailed to the reporter
+- ✅ System health: per-minute probes of the database, Clerk, S3, PayMongo and email, 30-day uptime, response times and server resources
+- ✅ Payment gateway: which PayMongo methods checkout offers, connection test
+- ✅ Email notification templates (order placed, ready, cancelled, payment received) through Resend; optional (`RESEND_API_KEY`, `NOTIFY_FROM`)
+- ✅ Settings: store name, support email, kiosk ordering on/off, maintenance mode. Sign-in security is managed in Clerk.
+- ✅ Backup & restore: gzipped JSON snapshots in private S3, on a schedule and on demand; restore in one transaction
+- ✅ Data export: orders, payments, customers, employees, inventory and the activity log, as CSV or JSON (kept 7 days)
+- ✅ Dashboard: built in the browser from the pages above; each card loads on its own
 
-## Inventory management
-
-- ❌ CRUD for `ingredients` (name, unit, current quantity, minimum stock level, active flag)
-- ❌ Record `stock_movements` (restock, sale-driven consumption, waste, manual adjustment)
-- ❌ Low-stock alerts/reporting based on `minimum_stock_level`
-
-## Supplier & procurement
-
-- ✅ CRUD for suppliers
-- ❌ Manage `supplier_ingredients` (which supplier provides which ingredient, at what price)
-- ❌ Record `deliveries` and `delivery_items` (receive stock, update inventory)
-
-## Sales / order oversight
-
-- ❌ View/list orders, filter by status (`pending` / `completed` / `cancelled`)
-- ❌ View order detail (`order_items`) and associated `payments`
-- ❌ Cancel or refund an order
-- ❌ Sales reporting (revenue by day/product/employee)
-
-## Dashboard / reporting
-
-- ❌ Manager dashboard aggregating staff records, inventory levels, sales overview
-- ❌ Analytics: top-selling products, revenue trends, discount usage
-
-## Access control
-
-- ❌ Apply `requireManager` to gate all admin actions behind manager-role + active-status
-- ❌ Fix route-shadowing bug: `admin.route.ts` and `customer.route.ts` both claim `GET/DELETE /customers/:id` at `/api` (admin wins since it's mounted first in `server.ts`)
-
-## Suggested next step
-
-Per `TODO.md` phasing, menu management (categories/products) is the highest-value next admin use case — it unblocks the customer-facing menu page, currently a placeholder in [frontend/src/Home/Menu/Menu.tsx](frontend/src/Home/Menu/Menu.tsx).
+The plan these were built from is [AdminExecution.md](AdminExecution.md).

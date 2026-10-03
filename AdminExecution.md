@@ -9,7 +9,7 @@ This plan connects every page to real data, using the pattern Payment Gateway al
 
 The outcome is that `mock.ts` is deleted.
 
-It supersedes [AdminOdyssey.md](AdminOdyssey.md), which was never carried out. Its decisions are kept: remove Branches, email-only notifications, live System Health with history, and a Dashboard built in the browser.
+It supersedes AdminOdyssey.md (deleted in Phase 10), which was never carried out. Its decisions are kept: remove Branches, email-only notifications, live System Health with history, and a Dashboard built in the browser.
 
 **Decisions locked in with you:**
 
@@ -513,6 +513,20 @@ Start only when Phases 0–10 have landed: the 11 new tables exist in `init.sql`
 - Commit on its own: `docs: sync REVISION.mmd with the admin schema`.
 
 ---
+
+## As built: where the work departed from this plan
+Built on the `hammer` branch, one commit per phase. These are the deliberate differences:
+
+- **Tables a restore keeps hold no foreign keys into restored tables.** A restore truncates `employees`, `orders` and the rest. With `CASCADE` that would empty `activity_logs` too, and without it the truncate fails. So `activity_logs.flag_reviewed_by`, `backups.created_by_name` and `export_jobs.requested_by_name` store names, and `notification_log.template_id`/`order_id` are plain values.
+- **`ADMIN_EMAIL` bootstraps the first admin.** The gate would otherwise lock everyone out of a database with no admin, which is every database today. While no admin is active, startup promotes that employee or adds an invite for that address.
+- **The permission seed runs from `lib/permissions.ts` at startup, not from `init.sql`.** The catalogue stays the single source of truth. A marker row in a new `app_migrations` table records that it ran, so an admin who unticks every box doesn't get the defaults back. That table is the 12th new one.
+- **`health_checks.state`** (`operational`, `degraded`, `down`, `not_configured`) replaces `ok BOOL`, so a slow but working service doesn't count against uptime.
+- **`attendance_logs` is in `BACKUP_TABLES`.** The plan's list missed it.
+- **`usePublicSettings()` lives in `src/lib/`**, because the kiosk, the storefront banner, the Contact page and the footer all use it.
+- **Weekly backups run on Sundays**, when the store is closed. Restores run inside the request, in one transaction.
+- **Users:** someone who is both an employee and a customer is listed once, as the employee, since it's one Clerk account. Rows are keyed by kind and id.
+- **Additions:** the Contact form takes an optional order number. The Notifications page shows recent sends, which uses `GET /log`. Promoting someone to admin asks for confirmation first.
+- **`mock.ts` was deleted in Phase 9**, when its last reader went.
 
 ## Order of work and commits
 Phase 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11, **one commit per phase**. CI (`backend: npm run build`, `frontend: npm run lint && npm run build`) passes after each.

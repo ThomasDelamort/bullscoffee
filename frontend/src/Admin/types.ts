@@ -1,6 +1,6 @@
 /**
- * Shapes the admin screens render. They mirror what the backend will return,
- * but for now everything is fed from ./data/mock.ts.
+ * Shapes the admin screens render: what the /api/admin routes (and
+ * /manager/me) return. The hooks that fetch them are in ./api.
  */
 
 export type StaffRole = "admin" | "manager" | "cashier";
